@@ -1,5 +1,6 @@
 {
   "hosting": {
+    "site": "despacho-ordenes",
     "public": ".",
     "ignore": [
       "firebase.json",
