@@ -799,7 +799,7 @@ function fileToBase64(file) {
 }
 
 async function aiExtractProducts(b64, mime) {
-  const res = await fetch('https://parsedocument-aqd2rvesuq-uc.a.run.app', {
+  const res = await fetch('https://us-central1-despacho-ordenes.cloudfunctions.net/parseDocument', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ base64Data: b64, mediaType: mime })
