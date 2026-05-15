@@ -811,20 +811,50 @@ window.showUsersModal = async () => {
          style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-family:var(--mono);font-size:.73rem;outline:none"
          onkeydown="if(event.key==='Enter')window._addUser()"/>
        <button class="btn btn-dark" onclick="window._addUser()" style="flex-shrink:0">+ Agregar</button>
-     </div>`,
+     </div>
+     <div id="user-msg" style="display:none;font-size:.68rem;margin-top:.5rem;padding:6px 10px;border-radius:var(--r);border:1px solid"></div>`,
     [{ label: 'Cerrar', cls: 'btn-outline', fn: 'closeModal(event)' }]
   );
+
+  function showUserMsg(text, type) {
+    const el = $('user-msg');
+    if (!el) return;
+    el.textContent = text;
+    el.style.display = 'block';
+    if (type === 'ok') {
+      el.style.background = 'var(--done-bg)';
+      el.style.color = 'var(--done-tx)';
+      el.style.borderColor = 'var(--done-bd)';
+    } else {
+      el.style.background = 'var(--err-bg)';
+      el.style.color = 'var(--err-tx)';
+      el.style.borderColor = 'var(--err-bd)';
+    }
+    setTimeout(() => { if (el) el.style.display = 'none'; }, 3000);
+  }
 
   window._addUser = async () => {
     const name = $('new-user-inp')?.value.trim();
     if (!name) return;
     const ms = await loadUsers();
-    if (!ms.includes(name)) {
-      ms.push(name);
-      await saveUsersRemote(ms);
+    if (ms.includes(name)) {
+      showUserMsg(`"${name}" ya existe en el equipo.`, 'err');
+      return;
     }
-    closeModal();
-    showUsersModal();
+    ms.push(name);
+    await saveUsersRemote(ms);
+    $('new-user-inp').value = '';
+    // Refresh user list in modal without closing
+    const wrap = $('users-list-wrap');
+    if (wrap) {
+      wrap.innerHTML = ms.map((m, i) => `
+        <div class="user-row">
+          <span class="user-name">${m}</span>
+          ${m === currentUser ? '<span class="user-me">Tú</span>' : ''}
+          <button class="btn btn-danger" style="font-size:.6rem;padding:3px 8px" onclick="window._removeUser(${i})">✕</button>
+        </div>`).join('');
+    }
+    showUserMsg(`✓ "${name}" agregado al equipo.`, 'ok');
   };
 
   window._removeUser = async (idx) => {
