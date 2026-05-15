@@ -646,7 +646,7 @@ window.connectFirebase = async () => {
       currentUser = setupName;
       localStorage.setItem(USER_KEY, currentUser);
     }
-    try { await window.storage.set(CFG_KEY, JSON.stringify(cfg)); } catch{}
+    try { localStorage.setItem(CFG_KEY, JSON.stringify(cfg)); } catch{}
     if (!currentUser) {
       showNameModal(() => goHome());
     } else {
@@ -785,6 +785,12 @@ function localSet(list) {
   try { localStorage.setItem(LOCAL_KEY, JSON.stringify(list)); } catch{}
 }
 
+function withTimeout(promise, ms, msg) {
+  const t = new Promise((_,rej) => setTimeout(() =>
+    rej(new Error(msg || `Tiempo de espera agotado (${ms/1000}s). Verifica tu conexión.`)), ms));
+  return Promise.race([promise, t]);
+}
+
 async function dbSave(data) {
   if (isLocal) {
     const list = localGet();
@@ -793,7 +799,11 @@ async function dbSave(data) {
     localSet(list);
     return id;
   }
-  const ref = await fbMod.addDoc(fbMod.collection(db,'despachos'), data);
+  const ref = await withTimeout(
+    fbMod.addDoc(fbMod.collection(db,'despachos'), data),
+    15000,
+    'No se pudo guardar. Verifica tu conexión e intenta de nuevo.'
+  );
   return ref.id;
 }
 
@@ -804,7 +814,10 @@ async function dbUpdate(id, data) {
     if (i >= 0) { list[i] = {...list[i], ...data}; localSet(list); }
     return;
   }
-  await fbMod.updateDoc(fbMod.doc(db,'despachos',id), data);
+  await withTimeout(
+    fbMod.updateDoc(fbMod.doc(db,'despachos',id), data),
+    10000
+  );
 }
 
 async function dbDelete(id) {
@@ -1046,15 +1059,27 @@ function fileToBase64(file) {
 }
 
 async function aiExtractProducts(b64, mime) {
-  const res = await fetch('https://us-central1-despacho-ordenes.cloudfunctions.net/parseDocument', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ base64Data: b64, mediaType: mime })
-  });
-  if (!res.ok) throw new Error(`Error (${res.status})`);
-  const data = await res.json();
-  if (data.error) throw new Error(data.error);
-  return data.products;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 45000); // 45s timeout
+  try {
+    const res = await fetch('https://us-central1-despacho-ordenes.cloudfunctions.net/parseDocument', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ base64Data: b64, mediaType: mime }),
+      signal: controller.signal
+    });
+    clearTimeout(timer);
+    if (!res.ok) throw new Error(`Error del servidor (${res.status}). Intenta de nuevo.`);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    return data.products;
+  } catch(e) {
+    clearTimeout(timer);
+    if (e.name === 'AbortError') {
+      throw new Error('Tiempo de espera agotado (45s). Verifica tu conexión o intenta con una imagen más pequeña.');
+    }
+    throw e;
+  }
 }
 
 function renderReview() {
@@ -1403,9 +1428,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Try to restore Firebase config
   try {
-    const stored = await window.storage.get(CFG_KEY);
-    if (stored?.value) {
-      const cfg = JSON.parse(stored.value);
+    const raw = localStorage.getItem(CFG_KEY);
+    if (raw) {
+      const cfg = JSON.parse(raw);
       const ok = await initFirebase(cfg);
       if (ok) {
         if (!currentUser) {
