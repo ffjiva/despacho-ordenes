@@ -608,9 +608,11 @@ function updRvCount() {
 ═══════════════════════════════════════ */
 async function initFirebase(cfg) {
   try {
-    const { initializeApp, getApps, getApp } = await import('https://esm.sh/firebase@10.12.0/app');
+    const { initializeApp, getApps } = await import('https://esm.sh/firebase@10.12.0/app');
     fbMod = await import('https://esm.sh/firebase@10.12.0/firestore');
-    const app = getApps().length ? getApp() : initializeApp(cfg);
+    const APP_NAME = 'despacho-main';
+    const existing = getApps().find(a => a.name === APP_NAME);
+    const app = existing || initializeApp(cfg, APP_NAME);
     db = fbMod.getFirestore(app);
     await fbMod.getDocs(fbMod.query(fbMod.collection(db,'despachos'), fbMod.limit(1)));
     return true;
