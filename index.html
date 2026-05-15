@@ -6,7 +6,6 @@
 <title>Despacho Manager</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap');
-
 :root {
   --bg: #f2f0eb;
   --surface: #ffffff;
@@ -35,9 +34,7 @@
   --r: 6px;
   --r2: 10px;
 }
-
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-
 html, body {
   font-family: var(--mono);
   background: var(--bg);
@@ -101,10 +98,9 @@ html, body {
 .setup-h { font-size: 1.05rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; margin-bottom: .3rem; }
 .setup-sub { font-size: .72rem; color: var(--text2); line-height: 1.7; margin-bottom: 1.75rem; }
 .setup-sub code { background: var(--surface); border: 1px solid var(--border); padding: 1px 5px; border-radius: 3px; font-family: var(--mono); }
-
 .fld { margin-bottom: .9rem; }
 .fld label { display: block; font-size: .6rem; font-weight: 700; letter-spacing: .1em; color: var(--muted); text-transform: uppercase; margin-bottom: 5px; }
-.fld input, .fld textarea {
+.fld input, .fld textarea, .fld select {
   width: 100%; padding: 10px 12px;
   border: 1px solid var(--border); border-radius: var(--r);
   font-family: var(--mono); font-size: .73rem;
@@ -112,7 +108,7 @@ html, body {
   transition: border-color .15s;
   outline: none;
 }
-.fld input:focus, .fld textarea:focus { border-color: var(--accent); }
+.fld input:focus, .fld textarea:focus, .fld select:focus { border-color: var(--accent); }
 .fld textarea { min-height: 140px; resize: vertical; }
 .setup-divider { text-align: center; color: var(--muted); font-size: .65rem; letter-spacing: .08em; text-transform: uppercase; margin: 1rem 0; position: relative; }
 .setup-divider::before, .setup-divider::after { content:''; position:absolute; top:50%; width: calc(50% - 24px); height:1px; background:var(--border); }
@@ -122,27 +118,20 @@ html, body {
 .box { padding: 10px 12px; border-radius: var(--r); font-size: .72rem; line-height: 1.6; border: 1px solid; }
 .box-info { background: var(--info-bg); border-color: var(--info-bd); color: var(--info-tx); }
 .box-warn { background: var(--warn-bg); border-color: var(--warn-bd); color: var(--warn-tx); }
-.box-err  { background: var(--err-bg);  border-color: var(--err-bd);  color: var(--err-tx); }
-.box-ok   { background: var(--done-bg); border-color: var(--done-bd); color: var(--done-tx); }
+.box-err { background: var(--err-bg); border-color: var(--err-bd); color: var(--err-tx); }
+.box-ok { background: var(--done-bg); border-color: var(--done-bd); color: var(--done-tx); }
 
 /* ── HOME SCREEN ── */
 .home-header {
-  padding: .9rem 1rem .65rem;
+  padding: .7rem 1rem .6rem;
   display: flex; justify-content: space-between; align-items: center;
   border-bottom: 1px solid var(--border2);
   background: var(--surface);
 }
 .home-meta { font-size: .6rem; color: var(--muted); letter-spacing: .07em; text-transform: uppercase; }
-.sync-badge {
-  font-size: .6rem; padding: 2px 8px; border-radius: 20px;
-  background: var(--done-bg); color: var(--done-tx); border: 1px solid var(--done-bd);
-  letter-spacing: .04em;
-}
-.sync-badge.local { background: var(--warn-bg); color: var(--warn-tx); border-color: var(--warn-bd); }
-
+.home-user { font-size: .62rem; color: var(--text2); font-weight: 600; }
 .dash-list { padding: .75rem .875rem 1rem; max-width: 720px; margin: 0 auto; }
 .section-lbl { font-size: .58rem; font-weight: 700; letter-spacing: .12em; color: var(--muted); text-transform: uppercase; margin-bottom: .6rem; padding-bottom: .35rem; border-bottom: 1px solid var(--border2); }
-
 .dcard {
   background: var(--surface); border: 1px solid var(--border);
   border-radius: var(--r2); margin-bottom: 9px;
@@ -150,26 +139,28 @@ html, body {
   position: relative;
 }
 .dcard:hover { border-color: #aaa; box-shadow: 0 2px 8px rgba(0,0,0,.07); }
+.dcard.locked-other { border-color: var(--err-bd); background: #fffbfb; }
 .dcard-inner { padding: 13px 13px 10px; }
 .dcard-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
 .dcard-name { font-size: .82rem; font-weight: 600; line-height: 1.35; flex: 1; text-transform: uppercase; letter-spacing: .02em; }
+.dcard-badges { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; flex-shrink: 0; }
 .badge { display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: .58rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; border: 1px solid; white-space: nowrap; }
 .badge-active { background: var(--warn-bg); color: var(--warn-tx); border-color: var(--warn-bd); }
-.badge-done   { background: var(--done-bg); color: var(--done-tx); border-color: var(--done-bd); }
-.dcard-meta { display: flex; gap: 12px; margin-top: 7px; font-size: .65rem; color: var(--muted); flex-wrap: wrap; }
+.badge-done { background: var(--done-bg); color: var(--done-tx); border-color: var(--done-bd); }
+.badge-lock { background: var(--err-bg); color: var(--err-tx); border-color: var(--err-bd); }
+.badge-me { background: var(--info-bg); color: var(--info-tx); border-color: var(--info-bd); }
+.dcard-meta { display: flex; gap: 12px; margin-top: 7px; font-size: .65rem; color: var(--muted); flex-wrap: wrap; align-items: center; }
+.dcard-assign { color: var(--text2); font-weight: 600; }
 .dcard-pbar { height: 3px; background: var(--border2); margin-top: 9px; border-radius: 2px; overflow: hidden; }
 .dcard-pfill { height: 100%; background: var(--accent2); border-radius: 2px; transition: width .4s; }
 .dcard.fin .dcard-pfill { background: var(--done-tx); }
-
 .dcard-actions { display: flex; gap: 6px; padding: 6px 10px 9px; border-top: 1px solid var(--border2); background: var(--surface2); }
-
 .empty-state { text-align: center; padding: 3.5rem 1rem 2rem; color: var(--muted); }
 .empty-icon { font-size: 2rem; opacity: .3; margin-bottom: .75rem; }
 .empty-text { font-size: .75rem; line-height: 1.7; }
 
 /* ── UPLOAD SCREEN ── */
 .page-body { padding: .875rem 1rem; max-width: 660px; margin: 0 auto; }
-
 .dropzone {
   border: 2px dashed var(--border);
   border-radius: var(--r2); padding: 2.5rem 1.25rem;
@@ -208,17 +199,17 @@ html, body {
 .pick-top { display: flex; justify-content: space-between; align-items: flex-start; gap: .75rem; margin-bottom: .75rem; }
 .pick-title-wrap .pick-name { font-size: .82rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; line-height: 1.3; }
 .pick-title-wrap .pick-date { font-size: .58rem; opacity: .5; margin-top: 3px; letter-spacing: .05em; }
+.pick-title-wrap .pick-assign { font-size: .6rem; opacity: .7; margin-top: 2px; }
 .pick-acts { display: flex; gap: 6px; flex-shrink: 0; }
-
 .prog-wrap { padding-bottom: .8rem; }
 .prog-labels { display: flex; justify-content: space-between; font-size: .62rem; opacity: .65; margin-bottom: 5px; letter-spacing: .03em; }
 .prog-track { background: rgba(255,255,255,.18); border-radius: 2px; height: 4px; overflow: hidden; }
 .prog-fill { background: #fff; height: 100%; border-radius: 2px; transition: width .4s cubic-bezier(.4,0,.2,1); }
-
 .filter-bar {
   display: flex; gap: 6px; padding: .65rem .875rem;
   border-bottom: 1px solid var(--border2);
   background: var(--surface); overflow-x: auto;
+  align-items: center;
 }
 .filter-bar::-webkit-scrollbar { display: none; }
 .fbtn {
@@ -229,16 +220,14 @@ html, body {
   letter-spacing: .04em; transition: all .15s;
 }
 .fbtn.on { background: var(--accent); color: #fff; border-color: var(--accent); }
-
+.sort-divider { width: 1px; height: 16px; background: var(--border); flex-shrink: 0; margin: 0 2px; }
 .pick-list { padding: .6rem .8rem; max-width: 900px; margin: 0 auto; }
-
 .group-hd {
   font-size: .57rem; font-weight: 700; letter-spacing: .14em;
   text-transform: uppercase; color: var(--muted);
   padding: .85rem .15rem .3rem; border-bottom: 1px solid var(--border2);
   margin-bottom: .45rem;
 }
-
 .ic {
   background: var(--surface); border: 1px solid var(--border);
   border-radius: var(--r); margin-bottom: 7px;
@@ -264,16 +253,25 @@ html, body {
 .ic.done .ic-name { text-decoration: line-through; color: var(--done-tx); }
 .ic-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
 .tag {
-  font-size: .58rem; padding: 1px 6px; border-radius: 3px;
+  font-size: .6rem; padding: 2px 7px; border-radius: 3px;
   background: var(--bg); color: var(--muted);
   border: 1px solid var(--border2); letter-spacing: .02em;
 }
-.tag-code { font-family: var(--mono); }
+/* ── UPC/CÓDIGO — fuente más grande ── */
+.tag-code {
+  font-family: var(--mono);
+  font-size: .82rem;
+  font-weight: 700;
+  color: var(--text2);
+  background: var(--surface);
+  border-color: var(--border);
+  letter-spacing: .04em;
+  padding: 3px 8px;
+}
 .ic-qty-wrap { flex-shrink: 0; text-align: right; }
 .ic-qty { font-size: 1rem; font-weight: 700; color: var(--muted); line-height: 1; }
 .ic.done .ic-qty { color: var(--done-tx); }
 .ic-qty-lbl { font-size: .48rem; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
-
 .ic-footer { padding: 0 10px 8px 39px; }
 .done-time { font-size: .6rem; color: var(--done-tx); margin-bottom: 4px; }
 .note-row { display: flex; align-items: center; gap: 5px; }
@@ -283,7 +281,6 @@ html, body {
   color: var(--muted); padding: 2px 0; outline: none;
 }
 .note-in:focus { border-bottom-color: var(--accent); }
-
 .bottom-bar {
   position: fixed; bottom: 0; left: 0; right: 0;
   background: var(--surface); border-top: 1px solid var(--border);
@@ -293,7 +290,6 @@ html, body {
 .bs { text-align: center; }
 .bv { font-size: .95rem; font-weight: 700; }
 .bl { font-size: .5rem; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); margin-top: 1px; }
-
 .pb-spacer { height: 62px; }
 
 /* ── MODAL ── */
@@ -314,6 +310,38 @@ html, body {
 .modal-sub { font-size: .68rem; color: var(--muted); margin-bottom: 1.25rem; line-height: 1.6; }
 .modal-btns { display: flex; gap: 8px; margin-top: 1rem; }
 .modal-btns .btn { flex: 1; justify-content: center; }
+
+/* ── USERS MODAL ── */
+.user-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 0; border-bottom: 1px solid var(--border2);
+}
+.user-row:last-child { border-bottom: none; }
+.user-name { flex: 1; font-size: .75rem; font-weight: 600; }
+.user-me { font-size: .58rem; color: var(--info-tx); background: var(--info-bg); border: 1px solid var(--info-bd); padding: 1px 6px; border-radius: 3px; }
+
+/* ── NAME OVERLAY ── */
+.name-overlay {
+  position: fixed; inset: 0; z-index: 600;
+  background: rgba(0,0,0,.55); backdrop-filter: blur(3px);
+  display: flex; align-items: center; justify-content: center; padding: 1.5rem;
+}
+.name-card {
+  background: var(--surface); border-radius: var(--r2);
+  padding: 1.75rem 1.5rem; width: 100%; max-width: 360px;
+  animation: slideUp .2s ease;
+}
+.name-card h2 { font-size: .9rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; margin-bottom: .4rem; }
+.name-card p { font-size: .7rem; color: var(--muted); margin-bottom: 1.1rem; line-height: 1.6; }
+.name-input-wrap { margin-bottom: .85rem; }
+.name-input-wrap input {
+  width: 100%; padding: 11px 13px;
+  border: 1px solid var(--border); border-radius: var(--r);
+  font-family: var(--mono); font-size: .85rem;
+  background: var(--surface); color: var(--text);
+  outline: none; transition: border-color .15s;
+}
+.name-input-wrap input:focus { border-color: var(--accent); }
 
 /* ── SPINNER ── */
 .spin {
@@ -352,6 +380,12 @@ html, body {
       Conecta tu proyecto Firebase para sincronizar despachos entre celular, tablet y computadora.<br/><br/>
       En la <a href="https://console.firebase.google.com" target="_blank" style="color:var(--accent)">consola de Firebase</a> → tu proyecto → ⚙️ Configuración del proyecto → Tus apps → copia el objeto <code>firebaseConfig</code>.
     </div>
+
+    <div class="fld">
+      <label>Tu nombre</label>
+      <input id="setup-name" type="text" placeholder="Ej: Fernando" autocomplete="off"/>
+    </div>
+
     <div class="fld">
       <label>Firebase Config (JSON)</label>
       <textarea id="cfg-input" placeholder='{
@@ -363,14 +397,19 @@ html, body {
   "appId": "1:123..."
 }'></textarea>
     </div>
+
     <div id="cfg-err" class="box box-err" style="display:none;margin-bottom:.75rem"></div>
+
     <button class="btn btn-dark btn-full" id="btn-connect" onclick="connectFirebase()">
       Conectar Firebase →
     </button>
+
     <div class="setup-divider">o</div>
+
     <button class="btn btn-outline btn-full" onclick="useLocalMode()">
       Usar solo en este dispositivo (sin Firebase)
     </button>
+
     <div class="box box-info" style="margin-top:1rem;font-size:.65rem">
       💡 <strong>Tip:</strong> En Firebase, habilita Firestore y configura las reglas en modo "allow read, write: if true;" para empezar rápido (solo para uso privado).
     </div>
@@ -382,16 +421,16 @@ html, body {
   <div class="topbar">
     <div class="topbar-title">📦 Despachos</div>
     <div class="topbar-actions">
-      <span id="sync-indicator" class="sync-badge">—</span>
+      <button class="btn btn-ghost" style="font-size:.65rem" onclick="showUsersModal()">👥 Equipo</button>
       <button class="btn btn-light" onclick="goNew()">+ Nuevo</button>
     </div>
   </div>
   <div class="home-header">
     <span class="home-meta" id="home-date"></span>
-    <button class="btn btn-outline" style="font-size:.6rem;padding:4px 9px" onclick="showSettings()">⚙ Config</button>
+    <span class="home-user" id="home-user"></span>
   </div>
   <div class="dash-list">
-    <div class="section-lbl">Órdenes recientes</div>
+    <div class="section-lbl">Órdenes</div>
     <div id="dash-content"><div class="empty-state"><span class="spin"></span></div></div>
   </div>
 </div>
@@ -409,20 +448,30 @@ html, body {
       <label>Nombre del despacho</label>
       <input id="dsp-name" type="text" placeholder="Ej: Pedido #045 — Cliente ABC"/>
     </div>
+
+    <div class="fld" style="margin-bottom:1rem">
+      <label>Asignado a</label>
+      <select id="dsp-assign">
+        <option value="">Sin asignar</option>
+      </select>
+    </div>
+
     <label style="font-size:.6rem;font-weight:700;letter-spacing:.1em;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:6px">
       Cargar lista (PDF o imagen)
     </label>
     <div class="dropzone" id="dropzone"
-         onclick="document.getElementById('file-in').click()"
-         ondragover="event.preventDefault();this.classList.add('drag')"
-         ondragleave="this.classList.remove('drag')"
-         ondrop="onFileDrop(event)">
+      onclick="document.getElementById('file-in').click()"
+      ondragover="event.preventDefault();this.classList.add('drag')"
+      ondragleave="this.classList.remove('drag')"
+      ondrop="onFileDrop(event)">
       <div class="drop-icon" id="drop-icon">⬆</div>
       <div class="drop-title" id="drop-title">Subir PDF o imagen</div>
       <div class="drop-sub" id="drop-sub">Toca aquí o arrastra el archivo<br/>PDF · JPG · PNG · WEBP — máx 20MB</div>
     </div>
     <input type="file" id="file-in" accept=".pdf,image/jpeg,image/png,image/webp" style="display:none" onchange="onFileInput(this)"/>
+
     <div id="status-box" style="display:none;margin-bottom:.75rem"></div>
+
     <div id="review-wrap" style="display:none">
       <div class="rv-hd">
         <span class="rv-title">Productos detectados por IA</span>
@@ -434,6 +483,7 @@ html, body {
         <button class="btn btn-dark btn-full" id="btn-save" onclick="saveDespacho()">Guardar y comenzar picking →</button>
       </div>
     </div>
+
     <div id="no-file-wrap">
       <div class="rv-hd" style="margin-top:.5rem">
         <span class="rv-title">O ingresar manualmente</span>
@@ -450,6 +500,7 @@ html, body {
       <div class="pick-title-wrap">
         <div class="pick-name" id="pk-name">—</div>
         <div class="pick-date" id="pk-date"></div>
+        <div class="pick-assign" id="pk-assign"></div>
       </div>
       <div class="pick-acts">
         <button class="btn btn-ghost" style="font-size:.65rem" onclick="goHome()">← Lista</button>
@@ -466,13 +517,19 @@ html, body {
       </div>
     </div>
   </div>
+
   <div class="filter-bar">
-    <button class="fbtn on" onclick="setFilter('all', this)">Todos</button>
-    <button class="fbtn" onclick="setFilter('pending', this)">Pendientes</button>
-    <button class="fbtn" onclick="setFilter('done', this)">Listos</button>
+    <button class="fbtn on" id="filter-all" onclick="setFilter('all',this)">Todos</button>
+    <button class="fbtn" id="filter-pending" onclick="setFilter('pending',this)">Pendientes</button>
+    <button class="fbtn" id="filter-done" onclick="setFilter('done',this)">Listos</button>
+    <div class="sort-divider"></div>
+    <button class="fbtn on" id="sort-alpha" onclick="setSort('alpha')">A–Z</button>
+    <button class="fbtn" id="sort-cat" onclick="setSort('category')">Categorías</button>
   </div>
+
   <div class="pick-list" id="pick-list"></div>
   <div class="pb-spacer"></div>
+
   <div class="bottom-bar">
     <div class="bs"><div class="bv" id="bs-items">0/0</div><div class="bl">Productos</div></div>
     <div class="bs"><div class="bv" id="bs-units">0/0</div><div class="bl">Unidades</div></div>
@@ -497,36 +554,41 @@ html, body {
 let fbApp = null, db = null, fbMod = null;
 let isLocal = false;
 let curId = null, curData = null;
-let unsub = null;
+let unsub = null, homeUnsub = null;
 let parsedProducts = [];
 let pickFilter = 'all';
-const LOCAL_KEY = 'dspmgr_v1';
-const CFG_KEY   = 'dspmgr_cfg_v1';
+let pickSort = 'alpha';
+let lockSet = false;
+let currentUser = '';
+
+const LOCAL_KEY   = 'dspmgr_v1';
+const CFG_KEY     = 'dspmgr_cfg_v1';
+const USER_KEY    = 'dspmgr_user_v1';
+const USERS_KEY   = 'dspmgr_team_v1';
+const LOCK_TTL_MS = 2 * 60 * 60 * 1000; // 2 horas
 
 /* ═══════════════════════════════════════
    UTILS
 ═══════════════════════════════════════ */
-const $  = id => document.getElementById(id);
-const qs = sel => document.querySelector(sel);
+const $ = id => document.getElementById(id);
 
 function showScreen(id) {
   document.querySelectorAll('.scr').forEach(s => s.classList.remove('on'));
   $(id).classList.add('on');
-  window.scrollTo(0,0);
+  window.scrollTo(0, 0);
 }
 
 function fmtDate(ts) {
   if (!ts) return '';
-  return new Date(ts).toLocaleDateString('es-SV', {weekday:'long', day:'2-digit', month:'long', year:'numeric'}).toUpperCase();
+  return new Date(ts).toLocaleDateString('es-SV', {weekday:'long',day:'2-digit',month:'long',year:'numeric'}).toUpperCase();
 }
 function fmtShort(ts) {
   if (!ts) return '';
-  return new Date(ts).toLocaleDateString('es-SV', {day:'2-digit', month:'short', year:'numeric'});
+  return new Date(ts).toLocaleDateString('es-SV', {day:'2-digit',month:'short',year:'numeric'});
 }
 function fmtTime() {
-  return new Date().toLocaleTimeString('es-SV', {hour:'2-digit', minute:'2-digit'});
+  return new Date().toLocaleTimeString('es-SV', {hour:'2-digit',minute:'2-digit'});
 }
-
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
 
 function setStatus(msg, type='info', loading=false) {
@@ -537,7 +599,7 @@ function setStatus(msg, type='info', loading=false) {
 }
 
 function updRvCount() {
-  const u = parsedProducts.reduce((s,p)=>s+Number(p.qty||1),0);
+  const u = parsedProducts.reduce((s,p) => s + Number(p.qty||1), 0);
   $('rv-count').textContent = `${parsedProducts.length} prod. · ${u} unid.`;
 }
 
@@ -550,7 +612,6 @@ async function initFirebase(cfg) {
     fbMod = await import('https://esm.sh/firebase@10.12.0/firestore');
     const app = getApps().length ? getApp() : initializeApp(cfg);
     db = fbMod.getFirestore(app);
-    // test connectivity
     await fbMod.getDocs(fbMod.query(fbMod.collection(db,'despachos'), fbMod.limit(1)));
     return true;
   } catch(e) {
@@ -565,6 +626,7 @@ window.connectFirebase = async () => {
   const btn = $('btn-connect');
   btn.disabled = true;
   btn.innerHTML = '<span class="spin"></span>Conectando...';
+
   let cfg;
   try {
     cfg = JSON.parse(raw);
@@ -575,10 +637,21 @@ window.connectFirebase = async () => {
     btn.disabled = false; btn.textContent = 'Conectar Firebase →';
     return;
   }
+
   const ok = await initFirebase(cfg);
   if (ok) {
+    // Save name from setup
+    const setupName = $('setup-name')?.value.trim();
+    if (setupName) {
+      currentUser = setupName;
+      localStorage.setItem(USER_KEY, currentUser);
+    }
     try { await window.storage.set(CFG_KEY, JSON.stringify(cfg)); } catch{}
-    goHome();
+    if (!currentUser) {
+      showNameModal(() => goHome());
+    } else {
+      goHome();
+    }
   } else {
     $('cfg-err').innerHTML = 'No se pudo conectar. Verifica:<br>· Que el <strong>projectId</strong> sea correcto<br>· Que <strong>Firestore</strong> esté habilitado en Firebase Console<br>· Las reglas de Firestore permitan lectura/escritura';
     $('cfg-err').style.display = 'block';
@@ -588,7 +661,118 @@ window.connectFirebase = async () => {
 
 window.useLocalMode = () => {
   isLocal = true;
-  goHome();
+  const setupName = $('setup-name')?.value.trim();
+  if (setupName) {
+    currentUser = setupName;
+    localStorage.setItem(USER_KEY, currentUser);
+  }
+  if (!currentUser) {
+    showNameModal(() => goHome());
+  } else {
+    goHome();
+  }
+};
+
+/* ═══════════════════════════════════════
+   USER NAME MODAL
+═══════════════════════════════════════ */
+function showNameModal(onDone) {
+  // Remove any existing
+  document.getElementById('name-overlay')?.remove();
+
+  const div = document.createElement('div');
+  div.id = 'name-overlay';
+  div.className = 'name-overlay';
+  div.innerHTML = `
+    <div class="name-card">
+      <h2>¿Cuál es tu nombre?</h2>
+      <p>Esto te identifica al asignar y trabajar órdenes en equipo.</p>
+      <div class="name-input-wrap">
+        <input id="name-inp" type="text" placeholder="Tu nombre" autocomplete="off"
+          onkeydown="if(event.key==='Enter')window._saveName()"/>
+      </div>
+      <button class="btn btn-dark btn-full" onclick="window._saveName()">Confirmar →</button>
+    </div>`;
+  document.body.appendChild(div);
+  setTimeout(() => $('name-inp')?.focus(), 50);
+
+  window._saveName = () => {
+    const name = $('name-inp')?.value.trim();
+    if (!name) {
+      $('name-inp').style.borderColor = 'var(--err-bd)';
+      return;
+    }
+    currentUser = name;
+    localStorage.setItem(USER_KEY, name);
+    div.remove();
+    if (onDone) onDone();
+  };
+}
+
+/* ═══════════════════════════════════════
+   USERS / EQUIPO
+═══════════════════════════════════════ */
+async function loadUsers() {
+  if (isLocal) {
+    try { return JSON.parse(localStorage.getItem(USERS_KEY) || '[]'); } catch { return []; }
+  }
+  try {
+    const snap = await fbMod.getDoc(fbMod.doc(db, 'config', 'team'));
+    return snap.exists() ? (snap.data().members || []) : [];
+  } catch { return []; }
+}
+
+async function saveUsersRemote(members) {
+  if (isLocal) {
+    localStorage.setItem(USERS_KEY, JSON.stringify(members));
+    return;
+  }
+  await fbMod.setDoc(fbMod.doc(db, 'config', 'team'), { members });
+}
+
+window.showUsersModal = async () => {
+  const members = await loadUsers();
+  const rows = members.length
+    ? members.map((m, i) => `
+        <div class="user-row">
+          <span class="user-name">${m}</span>
+          ${m === currentUser ? '<span class="user-me">Tú</span>' : ''}
+          <button class="btn btn-danger" style="font-size:.6rem;padding:3px 8px" onclick="window._removeUser(${i})">✕</button>
+        </div>`).join('')
+    : '<div style="color:var(--muted);font-size:.7rem;padding:.5rem 0">Sin usuarios aún. Agrega el primero.</div>';
+
+  openModal(
+    '👥 Equipo',
+    'Gestiona los usuarios que pueden ser asignados a órdenes.',
+    `<div id="users-list-wrap">${rows}</div>
+     <div style="display:flex;gap:8px;margin-top:.85rem">
+       <input id="new-user-inp" type="text" placeholder="Nombre del usuario"
+         style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-family:var(--mono);font-size:.73rem;outline:none"
+         onkeydown="if(event.key==='Enter')window._addUser()"/>
+       <button class="btn btn-dark" onclick="window._addUser()" style="flex-shrink:0">+ Agregar</button>
+     </div>`,
+    [{ label: 'Cerrar', cls: 'btn-outline', fn: 'closeModal(event)' }]
+  );
+
+  window._addUser = async () => {
+    const name = $('new-user-inp')?.value.trim();
+    if (!name) return;
+    const ms = await loadUsers();
+    if (!ms.includes(name)) {
+      ms.push(name);
+      await saveUsersRemote(ms);
+    }
+    closeModal();
+    showUsersModal();
+  };
+
+  window._removeUser = async (idx) => {
+    const ms = await loadUsers();
+    ms.splice(idx, 1);
+    await saveUsersRemote(ms);
+    closeModal();
+    showUsersModal();
+  };
 };
 
 /* ═══════════════════════════════════════
@@ -599,15 +783,6 @@ function localGet() {
 }
 function localSet(list) {
   try { localStorage.setItem(LOCAL_KEY, JSON.stringify(list)); } catch{}
-}
-
-async function dbGetAll() {
-  if (isLocal) {
-    return localGet().sort((a,b) => (b.createdAt||0)-(a.createdAt||0));
-  }
-  const q = fbMod.query(fbMod.collection(db,'despachos'), fbMod.orderBy('createdAt','desc'));
-  const snap = await fbMod.getDocs(q);
-  return snap.docs.map(d => ({id: d.id, ...d.data()}));
 }
 
 async function dbSave(data) {
@@ -634,82 +809,139 @@ async function dbUpdate(id, data) {
 
 async function dbDelete(id) {
   if (isLocal) {
-    const list = localGet().filter(d => d.id !== id);
-    localSet(list);
+    localSet(localGet().filter(d => d.id !== id));
     return;
   }
   await fbMod.deleteDoc(fbMod.doc(db,'despachos',id));
 }
 
 function dbListen(id, cb) {
-  if (isLocal) { return () => {}; }
+  if (isLocal) return () => {};
   return fbMod.onSnapshot(fbMod.doc(db,'despachos',id), snap => {
     if (snap.exists()) cb({id: snap.id, ...snap.data()});
   });
 }
 
 /* ═══════════════════════════════════════
-   HOME
+   HOME  —  real-time listener
 ═══════════════════════════════════════ */
-window.goHome = () => {
+window.goHome = async () => {
+  // Clear lock if we set it
+  if (curId && lockSet && !isLocal) {
+    try { await dbUpdate(curId, { lockedBy: null, lockedAt: null }); } catch{}
+    lockSet = false;
+  }
   if (unsub) { unsub(); unsub = null; }
   curId = null; curData = null;
+
   showScreen('s-home');
-  $('home-date').textContent = new Date().toLocaleDateString('es-SV', {weekday:'long', day:'2-digit', month:'long', year:'numeric'}).toUpperCase();
-  $('sync-indicator').textContent  = isLocal ? '● Local' : '✓ Firebase';
-  $('sync-indicator').className = isLocal ? 'sync-badge local' : 'sync-badge';
-  loadDash();
+
+  $('home-date').textContent = new Date().toLocaleDateString('es-SV', {
+    weekday:'long', day:'2-digit', month:'long', year:'numeric'
+  }).toUpperCase();
+  $('home-user').textContent = currentUser ? `👤 ${currentUser}` : '';
+
+  startHomeListener();
 };
 
-async function loadDash() {
+function startHomeListener() {
   const el = $('dash-content');
   el.innerHTML = '<div class="empty-state"><span class="spin"></span></div>';
+
+  if (isLocal) {
+    renderDash(localGet().sort((a,b) => (b.createdAt||0)-(a.createdAt||0)));
+    return;
+  }
+
+  if (homeUnsub) { homeUnsub(); homeUnsub = null; }
+
   try {
-    const list = await dbGetAll();
-    if (!list.length) {
-      el.innerHTML = `<div class="empty-state">
-        <div class="empty-icon">📋</div>
-        <div class="empty-text">Sin despachos aún.<br/>Toca <strong>+ Nuevo</strong> para crear el primero.</div>
-      </div>`;
-      return;
-    }
-    el.innerHTML = list.map(d => {
-      const prods = d.products || [];
-      const ck = d.checked || {};
-      const tot = prods.length;
-      const don = Object.values(ck).filter(c => c.done).length;
-      const pct = tot ? Math.round(don/tot*100) : 0;
-      const units = prods.reduce((s,p)=>s+(Number(p.qty)||0),0);
-      const fin = don === tot && tot > 0;
-      return `<div class="dcard${fin?' fin':''}" onclick="openDespacho('${d.id}')">
-        <div class="dcard-inner">
-          <div class="dcard-top">
-            <div class="dcard-name">${d.name||'Despacho sin nombre'}</div>
+    const q = fbMod.query(
+      fbMod.collection(db,'despachos'),
+      fbMod.orderBy('createdAt','desc')
+    );
+    homeUnsub = fbMod.onSnapshot(q,
+      snap => {
+        const list = snap.docs.map(d => ({id: d.id, ...d.data()}));
+        renderDash(list);
+      },
+      err => {
+        el.innerHTML = `<div class="empty-state" style="color:var(--err-tx)">Error al cargar. Verifica tu conexión y las reglas de Firestore.</div>`;
+      }
+    );
+  } catch(e) {
+    el.innerHTML = `<div class="empty-state" style="color:var(--err-tx)">Error al inicializar listener.</div>`;
+  }
+}
+
+function renderDash(list) {
+  const el = $('dash-content');
+  if (!list.length) {
+    el.innerHTML = `<div class="empty-state">
+      <div class="empty-icon">📋</div>
+      <div class="empty-text">Sin despachos aún.<br/>Toca <strong>+ Nuevo</strong> para crear el primero.</div>
+    </div>`;
+    return;
+  }
+
+  el.innerHTML = list.map(d => {
+    const prods = d.products || [];
+    const ck = d.checked || {};
+    const tot = prods.length;
+    const don = Object.values(ck).filter(c => c.done).length;
+    const pct = tot ? Math.round(don/tot*100) : 0;
+    const units = prods.reduce((s,p) => s+(Number(p.qty)||0), 0);
+    const fin = don === tot && tot > 0;
+
+    // Lock status
+    const lockAge = Date.now() - (d.lockedAt || 0);
+    const isLocked = d.lockedBy && lockAge < LOCK_TTL_MS;
+    const lockedByOther = isLocked && d.lockedBy !== currentUser;
+    const lockedByMe = isLocked && d.lockedBy === currentUser;
+
+    const lockBadge = lockedByOther
+      ? `<span class="badge badge-lock">🔒 ${d.lockedBy}</span>`
+      : lockedByMe
+        ? `<span class="badge badge-me">✏️ Tú</span>`
+        : '';
+
+    const assignStr = d.assignedTo
+      ? `<span class="dcard-assign">👤 ${d.assignedTo}</span>`
+      : '';
+
+    return `<div class="dcard${fin?' fin':''}${lockedByOther?' locked-other':''}" onclick="openDespacho('${d.id}')">
+      <div class="dcard-inner">
+        <div class="dcard-top">
+          <div class="dcard-name">${d.name||'Despacho sin nombre'}</div>
+          <div class="dcard-badges">
+            ${lockBadge}
             <span class="badge ${fin?'badge-done':'badge-active'}">${fin?'✓ Listo':'En proceso'}</span>
           </div>
-          <div class="dcard-meta">
-            <span>${fmtShort(d.createdAt)}</span>
-            <span>${don}/${tot} productos</span>
-            <span>${units} unidades</span>
-            <span>${pct}%</span>
-          </div>
-          <div class="dcard-pbar"><div class="dcard-pfill" style="width:${pct}%"></div></div>
         </div>
-        <div class="dcard-actions" onclick="event.stopPropagation()">
-          <button class="btn btn-outline" style="font-size:.6rem;padding:5px 10px" onclick="duplicateDespacho('${d.id}')">⎘ Duplicar</button>
-          <button class="btn btn-danger" style="font-size:.6rem;padding:5px 10px" onclick="confirmDelete('${d.id}','${(d.name||'').replace(/'/g,"\\'")}')">✕ Eliminar</button>
+        <div class="dcard-meta">
+          <span>${fmtShort(d.createdAt)}</span>
+          <span>${don}/${tot} productos</span>
+          <span>${units} unidades</span>
+          <span>${pct}%</span>
+          ${assignStr}
         </div>
-      </div>`;
-    }).join('');
-  } catch(e) {
-    el.innerHTML = `<div class="empty-state" style="color:var(--err-tx)">Error al cargar. Verifica tu conexión y las reglas de Firestore.</div>`;
-  }
+        <div class="dcard-pbar"><div class="dcard-pfill" style="width:${pct}%"></div></div>
+      </div>
+      <div class="dcard-actions" onclick="event.stopPropagation()">
+        <button class="btn btn-outline" style="font-size:.6rem;padding:5px 10px" onclick="duplicateDespacho('${d.id}')">⎘ Duplicar</button>
+        <button class="btn btn-danger" style="font-size:.6rem;padding:5px 10px" onclick="confirmDelete('${d.id}','${(d.name||'').replace(/'/g,"\\'")}')">✕ Eliminar</button>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 /* ═══════════════════════════════════════
    NEW DESPACHO
 ═══════════════════════════════════════ */
-window.goNew = () => {
+window.goNew = async () => {
+  // Stop home listener when navigating away
+  if (homeUnsub) { homeUnsub(); homeUnsub = null; }
+
   $('dsp-name').value = '';
   $('dropzone').className = 'dropzone';
   $('drop-icon').textContent = '⬆';
@@ -720,6 +952,19 @@ window.goNew = () => {
   $('no-file-wrap').style.display = 'block';
   $('file-in').value = '';
   parsedProducts = [];
+
+  // Populate assignment dropdown
+  const sel = $('dsp-assign');
+  sel.innerHTML = '<option value="">Sin asignar</option>';
+  const members = await loadUsers();
+  members.forEach(m => {
+    const opt = document.createElement('option');
+    opt.value = m;
+    opt.textContent = m;
+    if (m === currentUser) opt.selected = true;
+    sel.appendChild(opt);
+  });
+
   showScreen('s-new');
 };
 
@@ -728,6 +973,7 @@ window.onFileDrop = e => {
   $('dropzone').classList.remove('drag');
   if (e.dataTransfer.files[0]) processFile(e.dataTransfer.files[0]);
 };
+
 window.onFileInput = inp => {
   if (inp.files[0]) processFile(inp.files[0]);
 };
@@ -740,17 +986,16 @@ async function processFile(file) {
     setStatus('Archivo muy grande. Máximo permitido: 20MB.', 'err');
     return;
   }
+
   const mime = file.type || 'image/jpeg';
   const ext = file.name.split('.').pop().toLowerCase();
 
-  // Update dropzone UI
   $('dropzone').classList.add('has-file');
   $('drop-icon').textContent = mime === 'application/pdf' ? '📄' : '🖼';
   $('drop-title').textContent = file.name.length > 35 ? file.name.slice(0,33)+'…' : file.name;
   $('drop-sub').textContent = (file.size/1024/1024).toFixed(2) + ' MB · ' + ext.toUpperCase();
 
   setStatus('Leyendo archivo...', 'info', true);
-
   let b64;
   try {
     b64 = await fileToBase64(file);
@@ -763,22 +1008,24 @@ async function processFile(file) {
   try {
     const products = await aiExtractProducts(b64, mime);
     if (!products || products.length === 0) {
-      setStatus('No se detectaron productos. Asegúrate de que el archivo sea legible y contenga una lista de productos. Puedes ingresar la lista manualmente.', 'warn');
+      setStatus('No se detectaron productos. Asegúrate de que el archivo sea legible. Puedes ingresar la lista manualmente.', 'warn');
       $('no-file-wrap').style.display = 'block';
       return;
     }
-    parsedProducts = products.map((p,i) => ({
+
+    parsedProducts = products.map(p => ({
       id: uid(),
       qty: Math.max(1, parseInt(p.qty) || 1),
       code: (p.code || '').toString().trim(),
       name: (p.name || '').trim().toUpperCase(),
       family: (p.family || 'General').trim()
     }));
+
     setStatus(`✓ ${parsedProducts.length} productos detectados. Revisa y ajusta antes de guardar.`, 'ok');
     renderReview();
     $('review-wrap').style.display = 'block';
     $('no-file-wrap').style.display = 'none';
-    // Auto-suggest name from date
+
     if (!$('dsp-name').value.trim()) {
       $('dsp-name').value = `Pedido ${new Date().toLocaleDateString('es-SV',{day:'2-digit',month:'2-digit',year:'numeric'})}`;
     }
@@ -825,14 +1072,17 @@ function renderReview() {
 
 window.updQty = (id, v) => {
   const p = parsedProducts.find(x => x.id === id);
-  if (p) { p.qty = Math.max(1, parseInt(v) || 1); updRvCount(); }
+  if (p) { p.qty = Math.max(1, parseInt(v)||1); updRvCount(); }
 };
+
 window.removeProduct = id => {
   parsedProducts = parsedProducts.filter(p => p.id !== id);
-  const el = document.getElementById('rvi-' + id);
-  if (el) el.remove();
+  document.getElementById('rvi-' + id)?.remove();
   updRvCount();
-  if (!parsedProducts.length) { $('review-wrap').style.display = 'none'; $('no-file-wrap').style.display = 'block'; }
+  if (!parsedProducts.length) {
+    $('review-wrap').style.display = 'none';
+    $('no-file-wrap').style.display = 'block';
+  }
 };
 
 window.addManual = () => {
@@ -841,6 +1091,7 @@ window.addManual = () => {
   renderReview();
   $('review-wrap').style.display = 'block';
 };
+
 window.startManual = () => {
   parsedProducts = [];
   const p = { id: uid(), qty: 1, code: '', name: 'PRODUCTO 1', family: 'General' };
@@ -856,11 +1107,21 @@ window.saveDespacho = async () => {
   const btn = $('btn-save');
   btn.disabled = true;
   btn.innerHTML = '<span class="spin"></span>Guardando...';
+
   const name = $('dsp-name').value.trim()
     || `Despacho ${new Date().toLocaleDateString('es-SV',{day:'2-digit',month:'2-digit'})} ${new Date().toLocaleTimeString('es-SV',{hour:'2-digit',minute:'2-digit'})}`;
+  const assignedTo = $('dsp-assign').value || '';
+
   try {
-    const id = await dbSave({ name, products: parsedProducts, checked: {}, createdAt: Date.now() });
-    await openDespacho(id);
+    const id = await dbSave({
+      name,
+      assignedTo,
+      createdBy: currentUser,
+      products: parsedProducts,
+      checked: {},
+      createdAt: Date.now()
+    });
+    await doOpenDespacho(id);
   } catch(e) {
     btn.disabled = false;
     btn.textContent = 'Guardar y comenzar picking →';
@@ -869,89 +1130,161 @@ window.saveDespacho = async () => {
 };
 
 /* ═══════════════════════════════════════
-   PICKING
+   PICKING  —  lock + sort
 ═══════════════════════════════════════ */
 window.openDespacho = async id => {
+  // Stop home listener
+  if (homeUnsub) { homeUnsub(); homeUnsub = null; }
+
+  // Check lock (only Firebase mode)
+  if (!isLocal && db) {
+    try {
+      const snap = await fbMod.getDoc(fbMod.doc(db,'despachos',id));
+      if (snap.exists()) {
+        const d = snap.data();
+        const lockAge = Date.now() - (d.lockedAt || 0);
+        const valid = d.lockedBy && lockAge < LOCK_TTL_MS;
+        if (valid && d.lockedBy !== currentUser) {
+          openModal(
+            '🔒 Orden en uso',
+            `Esta orden está siendo trabajada por "${d.lockedBy}" en este momento. Abrirla podría causar conflictos.`,
+            '',
+            [
+              { label: 'Cancelar', cls: 'btn-outline', fn: 'closeModal(event)' },
+              { label: 'Abrir de todas formas', cls: 'btn-dark', fn: `window._forceOpen('${id}')` }
+            ]
+          );
+          window._forceOpen = async (oid) => { closeModal(); await doOpenDespacho(oid); };
+          return;
+        }
+      }
+    } catch(e) { console.error(e); }
+  }
+
+  await doOpenDespacho(id);
+};
+
+async function doOpenDespacho(id) {
   curId = id;
+  lockSet = false;
   pickFilter = 'all';
-  document.querySelectorAll('.fbtn').forEach((b,i) => b.classList.toggle('on', i===0));
+  pickSort = 'alpha';
+
+  // Reset filter buttons
+  $('filter-all').classList.add('on');
+  $('filter-pending').classList.remove('on');
+  $('filter-done').classList.remove('on');
+  // Reset sort buttons
+  $('sort-alpha').classList.add('on');
+  $('sort-cat').classList.remove('on');
+
   showScreen('s-pick');
   $('pick-list').innerHTML = '<div class="empty-state"><span class="spin"></span></div>';
+
   if (unsub) { unsub(); unsub = null; }
+
   if (isLocal) {
-    const list = localGet();
-    curData = list.find(d => d.id === id) || null;
+    curData = localGet().find(d => d.id === id) || null;
     renderPick();
   } else {
+    // Set lock
+    try {
+      await dbUpdate(id, { lockedBy: currentUser, lockedAt: Date.now() });
+      lockSet = true;
+    } catch(e) { console.error(e); }
     unsub = dbListen(id, data => { curData = data; renderPick(); });
   }
-};
+}
 
 function renderPick() {
   if (!curData) return;
-  const { products = [], checked = {}, name = '', createdAt } = curData;
-  const tot  = products.length;
+  const { products = [], checked = {}, name = '', createdAt, assignedTo = '' } = curData;
+
+  const tot = products.length;
   const done = Object.values(checked).filter(c => c.done).length;
   const totU = products.reduce((s,p) => s + (Number(p.qty)||0), 0);
   const donU = products.filter(p => checked[p.id]?.done).reduce((s,p) => s + (Number(p.qty)||0), 0);
-  const pct  = tot ? Math.round(done / tot * 100) : 0;
+  const pct = tot ? Math.round(done/tot*100) : 0;
 
-  $('pk-name').textContent   = name;
-  $('pk-date').textContent   = fmtDate(createdAt);
+  $('pk-name').textContent = name;
+  $('pk-date').textContent = fmtDate(createdAt);
+  $('pk-assign').textContent = assignedTo ? `👤 ${assignedTo}` : '';
   $('prog-label').textContent = `${done} de ${tot} productos listos`;
-  $('prog-pct').textContent  = pct + '%';
+  $('prog-pct').textContent = pct + '%';
   $('prog-fill').style.width = pct + '%';
-  $('bs-items').textContent  = `${done}/${tot}`;
-  $('bs-units').textContent  = `${donU}/${totU}`;
-  $('bs-pct').textContent    = pct + '%';
+  $('bs-items').textContent = `${done}/${tot}`;
+  $('bs-units').textContent = `${donU}/${totU}`;
+  $('bs-pct').textContent = pct + '%';
 
+  // Apply filter
   let fl = products;
-  if (pickFilter === 'done')    fl = products.filter(p =>  checked[p.id]?.done);
+  if (pickFilter === 'done')    fl = products.filter(p => checked[p.id]?.done);
   if (pickFilter === 'pending') fl = products.filter(p => !checked[p.id]?.done);
 
   if (!fl.length) {
-    $('pick-list').innerHTML = `<div class="empty-state">${pickFilter==='done' ? 'No hay productos listos aún.' : '🎉 ¡Todo listo para despacho!'}</div>`;
+    $('pick-list').innerHTML = `<div class="empty-state">${
+      pickFilter === 'done'
+        ? 'No hay productos listos aún.'
+        : pickFilter === 'pending'
+          ? '🎉 ¡Todo listo para despacho!'
+          : '<div class="empty-icon">📋</div>Sin productos.'
+    }</div>`;
     return;
   }
 
-  const groups = {};
-  fl.forEach(p => { if (!groups[p.family]) groups[p.family] = []; groups[p.family].push(p); });
-
   let html = '';
-  Object.keys(groups).sort().forEach(fam => {
-    html += `<div class="group-hd">${fam}</div>`;
-    groups[fam].forEach(p => {
-      const ok   = !!checked[p.id]?.done;
-      const time = checked[p.id]?.time || '';
-      const note = (checked[p.id]?.note || '').replace(/"/g, '&quot;');
-      html += `
-      <div class="ic${ok?' done':''}" id="ic-${p.id}">
-        <div class="ic-main" onclick="toggleItem('${p.id}')">
-          <div class="chk"><span class="chkm">✓</span></div>
-          <div class="ic-content">
-            <div class="ic-name">${p.name}</div>
-            <div class="ic-tags">
-              ${p.code ? `<span class="tag tag-code">${p.code}</span>` : ''}
-              <span class="tag">${p.family}</span>
-            </div>
-          </div>
-          <div class="ic-qty-wrap">
-            <div class="ic-qty">${p.qty}</div>
-            <div class="ic-qty-lbl">unid.</div>
-          </div>
-        </div>
-        <div class="ic-footer">
-          ${ok ? `<div class="done-time">✓ Listo a las ${time}</div>` : ''}
-          <div class="note-row">
-            <input class="note-in" placeholder="Agregar nota…" value="${note}"
-              onchange="saveNote('${p.id}', this.value)"
-              onclick="event.stopPropagation()"/>
-          </div>
-        </div>
-      </div>`;
+
+  if (pickSort === 'alpha') {
+    // Alphabetical: flat list sorted by name
+    const sorted = [...fl].sort((a,b) => a.name.localeCompare(b.name));
+    sorted.forEach(p => { html += buildItem(p, checked[p.id]); });
+  } else {
+    // Category: grouped by family, alphabetical within each group
+    const groups = {};
+    fl.forEach(p => {
+      if (!groups[p.family]) groups[p.family] = [];
+      groups[p.family].push(p);
     });
-  });
+    Object.keys(groups).sort().forEach(fam => {
+      html += `<div class="group-hd">${fam}</div>`;
+      groups[fam].sort((a,b) => a.name.localeCompare(b.name)).forEach(p => {
+        html += buildItem(p, checked[p.id]);
+      });
+    });
+  }
+
   $('pick-list').innerHTML = html;
+}
+
+function buildItem(p, ckData) {
+  const ok    = !!ckData?.done;
+  const time  = ckData?.time || '';
+  const note  = (ckData?.note || '').replace(/"/g, '&quot;');
+  return `
+    <div class="ic${ok?' done':''}" id="ic-${p.id}">
+      <div class="ic-main" onclick="toggleItem('${p.id}')">
+        <div class="chk"><span class="chkm">✓</span></div>
+        <div class="ic-content">
+          <div class="ic-name">${p.name}</div>
+          <div class="ic-tags">
+            ${p.code ? `<span class="tag tag-code">${p.code}</span>` : ''}
+            <span class="tag">${p.family}</span>
+          </div>
+        </div>
+        <div class="ic-qty-wrap">
+          <div class="ic-qty">${p.qty}</div>
+          <div class="ic-qty-lbl">unid.</div>
+        </div>
+      </div>
+      <div class="ic-footer">
+        ${ok ? `<div class="done-time">✓ Listo a las ${time}</div>` : ''}
+        <div class="note-row">
+          <input class="note-in" placeholder="Agregar nota…" value="${note}"
+            onchange="saveNote('${p.id}', this.value)"
+            onclick="event.stopPropagation()"/>
+        </div>
+      </div>
+    </div>`;
 }
 
 window.toggleItem = async pid => {
@@ -986,8 +1319,15 @@ async function applyUpdate(data) {
 
 window.setFilter = (f, btn) => {
   pickFilter = f;
-  document.querySelectorAll('.fbtn').forEach(b => b.classList.remove('on'));
+  document.querySelectorAll('#filter-all,#filter-pending,#filter-done').forEach(b => b.classList.remove('on'));
   btn.classList.add('on');
+  renderPick();
+};
+
+window.setSort = mode => {
+  pickSort = mode;
+  $('sort-alpha').classList.toggle('on', mode === 'alpha');
+  $('sort-cat').classList.toggle('on', mode === 'category');
   renderPick();
 };
 
@@ -995,88 +1335,93 @@ window.setFilter = (f, btn) => {
    DUPLICATE / DELETE
 ═══════════════════════════════════════ */
 window.duplicateDespacho = async id => {
-  const list = await dbGetAll();
-  const src = list.find(d => d.id === id);
+  let src;
+  if (isLocal) {
+    src = localGet().find(d => d.id === id);
+  } else {
+    try {
+      const snap = await fbMod.getDoc(fbMod.doc(db,'despachos',id));
+      if (snap.exists()) src = { id: snap.id, ...snap.data() };
+    } catch{}
+  }
   if (!src) return;
-  const newData = {
-    name: src.name + ' (copia)',
-    products: (src.products || []).map(p => ({...p, id: uid()})),
+  await dbSave({
+    name: `${src.name} (copia)`,
+    assignedTo: src.assignedTo || '',
+    createdBy: currentUser,
+    products: src.products || [],
     checked: {},
     createdAt: Date.now()
-  };
-  await dbSave(newData);
-  loadDash();
+  });
+  // Home listener will auto-update in Firebase mode; force refresh in local
+  if (isLocal) startHomeListener();
 };
 
 window.confirmDelete = (id, name) => {
-  showModal(
-    '¿Eliminar despacho?',
-    `Se eliminará permanentemente el despacho <strong>${name}</strong>. Esta acción no se puede deshacer.`,
-    `<div class="modal-btns">
-      <button class="btn btn-outline" onclick="closeModal()">Cancelar</button>
-      <button class="btn btn-danger" onclick="doDelete('${id}')">Sí, eliminar</button>
-    </div>`
+  openModal(
+    'Eliminar despacho',
+    `¿Seguro que deseas eliminar "${name}"? Esta acción no se puede deshacer.`,
+    '',
+    [
+      { label: 'Cancelar', cls: 'btn-outline', fn: 'closeModal(event)' },
+      { label: '✕ Eliminar', cls: 'btn-danger', fn: `doDelete('${id}')` }
+    ]
   );
 };
+
 window.doDelete = async id => {
   closeModal();
   await dbDelete(id);
-  loadDash();
-};
-
-/* ═══════════════════════════════════════
-   SETTINGS
-═══════════════════════════════════════ */
-window.showSettings = () => {
-  showModal(
-    'Configuración',
-    'Opciones de la aplicación',
-    `<button class="btn btn-outline btn-full" style="margin-bottom:8px" onclick="closeModal();showScreen('s-setup')">Cambiar configuración de Firebase</button>
-     <button class="btn btn-danger btn-full" onclick="if(confirm('¿Borrar toda la configuración guardada?')){try{window.storage.delete('${CFG_KEY}');}catch{}localStorage.clear();location.reload();}">Resetear aplicación</button>`
-  );
+  if (isLocal) startHomeListener();
 };
 
 /* ═══════════════════════════════════════
    MODAL
 ═══════════════════════════════════════ */
-function showModal(title, sub, contentHTML) {
+function openModal(title, sub, content, btns) {
   $('modal-title').textContent = title;
-  $('modal-sub').innerHTML = sub;
-  $('modal-content').innerHTML = contentHTML;
-  $('modal-btns').innerHTML = '';
+  $('modal-sub').textContent = sub;
+  $('modal-content').innerHTML = content;
+  $('modal-btns').innerHTML = btns.map(b =>
+    `<button class="btn ${b.cls}" onclick="${b.fn}">${b.label}</button>`
+  ).join('');
   $('modal-overlay').classList.add('on');
 }
+
 window.closeModal = e => {
-  if (!e || e.target === $('modal-overlay')) $('modal-overlay').classList.remove('on');
+  if (!e || e.target === $('modal-overlay')) {
+    $('modal-overlay').classList.remove('on');
+  }
 };
 
 /* ═══════════════════════════════════════
-   INIT — Firebase config pre-configurado
+   INIT
 ═══════════════════════════════════════ */
-const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyAb_0e8Hh_UfzN54S3VZGQXqUD3t53bWrQ",
-  authDomain: "despacho-ordenes.firebaseapp.com",
-  projectId: "despacho-ordenes",
-  storageBucket: "despacho-ordenes.firebasestorage.app",
-  messagingSenderId: "694628838838",
-  appId: "1:694628838838:web:30e9745a0465b004f42517"
-};
+document.addEventListener('DOMContentLoaded', async () => {
+  // Load saved user name
+  currentUser = localStorage.getItem(USER_KEY) || '';
 
-(async () => {
-  showScreen('s-home');
-  $('home-date').textContent = new Date().toLocaleDateString('es-SV', {weekday:'long', day:'2-digit', month:'long', year:'numeric'}).toUpperCase();
-  const ok = await initFirebase(FIREBASE_CONFIG);
-  if (ok) {
-    $('sync-indicator').textContent = '✓ Firebase';
-    $('sync-indicator').className = 'sync-badge';
-    loadDash();
-  } else {
-    isLocal = true;
-    $('sync-indicator').textContent = '● Local';
-    $('sync-indicator').className = 'sync-badge local';
-    loadDash();
-  }
-})();
+  // Try to restore Firebase config
+  try {
+    const stored = await window.storage.get(CFG_KEY);
+    if (stored?.value) {
+      const cfg = JSON.parse(stored.value);
+      const ok = await initFirebase(cfg);
+      if (ok) {
+        if (!currentUser) {
+          showNameModal(() => goHome());
+        } else {
+          goHome();
+        }
+        return;
+      }
+    }
+  } catch(e) {}
+
+  // No config saved — show setup
+  showScreen('s-setup');
+});
+
 </script>
 </body>
 </html>
