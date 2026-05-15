@@ -608,8 +608,8 @@ function updRvCount() {
 ═══════════════════════════════════════ */
 async function initFirebase(cfg) {
   try {
-    const { initializeApp, getApps } = await import('https://esm.sh/firebase@10.12.0/app');
-    fbMod = await import('https://esm.sh/firebase@10.12.0/firestore');
+    const { initializeApp, getApps } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
+    fbMod = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
     const APP_NAME = 'despacho-main';
     const existing = getApps().find(a => a.name === APP_NAME);
     const app = existing || initializeApp(cfg, APP_NAME);
