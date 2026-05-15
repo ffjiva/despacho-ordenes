@@ -1422,29 +1422,33 @@ window.closeModal = e => {
 /* ═══════════════════════════════════════
    INIT
 ═══════════════════════════════════════ */
+const FIREBASE_CFG = {
+  apiKey: "AIzaSyAb_0e8Hh_UfzN54S3VZGQXqUD3t53bWrQ",
+  authDomain: "despacho-ordenes.firebaseapp.com",
+  projectId: "despacho-ordenes",
+  storageBucket: "despacho-ordenes.firebasestorage.app",
+  messagingSenderId: "694628838838",
+  appId: "1:694628838838:web:30e9745a0465b004f42517"
+};
+
 document.addEventListener('DOMContentLoaded', async () => {
-  // Load saved user name
   currentUser = localStorage.getItem(USER_KEY) || '';
 
-  // Try to restore Firebase config
-  try {
-    const raw = localStorage.getItem(CFG_KEY);
-    if (raw) {
-      const cfg = JSON.parse(raw);
-      const ok = await initFirebase(cfg);
-      if (ok) {
-        if (!currentUser) {
-          showNameModal(() => goHome());
-        } else {
-          goHome();
-        }
-        return;
-      }
+  const ok = await initFirebase(FIREBASE_CFG);
+  if (ok) {
+    if (!currentUser) {
+      showNameModal(() => goHome());
+    } else {
+      goHome();
     }
-  } catch(e) {}
-
-  // No config saved — show setup
-  showScreen('s-setup');
+  } else {
+    showScreen('s-setup');
+    const err = document.getElementById('cfg-err');
+    if (err) {
+      err.textContent = 'No se pudo conectar a Firebase. Verifica tu conexión a internet.';
+      err.style.display = 'block';
+    }
+  }
 });
 
 </script>
