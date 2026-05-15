@@ -142,7 +142,19 @@ html, body {
 .dcard.locked-other { border-color: var(--err-bd); background: #fffbfb; }
 .dcard-inner { padding: 13px 13px 10px; }
 .dcard-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
-.dcard-name { font-size: .82rem; font-weight: 600; line-height: 1.35; flex: 1; text-transform: uppercase; letter-spacing: .02em; }
+.dcard-name {
+  font-size: .82rem; font-weight: 600; line-height: 1.35; flex: 1;
+  text-transform: uppercase; letter-spacing: .02em;
+  display: flex; justify-content: space-between; align-items: baseline; gap: 8px;
+}
+.dcard-date {
+  font-size: .65rem; font-weight: 400; color: var(--muted);
+  text-transform: none; letter-spacing: 0; white-space: nowrap; flex-shrink: 0;
+}
+.dcard-route {
+  font-size: .68rem; color: var(--text2); margin-top: 3px;
+  letter-spacing: .01em; font-weight: 500;
+}
 .dcard-badges { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; flex-shrink: 0; }
 .badge { display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: .58rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; border: 1px solid; white-space: nowrap; }
 .badge-active { background: var(--warn-bg); color: var(--warn-tx); border-color: var(--warn-bd); }
@@ -1009,21 +1021,32 @@ function renderDash(list) {
         ? `<span class="badge badge-me">✏️ Tú</span>`
         : '';
 
-    const assignStr = d.assignedTo
-      ? `<span class="dcard-assign">👤 ${d.assignedTo}</span>`
+    // Line 1: order number + date
+    const line1 = d.orderNumber
+      ? `<div class="dcard-name">ORDEN ${d.orderNumber}<span class="dcard-date">${d.orderDate || fmtShort(d.createdAt)}</span></div>`
+      : `<div class="dcard-name">${d.name||'Despacho sin nombre'}</div>`;
+
+    // Line 2: route (origin → destination)
+    const line2 = (d.origin || d.destination)
+      ? `<div class="dcard-route">${d.origin||'—'} → ${d.destination||'—'}</div>`
       : '';
+
+    // Line 3: stats + assignment
+    const assignStr = d.assignedTo ? `<span class="dcard-assign">👤 ${d.assignedTo}</span>` : '';
 
     return `<div class="dcard${fin?' fin':''}${lockedByOther?' locked-other':''}" onclick="openDespacho('${d.id}')">
       <div class="dcard-inner">
         <div class="dcard-top">
-          <div class="dcard-name">${d.name||'Despacho sin nombre'}</div>
+          <div style="flex:1;min-width:0">
+            ${line1}
+            ${line2}
+          </div>
           <div class="dcard-badges">
             ${lockBadge}
             <span class="badge ${fin?'badge-done':'badge-active'}">${fin?'✓ Listo':'En proceso'}</span>
           </div>
         </div>
         <div class="dcard-meta">
-          <span>${fmtShort(d.createdAt)}</span>
           <span>${don}/${tot} productos</span>
           <span>${units} unidades</span>
           <span>${pct}%</span>
@@ -1108,9 +1131,12 @@ async function processFile(file) {
     return;
   }
 
-  setStatus('Procesando con IA — detectando productos en la lista...', 'info', true);
+  setStatus('Procesando con IA — esto puede tomar hasta 1 minuto en listas largas, por favor espera...', 'info', true);
   try {
-    const products = await aiExtractProducts(b64, mime);
+    const result = await aiExtractProducts(b64, mime);
+    const products = result.products || result; // backwards compat
+    const header = result.header || {};
+
     if (!products || products.length === 0) {
       setStatus('No se detectaron productos. Asegúrate de que el archivo sea legible. Puedes ingresar la lista manualmente.', 'warn');
       $('no-file-wrap').style.display = 'block';
@@ -1125,12 +1151,16 @@ async function processFile(file) {
       family: (p.family || 'General').trim()
     }));
 
-    setStatus(`✓ ${parsedProducts.length} productos detectados. Revisa y ajusta antes de guardar.`, 'ok');
-    renderReview();
-    $('review-wrap').style.display = 'block';
-    $('no-file-wrap').style.display = 'none';
+    // Store header for saving
+    window._lastHeader = header;
 
-    if (!$('dsp-name').value.trim()) {
+    // Auto-fill order name from header
+    // Auto-fill order name from header
+    if (header.orderNumber || header.orderDate) {
+      const num = header.orderNumber ? `ORDEN ${header.orderNumber}` : '';
+      const date = header.orderDate || '';
+      $('dsp-name').value = [num, date].filter(Boolean).join('    ');
+    } else if (!$('dsp-name').value.trim()) {
       $('dsp-name').value = `Pedido ${new Date().toLocaleDateString('es-SV',{day:'2-digit',month:'2-digit',year:'numeric'})}`;
     }
   } catch(e) {
@@ -1151,7 +1181,7 @@ function fileToBase64(file) {
 
 async function aiExtractProducts(b64, mime) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 45000); // 45s timeout
+  const timer = setTimeout(() => controller.abort(), 270000); // 270s — margen para PDFs grandes
   try {
     const res = await fetch('https://us-central1-despacho-ordenes.cloudfunctions.net/parseDocument', {
       method: 'POST',
@@ -1163,7 +1193,8 @@ async function aiExtractProducts(b64, mime) {
     if (!res.ok) throw new Error(`Error del servidor (${res.status}). Intenta de nuevo.`);
     const data = await res.json();
     if (data.error) throw new Error(data.error);
-    return data.products;
+    // Return full object {products, header} or just array for backwards compat
+    return data;
   } catch(e) {
     clearTimeout(timer);
     if (e.name === 'AbortError') {
@@ -1229,10 +1260,15 @@ window.saveDespacho = async () => {
   const assignedTo = $('dsp-assign').value || '';
 
   try {
+    const header = window._lastHeader || {};
     const id = await dbSave({
       name,
       assignedTo,
       createdBy: currentUser,
+      orderNumber: header.orderNumber || '',
+      orderDate: header.orderDate || '',
+      origin: header.origin || '',
+      destination: header.destination || '',
       products: parsedProducts,
       checked: {},
       createdAt: Date.now()
