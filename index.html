@@ -1155,7 +1155,6 @@ async function processFile(file) {
     window._lastHeader = header;
 
     // Auto-fill order name from header
-    // Auto-fill order name from header
     if (header.orderNumber || header.orderDate) {
       const num = header.orderNumber ? `ORDEN ${header.orderNumber}` : '';
       const date = header.orderDate || '';
@@ -1163,6 +1162,11 @@ async function processFile(file) {
     } else if (!$('dsp-name').value.trim()) {
       $('dsp-name').value = `Pedido ${new Date().toLocaleDateString('es-SV',{day:'2-digit',month:'2-digit',year:'numeric'})}`;
     }
+
+    setStatus(`✓ ${parsedProducts.length} productos detectados. Revisa y ajusta antes de guardar.`, 'ok');
+    renderReview();
+    $('review-wrap').style.display = 'block';
+    $('no-file-wrap').style.display = 'none';
   } catch(e) {
     console.error(e);
     setStatus('Error al procesar: ' + (e.message || 'Intenta de nuevo o usa el modo manual.'), 'err');
