@@ -1228,7 +1228,7 @@ async function aiExtractProducts(b64, mime) {
 
     try {
       const res = await fetch(
-        'https://us-central1-despacho-ordenes.cloudfunctions.net/parseDocument',
+        'https://parsedocument-aqd2rvesuq-uc.a.run.app',
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
