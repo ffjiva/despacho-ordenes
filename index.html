@@ -1347,9 +1347,9 @@ window.saveDespacho = async () => {
     || `Despacho ${new Date().toLocaleDateString('es-SV',{day:'2-digit',month:'2-digit'})} ${new Date().toLocaleTimeString('es-SV',{hour:'2-digit',minute:'2-digit'})}`;
   const assignedTo = $('dsp-assign').value || '';
 
-  try {
+try {
     const header = window._lastHeader || {};
-    const id = await dbSave({
+    const savePromise = dbSave({
       name,
       assignedTo,
       createdBy: currentUser,
@@ -1361,7 +1361,20 @@ window.saveDespacho = async () => {
       checked: {},
       createdAt: Date.now()
     });
-    await doOpenDespacho(id);
+
+    // Timeout explícito de 20s para el guardado
+    const id = await Promise.race([
+      savePromise,
+      new Promise((_, rej) => setTimeout(() =>
+        rej(new Error('Tiempo de espera al guardar. Verifica tu conexión e intenta de nuevo.')), 20000))
+    ]);
+
+    try {
+      await doOpenDespacho(id);
+    } catch(navErr) {
+      console.error('Nav error:', navErr);
+      goHome();
+    }
   } catch(e) {
     btn.disabled = false;
     btn.textContent = 'Guardar y comenzar picking →';
