@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+<title>Operaciones Ops</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap');
+:root {
+  --bg: #f2f0eb;
+  --surface: #ffffff;
+  --surface2: #faf9f7;
+  --border: #dddbd2;
+  --border2: #e8e6df;
+  --text: #18180f;
+  --text2: #5a5a4f;
+  --muted: #8a8a7e;
+  --accent: #18180f;
+  --accent2: #2d5a1b;
+  --done-bg: #edf5e1;
+  --done-bd: #bad48a;
+  --done-tx: #2d5a1b;
+  --warn-bg: #fdf4e3;
+  --warn-bd: #f0cc7a;
+  --warn-tx: #7a4f0a;
+  --err-bg: #fdecea;
+  --err-bd: #f5b8b2;
+  --err-tx: #9b2a20;
+  --info-bg: #e8f0fb;
+  --info-bd: #a8c4f0;
+  --info-tx: #1c4fa0;
+  --mono: 'IBM Plex Mono', monospace;
+  --sans: 'IBM Plex Sans', sans-serif;
+  --r: 6px;
+  --r2: 10px;
+
+  /* type colors */
+  --dist-bg: #edf5e1; --dist-bd: #bad48a; --dist-tx: #2d5a1b;
+  --auth-bg: #e8f0fb; --auth-bd: #a8c4f0; --auth-tx: #1c4fa0;
+  --comp-bg: #fdf4e3; --comp-bd: #f0cc7a; --comp-tx: #7a4f0a;
+  --inv-bg:  #f5edfb; --inv-bd:  #d0a8f0; --inv-tx:  #5a1c9b;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html, body {
+  font-family: var(--mono);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.scr { display: none; min-height: 100vh; }
+.scr.on { display: block; }
+
+/* ── TOPBAR ── */
+.topbar {
+  background: var(--accent);
+  color: #fff;
+  padding: .9rem 1rem .85rem;
+  position: sticky; top: 0; z-index: 200;
+  display: flex; align-items: center; justify-content: space-between; gap: .75rem;
+}
+.topbar-title {
+  font-family: var(--mono);
+  font-size: .78rem; font-weight: 700;
+  letter-spacing: .12em; text-transform: uppercase;
+}
+.topbar-actions { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
+
+/* ── BUTTONS ── */
+.btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 7px 14px; border-radius: var(--r);
+  font-family: var(--mono); font-size: .7rem; font-weight: 700;
+  letter-spacing: .07em; text-transform: uppercase;
+  cursor: pointer; border: none; transition: all .15s;
+  white-space: nowrap;
+}
+.btn:active { transform: scale(.97); }
+.btn-light  { background: #fff; color: var(--accent); }
+.btn-ghost  { background: transparent; border: 1px solid rgba(255,255,255,.3); color: rgba(255,255,255,.85); }
+.btn-ghost:hover { border-color: rgba(255,255,255,.75); color: #fff; }
+.btn-dark   { background: var(--accent); color: #fff; }
+.btn-dark:hover { background: #2c2c22; }
+.btn-dark:disabled { opacity: .4; cursor: not-allowed; }
+.btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text2); }
+.btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+.btn-danger { background: var(--err-bg); color: var(--err-tx); border: 1px solid var(--err-bd); }
+.btn-full { width: 100%; justify-content: center; padding: 11px; font-size: .78rem; }
+
+/* ── FORM FIELDS ── */
+.fld { margin-bottom: .9rem; }
+.fld label { display: block; font-size: .6rem; font-weight: 700; letter-spacing: .1em; color: var(--muted); text-transform: uppercase; margin-bottom: 5px; }
+.fld input, .fld textarea, .fld select {
+  width: 100%; padding: 10px 12px;
+  border: 1px solid var(--border); border-radius: var(--r);
+  font-family: var(--mono); font-size: .73rem;
+  background: var(--surface); color: var(--text);
+  transition: border-color .15s; outline: none;
+}
+.fld input:focus, .fld textarea:focus, .fld select:focus { border-color: var(--accent); }
+.fld textarea { min-height: 80px; resize: vertical; }
+
+/* ── NOTICE BOXES ── */
+.box { padding: 10px 12px; border-radius: var(--r); font-size: .72rem; line-height: 1.6; border: 1px solid; }
+.box-info { background: var(--info-bg); border-color: var(--info-bd); color: var(--info-tx); }
+.box-err  { background: var(--err-bg);  border-color: var(--err-bd);  color: var(--err-tx); }
+
+/* ── SPINNER ── */
+.spin {
+  display: inline-block; width: 12px; height: 12px;
+  border: 2px solid rgba(0,0,0,.1); border-top-color: currentColor;
+  border-radius: 50%; animation: rot .65s linear infinite;
+  vertical-align: middle; margin-right: 5px;
+}
+@keyframes rot { to { transform: rotate(360deg); } }
+
+/* ── LOGIN ── */
+.login-wrap {
+  max-width: 400px; margin: 0 auto;
+  padding: 3rem 1.25rem 3rem;
+  display: flex; flex-direction: column; align-items: center;
+}
+.login-logo {
+  width: 52px; height: 52px; background: var(--accent); color: #fff;
+  border-radius: 12px; display: flex; align-items: center; justify-content: center;
+  font-size: 1.5rem; margin-bottom: 1.25rem;
+}
+.login-h   { font-size: 1.05rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; margin-bottom: .3rem; text-align: center; }
+.login-sub { font-size: .72rem; color: var(--text2); text-align: center; margin-bottom: 1.75rem; line-height: 1.7; }
+.login-form { width: 100%; }
+
+/* ── HOME ── */
+.home-subbar {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border2);
+  padding: .6rem 1rem;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.home-user { font-size: .62rem; color: var(--text2); font-weight: 600; }
+.home-date { font-size: .6rem; color: var(--muted); letter-spacing: .04em; text-transform: uppercase; }
+
+/* ── TYPE FILTER BAR ── */
+.filter-bar {
+  display: flex; gap: 6px; padding: .65rem .875rem;
+  border-bottom: 1px solid var(--border2);
+  background: var(--surface); overflow-x: auto;
+  align-items: center;
+}
+.filter-bar::-webkit-scrollbar { display: none; }
+.fbtn {
+  padding: 4px 12px; border-radius: 20px;
+  border: 1px solid var(--border); background: transparent;
+  font-family: var(--mono); font-size: .65rem;
+  cursor: pointer; white-space: nowrap; color: var(--muted);
+  letter-spacing: .04em; transition: all .15s;
+}
+.fbtn.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+/* ── PENDIENTES LIST ── */
+.pend-list {
+  padding: .75rem .875rem 5rem;
+  max-width: 720px; margin: 0 auto;
+}
+.section-lbl {
+  font-size: .58rem; font-weight: 700; letter-spacing: .12em; color: var(--muted);
+  text-transform: uppercase; margin-bottom: .6rem;
+  padding-bottom: .35rem; border-bottom: 1px solid var(--border2);
+}
+.pcard {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r2); margin-bottom: 8px;
+  overflow: hidden; transition: border-color .15s;
+}
+.pcard.done { background: var(--done-bg); border-color: var(--done-bd); }
+.pcard-main {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 11px 12px 10px; cursor: pointer;
+}
+.pchk {
+  width: 20px; height: 20px; flex-shrink: 0; margin-top: 1px;
+  border: 2px solid var(--border); border-radius: 4px;
+  display: flex; align-items: center; justify-content: center;
+  background: #fff; transition: all .15s;
+}
+.pcard.done .pchk { background: var(--done-tx); border-color: var(--done-tx); }
+.pchkm { display: none; color: #fff; font-size: 10px; font-weight: 700; }
+.pcard.done .pchkm { display: block; }
+.pcard-body { flex: 1; min-width: 0; }
+.pcard-title {
+  font-size: .78rem; font-weight: 600; line-height: 1.4;
+  word-break: break-word; color: var(--text);
+}
+.pcard.done .pcard-title { text-decoration: line-through; color: var(--done-tx); }
+.pcard-detail {
+  font-size: .67rem; color: var(--text2); margin-top: 3px;
+  line-height: 1.5; word-break: break-word;
+}
+.pcard.done .pcard-detail { color: var(--done-tx); opacity: .75; }
+.pcard-meta { display: flex; gap: 6px; align-items: center; margin-top: 6px; flex-wrap: wrap; }
+.type-badge {
+  display: inline-block; padding: 2px 8px; border-radius: 3px;
+  font-size: .58rem; font-weight: 700; letter-spacing: .07em;
+  text-transform: uppercase; border: 1px solid; white-space: nowrap;
+}
+.type-dist { background: var(--dist-bg); border-color: var(--dist-bd); color: var(--dist-tx); }
+.type-auth { background: var(--auth-bg); border-color: var(--auth-bd); color: var(--auth-tx); }
+.type-comp { background: var(--comp-bg); border-color: var(--comp-bd); color: var(--comp-tx); }
+.type-inv  { background: var(--inv-bg);  border-color: var(--inv-bd);  color: var(--inv-tx); }
+.pcard-date { font-size: .6rem; color: var(--muted); }
+.pcard-done-info { font-size: .6rem; color: var(--done-tx); padding: 0 12px 8px 42px; }
+.pcard-actions {
+  display: flex; gap: 6px; padding: 6px 10px 8px;
+  border-top: 1px solid var(--border2); background: var(--surface2);
+}
+.pcard.done .pcard-actions { border-top-color: var(--done-bd); background: var(--done-bg); }
+
+.empty-state { text-align: center; padding: 3rem 1rem 2rem; color: var(--muted); }
+.empty-icon  { font-size: 2rem; opacity: .3; margin-bottom: .75rem; }
+.empty-text  { font-size: .75rem; line-height: 1.7; }
+
+/* ── FAB ── */
+.fab {
+  position: fixed; bottom: 1.25rem; right: 1.25rem;
+  width: 52px; height: 52px; border-radius: 50%;
+  background: var(--accent); color: #fff;
+  font-size: 1.4rem; font-weight: 300;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; border: none;
+  box-shadow: 0 4px 14px rgba(0,0,0,.25);
+  transition: transform .15s, box-shadow .15s;
+  z-index: 100;
+}
+.fab:active { transform: scale(.93); box-shadow: 0 2px 8px rgba(0,0,0,.2); }
+
+/* ── MODAL ── */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 500;
+  background: rgba(0,0,0,.45); backdrop-filter: blur(2px);
+  display: none; align-items: flex-end; justify-content: center;
+}
+.modal-overlay.on { display: flex; }
+.modal {
+  background: var(--surface); border-radius: var(--r2) var(--r2) 0 0;
+  padding: 1.25rem 1.25rem 2rem; width: 100%; max-width: 480px;
+  max-height: 85vh; overflow-y: auto;
+  animation: slideUp .2s ease;
+}
+@keyframes slideUp { from { transform: translateY(40px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.modal-title { font-size: .82rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; margin-bottom: .25rem; }
+.modal-sub   { font-size: .68rem; color: var(--muted); margin-bottom: 1.1rem; }
+.modal-btns  { display: flex; gap: 8px; margin-top: 1rem; }
+.modal-btns .btn { flex: 1; justify-content: center; }
+
+/* type selector */
+.type-opts { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-bottom: .9rem; }
+.type-opt {
+  padding: 9px 10px; border: 1px solid var(--border); border-radius: var(--r);
+  font-family: var(--mono); font-size: .68rem; font-weight: 600;
+  cursor: pointer; text-align: center; transition: all .15s;
+  text-transform: uppercase; letter-spacing: .04em; color: var(--text2);
+}
+.type-opt.sel-dist { background: var(--dist-bg); border-color: var(--dist-bd); color: var(--dist-tx); }
+.type-opt.sel-auth { background: var(--auth-bg); border-color: var(--auth-bd); color: var(--auth-tx); }
+.type-opt.sel-comp { background: var(--comp-bg); border-color: var(--comp-bd); color: var(--comp-tx); }
+.type-opt.sel-inv  { background: var(--inv-bg);  border-color: var(--inv-bd);  color: var(--inv-tx); }
+</style>
+</head>
+<body>
+
+<!-- ══════════════ LOGIN ══════════════ -->
+<div id="s-login" class="scr on">
+  <div class="topbar">
+    <div class="topbar-title">⚙ Operaciones Ops</div>
+  </div>
+  <div class="login-wrap">
+    <div class="login-logo">⚙</div>
+    <div class="login-h">Bienvenido</div>
+    <div class="login-sub">Ingresa tu nombre para continuar.</div>
+    <div class="login-form">
+      <div class="fld">
+        <label>Tu nombre</label>
+        <input id="login-name" type="text" placeholder="Ej: Fernando" autocomplete="off"
+          onkeydown="if(event.key==='Enter')doLogin()"/>
+      </div>
+      <div id="login-err" class="box box-err" style="display:none;margin-bottom:.75rem"></div>
+      <button class="btn btn-dark btn-full" onclick="doLogin()">Entrar →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ HOME ══════════════ -->
+<div id="s-home" class="scr">
+  <div class="topbar">
+    <div class="topbar-title">⚙ Ops</div>
+    <div class="topbar-actions">
+      <button class="btn btn-ghost" style="font-size:.65rem" onclick="toggleDone()">
+        <span id="toggle-done-lbl">Ver resueltos</span>
+      </button>
+      <button class="btn btn-light" style="font-size:.65rem" onclick="doLogout()">Salir</button>
+    </div>
+  </div>
+
+  <div class="home-subbar">
+    <span class="home-date" id="home-date"></span>
+    <span class="home-user" id="home-user"></span>
+  </div>
+
+  <div class="filter-bar">
+    <button class="fbtn on" id="f-all"  onclick="setFilter('all',this)">Todos</button>
+    <button class="fbtn" id="f-dist"    onclick="setFilter('dist',this)">Distribución</button>
+    <button class="fbtn" id="f-auth"    onclick="setFilter('auth',this)">Autorización</button>
+    <button class="fbtn" id="f-comp"    onclick="setFilter('comp',this)">Compras</button>
+    <button class="fbtn" id="f-inv"     onclick="setFilter('inv',this)">Inventario</button>
+  </div>
+
+  <div class="pend-list" id="pend-list">
+    <div class="empty-state"><span class="spin"></span></div>
+  </div>
+
+  <button class="fab" onclick="openNewModal()" title="Nuevo pendiente">+</button>
+</div>
+
+<!-- ══════════════ MODAL NUEVO ══════════════ -->
+<div class="modal-overlay" id="modal-new" onclick="closeNewModal(event)">
+  <div class="modal">
+    <div class="modal-title">Nuevo pendiente</div>
+    <div class="modal-sub">Selecciona el tipo y describe la tarea.</div>
+
+    <div style="font-size:.6rem;font-weight:700;letter-spacing:.1em;color:var(--muted);text-transform:uppercase;margin-bottom:6px">Tipo</div>
+    <div class="type-opts">
+      <div class="type-opt" id="opt-dist" onclick="selectType('dist')">📦 Distribución</div>
+      <div class="type-opt" id="opt-auth" onclick="selectType('auth')">✅ Autorización</div>
+      <div class="type-opt" id="opt-comp" onclick="selectType('comp')">🛒 Compras</div>
+      <div class="type-opt" id="opt-inv"  onclick="selectType('inv')">📊 Inventario</div>
+    </div>
+
+    <div class="fld">
+      <label>Título</label>
+      <input id="new-title" type="text" placeholder="Resumen breve del pendiente" autocomplete="off"/>
+    </div>
+    <div class="fld">
+      <label>Detalle (opcional)</label>
+      <textarea id="new-detail" placeholder="Información adicional…"></textarea>
+    </div>
+    <div id="new-err" class="box box-err" style="display:none;margin-bottom:.75rem"></div>
+    <div class="modal-btns">
+      <button class="btn btn-outline" onclick="closeNewModal()">Cancelar</button>
+      <button class="btn btn-dark" id="btn-save-new" onclick="saveNew()">Guardar →</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+/* ═══════════════════════════════════
+   CONFIG & STATE
+═══════════════════════════════════ */
+const FIREBASE_CFG = {
+  apiKey: "AIzaSyAb_0e8Hh_UfzN54S3VZGQXqUD3t53bWrQ",
+  authDomain: "despacho-ordenes.firebaseapp.com",
+  projectId: "despacho-ordenes",
+  storageBucket: "despacho-ordenes.firebasestorage.app",
+  messagingSenderId: "694628838838",
+  appId: "1:694628838838:web:30e9745a0465b004f42517"
+};
+
+const USER_KEY = 'ops_user_v1';
+const COLLECTION = 'ops_pendientes';
+
+let db = null, fbMod = null;
+let currentUser = '';
+let activeFilter = 'all';
+let showDone = false;
+let selectedType = '';
+let homeUnsub = null;
+
+const $ = id => document.getElementById(id);
+
+/* ═══════════════════════════════════
+   INIT
+═══════════════════════════════════ */
+async function init() {
+  try {
+    const { initializeApp, getApps } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
+    fbMod = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+    const existing = getApps().find(a => a.name === 'ops-main');
+    const app = existing || initializeApp(FIREBASE_CFG, 'ops-main');
+    db = fbMod.getFirestore(app);
+  } catch(e) {
+    console.error('Firebase init error:', e);
+  }
+
+  currentUser = localStorage.getItem(USER_KEY) || '';
+  if (currentUser) {
+    goHome();
+  } else {
+    showScreen('s-login');
+    setTimeout(() => $('login-name')?.focus(), 100);
+  }
+}
+
+function showScreen(id) {
+  document.querySelectorAll('.scr').forEach(s => s.classList.remove('on'));
+  $(id).classList.add('on');
+  window.scrollTo(0, 0);
+}
+
+/* ═══════════════════════════════════
+   LOGIN
+═══════════════════════════════════ */
+window.doLogin = () => {
+  const name = $('login-name').value.trim();
+  if (!name) {
+    $('login-err').textContent = 'Ingresa tu nombre para continuar.';
+    $('login-err').style.display = 'block';
+    return;
+  }
+  $('login-err').style.display = 'none';
+  currentUser = name;
+  localStorage.setItem(USER_KEY, name);
+  goHome();
+};
+
+window.doLogout = () => {
+  if (homeUnsub) { homeUnsub(); homeUnsub = null; }
+  currentUser = '';
+  localStorage.removeItem(USER_KEY);
+  $('login-name').value = '';
+  showScreen('s-login');
+  setTimeout(() => $('login-name')?.focus(), 100);
+};
+
+/* ═══════════════════════════════════
+   HOME
+═══════════════════════════════════ */
+function goHome() {
+  $('home-user').textContent = `👤 ${currentUser}`;
+  $('home-date').textContent = new Date().toLocaleDateString('es-SV', {
+    weekday: 'long', day: '2-digit', month: 'long'
+  }).toUpperCase();
+  showScreen('s-home');
+  startListener();
+}
+
+function startListener() {
+  if (!db) { renderList([]); return; }
+  if (homeUnsub) { homeUnsub(); homeUnsub = null; }
+
+  $('pend-list').innerHTML = '<div class="empty-state"><span class="spin"></span></div>';
+
+  const q = fbMod.query(
+    fbMod.collection(db, COLLECTION),
+    fbMod.orderBy('createdAt', 'desc')
+  );
+  homeUnsub = fbMod.onSnapshot(q,
+    snap => renderList(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
+    err  => {
+      $('pend-list').innerHTML = `<div class="empty-state" style="color:var(--err-tx)">Error al cargar. Verifica tu conexión.</div>`;
+    }
+  );
+}
+
+/* ═══════════════════════════════════
+   RENDER
+═══════════════════════════════════ */
+const TYPE_META = {
+  dist: { label: 'Distribución', cls: 'type-dist' },
+  auth: { label: 'Autorización', cls: 'type-auth' },
+  comp: { label: 'Compras',      cls: 'type-comp' },
+  inv:  { label: 'Inventario',   cls: 'type-inv'  },
+};
+
+function renderList(all) {
+  let list = all;
+  if (!showDone)              list = list.filter(p => !p.done);
+  if (activeFilter !== 'all') list = list.filter(p => p.type === activeFilter);
+
+  const el = $('pend-list');
+  if (!list.length) {
+    el.innerHTML = `<div class="empty-state">
+      <div class="empty-icon">✓</div>
+      <div class="empty-text">${
+        showDone ? 'Sin pendientes en esta categoría.' : 'Sin pendientes activos. ¡Todo en orden!'
+      }</div>
+    </div>`;
+    return;
+  }
+
+  el.innerHTML = list.map(p => {
+    const meta = TYPE_META[p.type] || { label: p.type, cls: 'type-dist' };
+    const dateStr = p.createdAt
+      ? new Date(p.createdAt).toLocaleDateString('es-SV', { day: '2-digit', month: 'short', year: 'numeric' })
+      : '';
+    return `
+      <div class="pcard${p.done ? ' done' : ''}" id="pc-${p.id}">
+        <div class="pcard-main" onclick="togglePend('${p.id}')">
+          <div class="pchk"><span class="pchkm">✓</span></div>
+          <div class="pcard-body">
+            <div class="pcard-title">${escHtml(p.title)}</div>
+            ${p.detail ? `<div class="pcard-detail">${escHtml(p.detail)}</div>` : ''}
+            <div class="pcard-meta">
+              <span class="type-badge ${meta.cls}">${meta.label}</span>
+              <span class="pcard-date">${dateStr}</span>
+            </div>
+          </div>
+        </div>
+        ${p.done && p.doneAt ? `<div class="pcard-done-info">✓ Resuelto el ${
+          new Date(p.doneAt).toLocaleDateString('es-SV', { day:'2-digit', month:'short', year:'numeric' })
+        } por ${escHtml(p.doneBy || '—')}</div>` : ''}
+        <div class="pcard-actions" onclick="event.stopPropagation()">
+          <button class="btn btn-danger" style="font-size:.6rem;padding:4px 10px"
+            onclick="deletePend('${p.id}','${escAttr(p.title)}')">✕ Eliminar</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function escAttr(s) { return String(s).replace(/'/g,"\\'"); }
+
+/* ═══════════════════════════════════
+   FILTER / TOGGLE
+═══════════════════════════════════ */
+window.setFilter = (f, btn) => {
+  activeFilter = f;
+  document.querySelectorAll('.fbtn').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+  startListener();
+};
+
+window.toggleDone = () => {
+  showDone = !showDone;
+  $('toggle-done-lbl').textContent = showDone ? 'Ocultar resueltos' : 'Ver resueltos';
+  startListener();
+};
+
+/* ═══════════════════════════════════
+   TOGGLE DONE
+═══════════════════════════════════ */
+window.togglePend = async id => {
+  if (!db) return;
+  try {
+    const ref = fbMod.doc(db, COLLECTION, id);
+    const snap = await fbMod.getDoc(ref);
+    if (!snap.exists()) return;
+    const cur = snap.data();
+    await fbMod.updateDoc(ref, cur.done
+      ? { done: false, doneAt: null, doneBy: null }
+      : { done: true,  doneAt: Date.now(), doneBy: currentUser }
+    );
+  } catch(e) { console.error(e); }
+};
+
+/* ═══════════════════════════════════
+   DELETE
+═══════════════════════════════════ */
+window.deletePend = async (id, title) => {
+  if (!confirm(`¿Eliminar "${title}"?`)) return;
+  if (!db) return;
+  try { await fbMod.deleteDoc(fbMod.doc(db, COLLECTION, id)); }
+  catch(e) { console.error(e); }
+};
+
+/* ═══════════════════════════════════
+   NEW MODAL
+═══════════════════════════════════ */
+window.openNewModal = () => {
+  selectedType = '';
+  $('new-title').value = '';
+  $('new-detail').value = '';
+  $('new-err').style.display = 'none';
+  ['dist','auth','comp','inv'].forEach(t => {
+    $(`opt-${t}`).className = 'type-opt';
+  });
+  $('modal-new').classList.add('on');
+  setTimeout(() => $('new-title')?.focus(), 100);
+};
+
+window.closeNewModal = e => {
+  if (!e || e.target === $('modal-new')) $('modal-new').classList.remove('on');
+};
+
+window.selectType = type => {
+  selectedType = type;
+  ['dist','auth','comp','inv'].forEach(t => {
+    $(`opt-${t}`).className = `type-opt${t === type ? ` sel-${t}` : ''}`;
+  });
+};
+
+window.saveNew = async () => {
+  const title = $('new-title').value.trim();
+  if (!selectedType) {
+    $('new-err').textContent = 'Selecciona un tipo.';
+    $('new-err').style.display = 'block';
+    return;
+  }
+  if (!title) {
+    $('new-err').textContent = 'El título es obligatorio.';
+    $('new-err').style.display = 'block';
+    return;
+  }
+  $('new-err').style.display = 'none';
+
+  const btn = $('btn-save-new');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span>Guardando…';
+
+  try {
+    await fbMod.addDoc(fbMod.collection(db, COLLECTION), {
+      type:      selectedType,
+      title,
+      detail:    $('new-detail').value.trim(),
+      done:      false,
+      doneAt:    null,
+      doneBy:    null,
+      createdBy: currentUser,
+      createdAt: Date.now()
+    });
+    $('modal-new').classList.remove('on');
+  } catch(e) {
+    $('new-err').textContent = 'Error al guardar. Intenta de nuevo.';
+    $('new-err').style.display = 'block';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Guardar →';
+  }
+};
+
+/* ═══════════════════════════════════
+   START
+═══════════════════════════════════ */
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
