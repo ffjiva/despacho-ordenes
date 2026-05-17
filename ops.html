@@ -58,10 +58,12 @@ body.dark {
   --comp-bg: #2a2212; --comp-bd: #6a5418; --comp-tx: #d0a030;
   --inv-bg:  #1e1228; --inv-bd:  #502e72; --inv-tx:  #a870d8;
 }
-body.dark .pcard.urg-high   { border-left-color: #e05555; }
-body.dark .pcard.urg-normal { border-left-color: #c09030; }
+body.dark .pcard.urg-high   { border-left-color: #ff4444; }
+body.dark .pcard.urg-normal { border-left-color: #ffd000; }
 body.dark .pcard.urg-low    { border-left-color: #85B7EB; }
-body.dark .urg-opt.sel-low  { background: #152236; border-color: #85B7EB; color: #85B7EB; }
+body.dark .urg-opt.sel-high   { background: #2a0a0a; border-color: #ff4444; color: #ff6666; }
+body.dark .urg-opt.sel-normal { background: #2a2000; border-color: #ffd000; color: #ffd000; }
+body.dark .urg-opt.sel-low    { background: #152236; border-color: #85B7EB; color: #85B7EB; }
 body.dark .btn-light { background: #3a3a3a; color: var(--text); }
 body.dark .fld input, body.dark .fld textarea, body.dark .fld select { background: #222; }
 body.dark .modal { background: #252525; }
@@ -242,8 +244,8 @@ html, body {
   border-top: 1px solid var(--border2); background: var(--surface2);
 }
 .pcard.done .pcard-actions { border-top-color: var(--done-bd); background: var(--done-bg); }
-.pcard.urg-high   { border-left: 4px solid #d63031; }
-.pcard.urg-normal { border-left: 4px solid var(--warn-bd); }
+.pcard.urg-high   { border-left: 4px solid #e03030; }
+.pcard.urg-normal { border-left: 4px solid #d4a000; }
 .pcard.urg-low    { border-left: 4px solid #378ADD; }
 
 /* urgency selector */
@@ -254,8 +256,8 @@ html, body {
   cursor: pointer; text-align: center; transition: all .15s;
   text-transform: uppercase; letter-spacing: .04em; color: var(--text2);
 }
-.urg-opt.sel-high   { background: var(--err-bg);  border-color: var(--err-bd);  color: var(--err-tx); }
-.urg-opt.sel-normal { background: var(--warn-bg); border-color: var(--warn-bd); color: var(--warn-tx); }
+.urg-opt.sel-high   { background: #fff0f0; border-color: #e03030; color: #b01010; }
+.urg-opt.sel-normal { background: #fffae0; border-color: #d4a000; color: #806000; }
 .urg-opt.sel-low    { background: #deeeff; border-color: #378ADD; color: #1a5a9a; }
 
 .empty-state { text-align: center; padding: 3rem 1rem 2rem; color: var(--muted); }
@@ -344,6 +346,7 @@ html, body {
       <button class="btn btn-ghost" style="font-size:.65rem" onclick="toggleDone()">
         <span id="toggle-done-lbl">Ver resueltos</span>
       </button>
+      <button class="btn btn-ghost" style="font-size:.65rem" onclick="toggleSort()" id="sort-btn">↕ Urgencia</button>
       <button class="btn btn-ghost" style="font-size:.85rem;padding:5px 9px" onclick="toggleDark()" id="theme-btn" title="Modo oscuro">🌙</button>
       <button class="btn btn-light" style="font-size:.65rem" onclick="doLogout()">Salir</button>
     </div>
@@ -357,7 +360,7 @@ html, body {
   <div class="filter-bar">
     <button class="fbtn on" id="f-all"  onclick="setFilter('all',this)">Todos</button>
     <button class="fbtn" id="f-dist"    onclick="setFilter('dist',this)">Distribución</button>
-    <button class="fbtn" id="f-auth"    onclick="setFilter('auth',this)">Autorización</button>
+    <button class="fbtn" id="f-auth"    onclick="setFilter('auth',this)">Gestiones</button>
     <button class="fbtn" id="f-comp"    onclick="setFilter('comp',this)">Compras</button>
     <button class="fbtn" id="f-inv"     onclick="setFilter('inv',this)">Inventario</button>
   </div>
@@ -378,7 +381,7 @@ html, body {
     <div style="font-size:.6rem;font-weight:700;letter-spacing:.1em;color:var(--muted);text-transform:uppercase;margin-bottom:6px">Tipo</div>
     <div class="type-opts">
       <div class="type-opt" id="opt-dist" onclick="selectType('dist')">📦 Distribución</div>
-      <div class="type-opt" id="opt-auth" onclick="selectType('auth')">✅ Autorización</div>
+      <div class="type-opt" id="opt-auth" onclick="selectType('auth')">✅ Gestiones</div>
       <div class="type-opt" id="opt-comp" onclick="selectType('comp')">🛒 Compras</div>
       <div class="type-opt" id="opt-inv"  onclick="selectType('inv')">📊 Inventario</div>
     </div>
@@ -447,6 +450,8 @@ let homeUnsub = null;
 
 const SUBTYPE_LABEL = { ordenar: 'Ordenar', organizar: 'Organizar', mover: 'Mover en bodega', revisar: 'Revisar inventario' };
 const THEME_KEY = 'ops_theme_v1';
+const SORT_KEY  = 'ops_sort_v1';
+let sortOrder = 'urgency';
 let editingId = null;
 
 const $ = id => document.getElementById(id);
@@ -466,6 +471,8 @@ async function init() {
   }
 
   if (localStorage.getItem(THEME_KEY) === 'dark') applyDark(true);
+  sortOrder = localStorage.getItem(SORT_KEY) || 'urgency';
+  applySortBtn();
 
   const session = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null');
   if (session && Date.now() < session.exp) {
@@ -543,15 +550,23 @@ function startListener() {
 ═══════════════════════════════════ */
 const TYPE_META = {
   dist: { label: 'Distribución', cls: 'type-dist' },
-  auth: { label: 'Autorización', cls: 'type-auth' },
+  auth: { label: 'Gestiones',    cls: 'type-auth' },
   comp: { label: 'Compras',      cls: 'type-comp' },
   inv:  { label: 'Inventario',   cls: 'type-inv'  },
 };
+const URG_ORDER = { high: 0, normal: 1, low: 2 };
 
 function renderList(all) {
   let list = all;
   list = showDone ? list.filter(p => p.done) : list.filter(p => !p.done);
   if (activeFilter !== 'all') list = list.filter(p => p.type === activeFilter);
+  if (sortOrder === 'urgency') {
+    list = [...list].sort((a, b) =>
+      (URG_ORDER[a.urgency ?? 'normal'] ?? 1) - (URG_ORDER[b.urgency ?? 'normal'] ?? 1)
+    );
+  } else {
+    list = [...list].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  }
 
   const el = $('pend-list');
   if (!list.length) {
@@ -745,6 +760,21 @@ window.saveNew = async () => {
     btn.disabled = false;
     btn.textContent = 'Guardar →';
   }
+};
+
+/* ═══════════════════════════════════
+   SORT
+═══════════════════════════════════ */
+function applySortBtn() {
+  const btn = $('sort-btn');
+  if (btn) btn.textContent = sortOrder === 'urgency' ? '↕ Urgencia' : '↕ Reciente';
+}
+
+window.toggleSort = () => {
+  sortOrder = sortOrder === 'urgency' ? 'time' : 'urgency';
+  localStorage.setItem(SORT_KEY, sortOrder);
+  applySortBtn();
+  startListener();
 };
 
 /* ═══════════════════════════════════
