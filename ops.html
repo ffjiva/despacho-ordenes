@@ -215,6 +215,21 @@ html, body {
   border-top: 1px solid var(--border2); background: var(--surface2);
 }
 .pcard.done .pcard-actions { border-top-color: var(--done-bd); background: var(--done-bg); }
+.pcard.urg-high   { border-left: 4px solid #d63031; }
+.pcard.urg-normal { border-left: 4px solid var(--warn-bd); }
+.pcard.urg-low    { border-left: 4px solid var(--border2); }
+
+/* urgency selector */
+.urg-opts { display: flex; gap: 7px; margin-bottom: .9rem; }
+.urg-opt {
+  flex: 1; padding: 8px 6px; border: 1px solid var(--border); border-radius: var(--r);
+  font-family: var(--mono); font-size: .65rem; font-weight: 600;
+  cursor: pointer; text-align: center; transition: all .15s;
+  text-transform: uppercase; letter-spacing: .04em; color: var(--text2);
+}
+.urg-opt.sel-high   { background: var(--err-bg);  border-color: var(--err-bd);  color: var(--err-tx); }
+.urg-opt.sel-normal { background: var(--warn-bg); border-color: var(--warn-bd); color: var(--warn-tx); }
+.urg-opt.sel-low    { background: var(--surface2); border-color: var(--border2); color: var(--muted); }
 
 .empty-state { text-align: center; padding: 3rem 1rem 2rem; color: var(--muted); }
 .empty-icon  { font-size: 2rem; opacity: .3; margin-bottom: .75rem; }
@@ -337,6 +352,24 @@ html, body {
       <div class="type-opt" id="opt-inv"  onclick="selectType('inv')">📊 Inventario</div>
     </div>
 
+    <div id="inv-subtype-wrap" style="display:none">
+      <div class="fld">
+        <label>Subtipo de inventario</label>
+        <select id="inv-subtype">
+          <option value="ordenar">Ordenar</option>
+          <option value="organizar">Organizar</option>
+          <option value="mover">Mover en bodega</option>
+        </select>
+      </div>
+    </div>
+
+    <div style="font-size:.6rem;font-weight:700;letter-spacing:.1em;color:var(--muted);text-transform:uppercase;margin-bottom:6px">Urgencia</div>
+    <div class="urg-opts">
+      <div class="urg-opt" id="urg-high"   onclick="selectUrgency('high')">🔴 Alta</div>
+      <div class="urg-opt sel-normal" id="urg-normal" onclick="selectUrgency('normal')">🟡 Normal</div>
+      <div class="urg-opt" id="urg-low"    onclick="selectUrgency('low')">⚪ Baja</div>
+    </div>
+
     <div class="fld">
       <label>Título</label>
       <input id="new-title" type="text" placeholder="Resumen breve del pendiente" autocomplete="off"/>
@@ -377,7 +410,10 @@ let currentUser = CURRENT_USER;
 let activeFilter = 'all';
 let showDone = false;
 let selectedType = '';
+let selectedUrgency = 'normal';
 let homeUnsub = null;
+
+const SUBTYPE_LABEL = { ordenar: 'Ordenar', organizar: 'Organizar', mover: 'Mover en bodega' };
 
 const $ = id => document.getElementById(id);
 
@@ -493,13 +529,14 @@ function renderList(all) {
   }
 
   el.innerHTML = list.map(p => {
-    const meta = TYPE_META[p.type] || { label: p.type, cls: 'type-dist' };
+    const meta    = TYPE_META[p.type] || { label: p.type, cls: 'type-dist' };
+    const urgCls  = p.urgency === 'high' ? 'urg-high' : p.urgency === 'low' ? 'urg-low' : 'urg-normal';
     const dateStr = p.createdAt
       ? new Date(p.createdAt).toLocaleDateString('es-SV', { day: '2-digit', month: 'short', year: 'numeric' }) + ' ' +
         new Date(p.createdAt).toLocaleTimeString('es-SV', { hour: '2-digit', minute: '2-digit', hour12: false })
       : '';
     return `
-      <div class="pcard${p.done ? ' done' : ''}" id="pc-${p.id}">
+      <div class="pcard ${urgCls}${p.done ? ' done' : ''}" id="pc-${p.id}">
         <div class="pcard-main" onclick="togglePend('${p.id}')">
           <div class="pchk"><span class="pchkm">✓</span></div>
           <div class="pcard-body">
@@ -507,6 +544,7 @@ function renderList(all) {
             ${p.detail ? `<div class="pcard-detail">${escHtml(p.detail)}</div>` : ''}
             <div class="pcard-meta">
               <span class="type-badge ${meta.cls}">${meta.label}</span>
+              ${p.subtype ? `<span class="type-badge type-inv" style="opacity:.8">${escHtml(SUBTYPE_LABEL[p.subtype] || p.subtype)}</span>` : ''}
               <span class="pcard-date">${dateStr}</span>
             </div>
           </div>
@@ -573,12 +611,16 @@ window.deletePend = async (id, title) => {
 ═══════════════════════════════════ */
 window.openNewModal = () => {
   selectedType = '';
+  selectedUrgency = 'normal';
   $('new-title').value = '';
   $('new-detail').value = '';
   $('new-err').style.display = 'none';
-  ['dist','auth','comp','inv'].forEach(t => {
-    $(`opt-${t}`).className = 'type-opt';
+  ['dist','auth','comp','inv'].forEach(t => { $(`opt-${t}`).className = 'type-opt'; });
+  ['high','normal','low'].forEach(u => {
+    $(`urg-${u}`).className = `urg-opt${u === 'normal' ? ' sel-normal' : ''}`;
   });
+  $('inv-subtype-wrap').style.display = 'none';
+  $('inv-subtype').value = 'ordenar';
   $('modal-new').classList.add('on');
   setTimeout(() => $('new-title')?.focus(), 100);
 };
@@ -591,6 +633,14 @@ window.selectType = type => {
   selectedType = type;
   ['dist','auth','comp','inv'].forEach(t => {
     $(`opt-${t}`).className = `type-opt${t === type ? ` sel-${t}` : ''}`;
+  });
+  $('inv-subtype-wrap').style.display = type === 'inv' ? 'block' : 'none';
+};
+
+window.selectUrgency = u => {
+  selectedUrgency = u;
+  ['high','normal','low'].forEach(v => {
+    $(`urg-${v}`).className = `urg-opt${v === u ? ` sel-${v}` : ''}`;
   });
 };
 
@@ -615,6 +665,8 @@ window.saveNew = async () => {
   try {
     await fbMod.addDoc(fbMod.collection(db, COLLECTION), {
       type:      selectedType,
+      subtype:   selectedType === 'inv' ? $('inv-subtype').value : null,
+      urgency:   selectedUrgency,
       title,
       detail:    $('new-detail').value.trim(),
       done:      false,
