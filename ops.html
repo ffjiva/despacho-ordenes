@@ -60,6 +60,8 @@ body.dark {
 }
 body.dark .pcard.urg-high   { border-left-color: #e05555; }
 body.dark .pcard.urg-normal { border-left-color: #c09030; }
+body.dark .pcard.urg-low    { border-left-color: #85B7EB; }
+body.dark .urg-opt.sel-low  { background: #152236; border-color: #85B7EB; color: #85B7EB; }
 body.dark .btn-light { background: #3a3a3a; color: var(--text); }
 body.dark .fld input, body.dark .fld textarea, body.dark .fld select { background: #222; }
 body.dark .modal { background: #252525; }
@@ -242,7 +244,7 @@ html, body {
 .pcard.done .pcard-actions { border-top-color: var(--done-bd); background: var(--done-bg); }
 .pcard.urg-high   { border-left: 4px solid #d63031; }
 .pcard.urg-normal { border-left: 4px solid var(--warn-bd); }
-.pcard.urg-low    { border-left: 4px solid var(--border2); }
+.pcard.urg-low    { border-left: 4px solid #378ADD; }
 
 /* urgency selector */
 .urg-opts { display: flex; gap: 7px; margin-bottom: .9rem; }
@@ -254,7 +256,7 @@ html, body {
 }
 .urg-opt.sel-high   { background: var(--err-bg);  border-color: var(--err-bd);  color: var(--err-tx); }
 .urg-opt.sel-normal { background: var(--warn-bg); border-color: var(--warn-bd); color: var(--warn-tx); }
-.urg-opt.sel-low    { background: var(--surface2); border-color: var(--border2); color: var(--muted); }
+.urg-opt.sel-low    { background: #deeeff; border-color: #378ADD; color: #1a5a9a; }
 
 .empty-state { text-align: center; padding: 3rem 1rem 2rem; color: var(--muted); }
 .empty-icon  { font-size: 2rem; opacity: .3; margin-bottom: .75rem; }
@@ -397,7 +399,7 @@ html, body {
     <div class="urg-opts">
       <div class="urg-opt" id="urg-high"   onclick="selectUrgency('high')">🔴 Alta</div>
       <div class="urg-opt sel-normal" id="urg-normal" onclick="selectUrgency('normal')">🟡 Normal</div>
-      <div class="urg-opt" id="urg-low"    onclick="selectUrgency('low')">⚪ Baja</div>
+      <div class="urg-opt" id="urg-low"    onclick="selectUrgency('low')">🔵 Baja</div>
     </div>
 
     <div class="fld">
