@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+<title>Portal Motorista</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
+:root {
+  --bg: #f2f0eb;
+  --surface: #ffffff;
+  --surface2: #faf9f7;
+  --border: #dddbd2;
+  --border2: #e8e6df;
+  --text: #18180f;
+  --text2: #5a5a4f;
+  --muted: #8a8a7e;
+  --accent: #18180f;
+  --accent2: #2d5a1b;
+  --done-bg: #edf5e1;
+  --done-bd: #bad48a;
+  --done-tx: #2d5a1b;
+  --warn-bg: #fdf4e3;
+  --warn-bd: #f0cc7a;
+  --warn-tx: #7a4f0a;
+  --err-bg: #fdecea;
+  --err-bd: #f5b8b2;
+  --err-tx: #9b2a20;
+  --info-bg: #e8f0fb;
+  --info-bd: #a8c4f0;
+  --info-tx: #1c4fa0;
+  --mono: 'IBM Plex Mono', monospace;
+  --r: 6px;
+  --r2: 10px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html, body {
+  font-family: var(--mono);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.scr { display: none; min-height: 100vh; }
+.scr.on { display: block; }
+
+/* ── LOGIN ── */
+.login-wrap {
+  max-width: 400px; margin: 0 auto;
+  padding: 3rem 1.25rem 3rem;
+  display: flex; flex-direction: column; align-items: center;
+}
+.login-logo {
+  width: 64px; height: 64px; background: var(--accent); color: #fff;
+  border-radius: 14px; display: flex; align-items: center; justify-content: center;
+  font-size: 1.8rem; margin-bottom: 1.25rem;
+}
+.login-h   { font-size: 1.1rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; margin-bottom: .3rem; text-align: center; }
+.login-sub { font-size: .75rem; color: var(--text2); text-align: center; margin-bottom: 1.75rem; line-height: 1.7; }
+.login-form { width: 100%; }
+
+/* ── FORM ── */
+.fld { margin-bottom: .9rem; }
+.fld label { display: block; font-size: .6rem; font-weight: 700; letter-spacing: .1em; color: var(--muted); text-transform: uppercase; margin-bottom: 5px; }
+.fld select {
+  width: 100%; padding: 12px 14px;
+  border: 1px solid var(--border); border-radius: var(--r);
+  font-family: var(--mono); font-size: .82rem;
+  background: var(--surface); color: var(--text);
+  outline: none; transition: border-color .15s;
+}
+.fld select:focus { border-color: var(--accent); }
+
+/* ── BUTTONS ── */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 14px 18px; border-radius: var(--r);
+  font-family: var(--mono); font-size: .78rem; font-weight: 700;
+  letter-spacing: .07em; text-transform: uppercase;
+  cursor: pointer; border: none; transition: all .15s;
+  white-space: nowrap; min-height: 48px;
+}
+.btn:active { transform: scale(.97); }
+.btn-dark    { background: var(--accent); color: #fff; width: 100%; }
+.btn-dark:hover { background: #2c2c22; }
+.btn-dark:disabled { opacity: .45; cursor: not-allowed; }
+.btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text2); }
+.btn-warn    { background: var(--warn-bg); color: var(--warn-tx); border: 1px solid var(--warn-bd); width: 100%; font-size: .85rem; }
+.btn-done-action { background: var(--done-bg); color: var(--done-tx); border: 1px solid var(--done-bd); width: 100%; font-size: .85rem; }
+
+/* ── NOTICE BOXES ── */
+.box-err { background: var(--err-bg); border: 1px solid var(--err-bd); color: var(--err-tx); padding: 10px 12px; border-radius: var(--r); font-size: .72rem; }
+
+/* ── SPINNER ── */
+.spin {
+  display: inline-block; width: 14px; height: 14px;
+  border: 2px solid rgba(0,0,0,.1); border-top-color: currentColor;
+  border-radius: 50%; animation: rot .65s linear infinite; vertical-align: middle; margin-right: 6px;
+}
+@keyframes rot { to { transform: rotate(360deg); } }
+
+/* ── HEADER ── */
+.m-header {
+  background: var(--accent); color: #fff;
+  padding: 1rem 1rem .9rem;
+  position: sticky; top: 0; z-index: 100;
+}
+.m-header-top { display: flex; justify-content: space-between; align-items: center; gap: .75rem; }
+.m-name { font-size: .9rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+.m-date { font-size: .6rem; opacity: .6; letter-spacing: .05em; text-transform: uppercase; margin-top: 3px; }
+.m-logout {
+  background: transparent; border: 1px solid rgba(255,255,255,.3);
+  color: rgba(255,255,255,.85); font-family: var(--mono); font-size: .6rem;
+  font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
+  padding: 7px 12px; border-radius: var(--r); cursor: pointer; flex-shrink: 0;
+  min-height: 36px;
+}
+
+/* ── STATS BAR ── */
+.m-stats {
+  display: flex; background: var(--surface);
+  border-bottom: 1px solid var(--border2);
+}
+.m-stat {
+  flex: 1; padding: .7rem .5rem; text-align: center;
+  border-right: 1px solid var(--border2);
+}
+.m-stat:last-child { border-right: none; }
+.m-stat-num { font-size: 1.3rem; font-weight: 700; }
+.m-stat-lbl { font-size: .52rem; color: var(--muted); letter-spacing: .07em; text-transform: uppercase; margin-top: 2px; }
+
+/* ── VUELTA CARDS ── */
+.m-list { padding: .75rem .875rem 4rem; max-width: 600px; margin: 0 auto; }
+.mcard {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r2); margin-bottom: 10px; overflow: hidden;
+}
+.mcard.mc-camino { border-color: var(--warn-bd); border-left: 4px solid var(--warn-tx); }
+.mcard.mc-done   { background: var(--done-bg); border-color: var(--done-bd); }
+
+.mcard-top { display: flex; align-items: flex-start; gap: 12px; padding: 14px 14px 10px; }
+.m-order-circle {
+  width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: .85rem; font-weight: 700;
+  background: var(--border2); color: var(--muted);
+}
+.m-order-circle.mc-camino { background: var(--warn-tx); color: #fff; }
+.m-order-circle.mc-done   { background: var(--done-tx); color: #fff; }
+
+.mcard-info { flex: 1; min-width: 0; }
+.mcard-dest {
+  font-size: 1rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .03em; color: var(--text); line-height: 1.3;
+}
+.mcard.mc-done .mcard-dest { color: var(--done-tx); }
+.mcard-desc { font-size: .75rem; color: var(--text2); margin-top: 4px; line-height: 1.45; }
+.mcard-done-time { font-size: .68rem; color: var(--done-tx); margin-top: 6px; }
+.mcard-yendo {
+  font-size: .75rem; color: var(--warn-tx); font-weight: 600;
+  padding: 0 14px 6px 62px;
+}
+
+.mcard-actions { padding: 8px 12px 12px; display: flex; flex-direction: column; gap: 8px; }
+
+.empty-state { text-align: center; padding: 3rem 1rem 2rem; color: var(--muted); }
+.empty-icon  { font-size: 2.5rem; opacity: .3; margin-bottom: .75rem; }
+.empty-text  { font-size: .8rem; line-height: 1.7; }
+</style>
+</head>
+<body>
+
+<!-- ══════════════ LOGIN ══════════════ -->
+<div id="s-login" class="scr on">
+  <div class="login-wrap">
+    <div class="login-logo">🚐</div>
+    <div class="login-h">Portal Motorista</div>
+    <div class="login-sub">Selecciona tu nombre para ver tus vueltas del día.</div>
+    <div class="login-form">
+      <div class="fld">
+        <label>¿Quién eres?</label>
+        <select id="login-name">
+          <option value="">Cargando equipo…</option>
+        </select>
+      </div>
+      <div id="login-err" class="box-err" style="display:none;margin-bottom:.75rem"></div>
+      <button class="btn btn-dark" onclick="doLogin()" style="margin-top:.5rem">Entrar →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ HOME ══════════════ -->
+<div id="s-home" class="scr">
+  <div class="m-header">
+    <div class="m-header-top">
+      <div>
+        <div class="m-name" id="m-name-lbl">—</div>
+        <div class="m-date" id="m-date-lbl"></div>
+      </div>
+      <button class="m-logout" onclick="doLogout()">Salir</button>
+    </div>
+  </div>
+
+  <div class="m-stats" id="m-stats">
+    <div class="m-stat"><div class="m-stat-num">—</div><div class="m-stat-lbl">Total</div></div>
+    <div class="m-stat"><div class="m-stat-num">—</div><div class="m-stat-lbl">Hechas</div></div>
+    <div class="m-stat"><div class="m-stat-num">—%</div><div class="m-stat-lbl">Completado</div></div>
+  </div>
+
+  <div class="m-list" id="m-list">
+    <div class="empty-state"><span class="spin"></span></div>
+  </div>
+</div>
+
+<script type="module">
+/* ═══════════════════════════════════
+   CONFIG & STATE
+═══════════════════════════════════ */
+const FIREBASE_CFG = {
+  apiKey: "AIzaSyAb_0e8Hh_UfzN54S3VZGQXqUD3t53bWrQ",
+  authDomain: "despacho-ordenes.firebaseapp.com",
+  projectId: "despacho-ordenes",
+  storageBucket: "despacho-ordenes.firebasestorage.app",
+  messagingSenderId: "694628838838",
+  appId: "1:694628838838:web:30e9745a0465b004f42517"
+};
+
+const USER_KEY   = 'moto_user_v1';
+const COLLECTION = 'vueltas';
+
+let db = null, fbMod = null;
+let currentDriver = '';
+let homeUnsub = null;
+
+const $ = id => document.getElementById(id);
+
+function today() { return new Date().toISOString().slice(0, 10); }
+function nowTime() {
+  return new Date().toLocaleTimeString('es-SV', { hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
+/* ═══════════════════════════════════
+   INIT
+═══════════════════════════════════ */
+async function init() {
+  try {
+    const { initializeApp, getApps } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
+    fbMod = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+    const existing = getApps().find(a => a.name === 'moto-main');
+    const app = existing || initializeApp(FIREBASE_CFG, 'moto-main');
+    db = fbMod.getFirestore(app);
+  } catch(e) {
+    console.error('Firebase init error:', e);
+  }
+
+  await loadLoginSelect();
+
+  currentDriver = localStorage.getItem(USER_KEY) || '';
+  if (currentDriver) {
+    goHome();
+  } else {
+    showScreen('s-login');
+  }
+}
+
+function showScreen(id) {
+  document.querySelectorAll('.scr').forEach(s => s.classList.remove('on'));
+  $(id).classList.add('on');
+  window.scrollTo(0, 0);
+}
+
+async function loadLoginSelect() {
+  if (!db) return;
+  try {
+    const snap = await fbMod.getDoc(fbMod.doc(db, 'config', 'team'));
+    const members = snap.exists() ? (snap.data().members || []) : [];
+    const sel = $('login-name');
+    sel.innerHTML = '<option value="">Selecciona tu nombre…</option>';
+    members.forEach(m => {
+      sel.innerHTML += `<option value="${esc(m)}">${esc(m)}</option>`;
+    });
+    if (!members.length) {
+      sel.innerHTML = '<option value="">Sin miembros configurados</option>';
+    }
+  } catch(e) {
+    console.error(e);
+  }
+}
+
+/* ═══════════════════════════════════
+   LOGIN / LOGOUT
+═══════════════════════════════════ */
+window.doLogin = () => {
+  const name = $('login-name').value.trim();
+  if (!name) {
+    $('login-err').textContent = 'Selecciona tu nombre para continuar.';
+    $('login-err').style.display = 'block';
+    return;
+  }
+  $('login-err').style.display = 'none';
+  currentDriver = name;
+  localStorage.setItem(USER_KEY, name);
+  goHome();
+};
+
+window.doLogout = () => {
+  if (homeUnsub) { homeUnsub(); homeUnsub = null; }
+  currentDriver = '';
+  localStorage.removeItem(USER_KEY);
+  showScreen('s-login');
+};
+
+/* ═══════════════════════════════════
+   HOME
+═══════════════════════════════════ */
+function goHome() {
+  $('m-name-lbl').textContent = `🚐 ${currentDriver}`;
+  $('m-date-lbl').textContent = new Date().toLocaleDateString('es-SV', {
+    weekday: 'long', day: '2-digit', month: 'long', year: 'numeric'
+  }).toUpperCase();
+  showScreen('s-home');
+  startListener();
+}
+
+function startListener() {
+  if (!db) { renderList([]); return; }
+  if (homeUnsub) { homeUnsub(); homeUnsub = null; }
+
+  $('m-list').innerHTML = '<div class="empty-state"><span class="spin"></span></div>';
+
+  const q = fbMod.query(
+    fbMod.collection(db, COLLECTION),
+    fbMod.where('date', '==', today()),
+    fbMod.where('assignedTo', '==', currentDriver),
+    fbMod.orderBy('order', 'asc')
+  );
+
+  homeUnsub = fbMod.onSnapshot(q,
+    snap => renderList(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
+    err  => {
+      $('m-list').innerHTML = `<div class="empty-state" style="color:var(--err-tx)">Error al cargar. Verifica tu conexión.</div>`;
+      console.error(err);
+    }
+  );
+}
+
+/* ═══════════════════════════════════
+   RENDER
+═══════════════════════════════════ */
+function renderList(list) {
+  const total = list.length;
+  const done  = list.filter(v => v.status === 'done').length;
+  const pct   = total ? Math.round(done / total * 100) : 0;
+
+  $('m-stats').innerHTML = `
+    <div class="m-stat">
+      <div class="m-stat-num">${total}</div><div class="m-stat-lbl">Total</div>
+    </div>
+    <div class="m-stat">
+      <div class="m-stat-num" style="color:var(--done-tx)">${done}</div><div class="m-stat-lbl">Hechas</div>
+    </div>
+    <div class="m-stat">
+      <div class="m-stat-num" style="color:${pct===100?'var(--done-tx)':'var(--text)'}">${pct}%</div><div class="m-stat-lbl">Completado</div>
+    </div>`;
+
+  const el = $('m-list');
+  if (!list.length) {
+    el.innerHTML = `<div class="empty-state">
+      <div class="empty-icon">🚐</div>
+      <div class="empty-text">No tienes vueltas asignadas para hoy.<br/>Consulta con el supervisor.</div>
+    </div>`;
+    return;
+  }
+
+  el.innerHTML = list.map(v => {
+    const isPending  = v.status === 'pending';
+    const isCamino   = v.status === 'en_camino';
+    const isDone     = v.status === 'done';
+    const cardCls    = isDone ? 'mc-done' : isCamino ? 'mc-camino' : '';
+    const circleCls  = isDone ? 'mc-done' : isCamino ? 'mc-camino' : '';
+    const doneTime   = v.completedAt
+      ? new Date(v.completedAt).toLocaleTimeString('es-SV', { hour: '2-digit', minute: '2-digit', hour12: false })
+      : '';
+
+    return `
+      <div class="mcard ${cardCls}" id="mc-${v.id}">
+        <div class="mcard-top">
+          <div class="m-order-circle ${circleCls}">${v.order}</div>
+          <div class="mcard-info">
+            <div class="mcard-dest">${esc(v.destination || '')}</div>
+            ${v.description ? `<div class="mcard-desc">${esc(v.description)}</div>` : ''}
+            ${isDone && doneTime ? `<div class="mcard-done-time">✓ Completada a las ${doneTime}</div>` : ''}
+          </div>
+        </div>
+        ${isCamino ? `<div class="mcard-yendo">🚐 Yendo a ${esc(v.destination || '')}…</div>` : ''}
+        ${!isDone ? `
+        <div class="mcard-actions">
+          ${isPending ? `
+            <button class="btn btn-warn" onclick="irEnCamino('${v.id}','${escAttr(v.destination||'')}')">
+              🚐 En camino
+            </button>` : ''}
+          ${isCamino ? `
+            <button class="btn btn-done-action" onclick="completarVuelta('${v.id}')">
+              ✓ Completé esta vuelta
+            </button>` : ''}
+        </div>` : ''}
+      </div>`;
+  }).join('');
+}
+
+/* ═══════════════════════════════════
+   ACCIONES
+═══════════════════════════════════ */
+window.irEnCamino = async (id, dest) => {
+  try {
+    await fbMod.updateDoc(fbMod.doc(db, COLLECTION, id), {
+      status:   'en_camino',
+      paradero: `En camino a ${dest} — ${nowTime()}`
+    });
+  } catch(e) { console.error(e); }
+};
+
+window.completarVuelta = async id => {
+  try {
+    await fbMod.updateDoc(fbMod.doc(db, COLLECTION, id), {
+      status:      'done',
+      completedAt: Date.now(),
+      paradero:    ''
+    });
+  } catch(e) { console.error(e); }
+};
+
+/* ═══════════════════════════════════
+   UTILS
+═══════════════════════════════════ */
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function escAttr(s) { return String(s).replace(/'/g,"\\'"); }
+
+/* ═══════════════════════════════════
+   START
+═══════════════════════════════════ */
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>

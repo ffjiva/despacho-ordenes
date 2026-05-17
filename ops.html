@@ -309,6 +309,70 @@ html, body {
 .type-opt.sel-auth { background: var(--auth-bg); border-color: var(--auth-bd); color: var(--auth-tx); }
 .type-opt.sel-comp { background: var(--comp-bg); border-color: var(--comp-bd); color: var(--comp-tx); }
 .type-opt.sel-inv  { background: var(--inv-bg);  border-color: var(--inv-bd);  color: var(--inv-tx); }
+
+/* ── VUELTAS ── */
+.vcard {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r2); margin-bottom: 8px; overflow: hidden;
+}
+.vcard.v-done   { background: var(--done-bg); border-color: var(--done-bd); }
+.vcard.v-camino { border-color: var(--warn-bd); }
+.vcard-top { display: flex; align-items: flex-start; gap: 10px; padding: 11px 12px 8px; }
+.vorder-circle {
+  width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: .72rem; font-weight: 700;
+  background: var(--border2); color: var(--muted);
+}
+.vorder-circle.v-done   { background: var(--done-tx);  color: #fff; }
+.vorder-circle.v-camino { background: var(--warn-tx); color: #fff; }
+.vcard-body { flex: 1; min-width: 0; }
+.vcard-dest {
+  font-size: .82rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .02em; color: var(--text); line-height: 1.3;
+}
+.vcard.v-done .vcard-dest { color: var(--done-tx); }
+.vcard-desc { font-size: .67rem; color: var(--text2); margin-top: 2px; line-height: 1.45; }
+.vcard-meta { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 5px; }
+.vstatus {
+  display: inline-block; padding: 2px 8px; border-radius: 3px;
+  font-size: .58rem; font-weight: 700; letter-spacing: .07em;
+  text-transform: uppercase; border: 1px solid; white-space: nowrap;
+}
+.vstatus-pending   { background: var(--surface2); border-color: var(--border); color: var(--muted); }
+.vstatus-en_camino { background: var(--warn-bg);  border-color: var(--warn-bd); color: var(--warn-tx); }
+.vstatus-done      { background: var(--done-bg);  border-color: var(--done-bd); color: var(--done-tx); }
+.vcard-actions {
+  display: flex; gap: 6px; padding: 6px 10px 8px;
+  border-top: 1px solid var(--border2); background: var(--surface2);
+}
+.vcard.v-done .vcard-actions   { border-top-color: var(--done-bd); background: var(--done-bg); }
+.vcard.v-camino .vcard-actions { border-top-color: var(--warn-bd); }
+.vcard-paradero  { font-size: .65rem; color: var(--warn-tx); padding: 0 12px 6px 50px; }
+.vcard-done-time { font-size: .6rem;  color: var(--done-tx); padding: 0 12px 6px 50px; }
+.vstats { display: flex; gap: 8px; padding: .75rem .875rem; flex-wrap: wrap; }
+.vstat-badge {
+  flex: 1; min-width: 70px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r); padding: 8px 10px; text-align: center;
+}
+.vstat-num { font-size: 1.2rem; font-weight: 700; }
+.vstat-lbl { font-size: .55rem; color: var(--muted); letter-spacing: .07em; text-transform: uppercase; margin-top: 2px; }
+.vform {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r2); padding: .875rem; margin-bottom: .5rem;
+  display: flex; flex-direction: column; gap: .6rem;
+}
+.vform .fld { margin: 0; }
+.vdate-bar {
+  display: flex; gap: 8px; padding: .6rem .875rem;
+  background: var(--surface); border-bottom: 1px solid var(--border2);
+  flex-wrap: wrap; align-items: center;
+}
+.vdate-bar input, .vdate-bar select {
+  padding: 7px 10px; border: 1px solid var(--border); border-radius: var(--r);
+  font-family: var(--mono); font-size: .72rem; background: var(--surface);
+  color: var(--text); outline: none; flex: 1; min-width: 120px;
+}
 </style>
 </head>
 <body>
@@ -346,6 +410,7 @@ html, body {
       <button class="btn btn-ghost" style="font-size:.65rem" onclick="toggleDone()">
         <span id="toggle-done-lbl">Ver resueltos</span>
       </button>
+      <button class="btn btn-ghost" style="font-size:.65rem" onclick="goVueltas()">🚐 Vueltas</button>
       <button class="btn btn-ghost" style="font-size:.65rem" onclick="toggleSort()" id="sort-btn">↕ Urgencia</button>
       <button class="btn btn-ghost" style="font-size:.85rem;padding:5px 9px" onclick="toggleDark()" id="theme-btn" title="Modo oscuro">🌙</button>
       <button class="btn btn-light" style="font-size:.65rem" onclick="doLogout()">Salir</button>
@@ -421,6 +486,76 @@ html, body {
   </div>
 </div>
 
+<!-- ══════════════ VUELTAS ══════════════ -->
+<div id="s-vueltas" class="scr">
+  <div class="topbar">
+    <div class="topbar-title">🚐 Vueltas del día</div>
+    <div class="topbar-actions">
+      <button class="btn btn-ghost" style="font-size:.65rem" onclick="goBackFromVueltas()">← Volver</button>
+    </div>
+  </div>
+
+  <div class="vdate-bar">
+    <input type="date" id="v-date" onchange="reloadVueltas()"/>
+    <select id="v-driver-filter" onchange="reloadVueltas()">
+      <option value="">Todos los motoristas</option>
+    </select>
+  </div>
+
+  <div class="vstats" id="v-stats">
+    <div class="vstat-badge"><div class="vstat-num">—</div><div class="vstat-lbl">Total</div></div>
+    <div class="vstat-badge"><div class="vstat-num">—</div><div class="vstat-lbl">En camino</div></div>
+    <div class="vstat-badge"><div class="vstat-num">—</div><div class="vstat-lbl">Completadas</div></div>
+  </div>
+
+  <div style="padding:0 .875rem .5rem;max-width:720px;margin:0 auto">
+    <div class="section-lbl">Nueva vuelta</div>
+    <div class="vform">
+      <div class="fld">
+        <label>Destino</label>
+        <input id="v-dest" type="text" placeholder="Ej: Sucursal Norte" autocomplete="off"/>
+      </div>
+      <div class="fld">
+        <label>Motorista</label>
+        <select id="v-motorista"><option value="">Sin asignar</option></select>
+      </div>
+      <div class="fld">
+        <label>Descripción</label>
+        <input id="v-desc" type="text" placeholder="Qué lleva o hace…" autocomplete="off"/>
+      </div>
+      <button class="btn btn-dark btn-full" id="v-add-btn" onclick="createVuelta()">Agregar vuelta →</button>
+    </div>
+  </div>
+
+  <div class="pend-list" id="v-list">
+    <div class="empty-state"><span class="spin"></span></div>
+  </div>
+</div>
+
+<!-- ══════════════ MODAL EDITAR VUELTA ══════════════ -->
+<div class="modal-overlay" id="modal-vedit" onclick="closeVueltaEdit(event)">
+  <div class="modal">
+    <div class="modal-title">Editar vuelta</div>
+    <div class="modal-sub">Modifica los datos de esta vuelta.</div>
+    <div class="fld">
+      <label>Destino</label>
+      <input id="ve-dest" type="text" autocomplete="off"/>
+    </div>
+    <div class="fld">
+      <label>Motorista</label>
+      <select id="ve-motorista"></select>
+    </div>
+    <div class="fld">
+      <label>Descripción</label>
+      <input id="ve-desc" type="text" autocomplete="off"/>
+    </div>
+    <div class="modal-btns">
+      <button class="btn btn-outline" onclick="closeVueltaEdit()">Cancelar</button>
+      <button class="btn btn-dark" id="btn-save-vedit" onclick="saveVueltaEdit()">Actualizar →</button>
+    </div>
+  </div>
+</div>
+
 <script type="module">
 /* ═══════════════════════════════════
    CONFIG & STATE
@@ -447,6 +582,8 @@ let showDone = false;
 let selectedType = '';
 let selectedUrgency = 'normal';
 let homeUnsub = null;
+let vueltasUnsub = null;
+let editingVueltaId = null;
 
 const SUBTYPE_LABEL = { ordenar: 'Ordenar', organizar: 'Organizar', mover: 'Mover en bodega', revisar: 'Revisar inventario' };
 const THEME_KEY = 'ops_theme_v1';
@@ -793,6 +930,225 @@ window.toggleDark = () => {
   const isDark = document.body.classList.contains('dark');
   applyDark(!isDark);
   localStorage.setItem(THEME_KEY, isDark ? 'light' : 'dark');
+};
+
+/* ═══════════════════════════════════
+   VUELTAS
+═══════════════════════════════════ */
+async function loadTeamMembers() {
+  if (!db) return [];
+  try {
+    const snap = await fbMod.getDoc(fbMod.doc(db, 'config', 'team'));
+    return snap.exists() ? (snap.data().members || []) : [];
+  } catch { return []; }
+}
+
+window.goVueltas = async () => {
+  if (homeUnsub) { homeUnsub(); homeUnsub = null; }
+  showScreen('s-vueltas');
+  await initVueltasScreen();
+};
+
+window.goBackFromVueltas = () => {
+  if (vueltasUnsub) { vueltasUnsub(); vueltasUnsub = null; }
+  goHome();
+};
+
+window.initVueltasScreen = async () => {
+  const today = new Date().toISOString().slice(0, 10);
+  $('v-date').value = today;
+
+  const members = await loadTeamMembers();
+  const filterSel = $('v-driver-filter');
+  const formSel   = $('v-motorista');
+
+  filterSel.innerHTML = '<option value="">Todos los motoristas</option>';
+  formSel.innerHTML   = '<option value="">Sin asignar</option>';
+  members.forEach(m => {
+    filterSel.innerHTML += `<option value="${escHtml(m)}">${escHtml(m)}</option>`;
+    formSel.innerHTML   += `<option value="${escHtml(m)}">${escHtml(m)}</option>`;
+  });
+
+  reloadVueltas();
+};
+
+window.reloadVueltas = () => {
+  const date   = $('v-date')?.value;
+  const driver = $('v-driver-filter')?.value || '';
+  if (date) loadVueltasListener(date, driver);
+};
+
+window.createVuelta = async () => {
+  const dest = $('v-dest').value.trim();
+  const moto = $('v-motorista').value;
+  const desc = $('v-desc').value.trim();
+  const date = $('v-date').value;
+
+  if (!dest) { $('v-dest').focus(); return; }
+  if (!moto) { alert('Selecciona un motorista.'); return; }
+
+  const btn = $('v-add-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span>Agregando…';
+
+  try {
+    const countSnap = await fbMod.getDocs(
+      fbMod.query(fbMod.collection(db, 'vueltas'), fbMod.where('date', '==', date))
+    );
+    const order = countSnap.size + 1;
+
+    await fbMod.addDoc(fbMod.collection(db, 'vueltas'), {
+      date, order,
+      destination: dest.toUpperCase(),
+      description: desc,
+      assignedTo:  moto,
+      status:      'pending',
+      paradero:    '',
+      createdBy:   currentUser,
+      createdAt:   Date.now(),
+      completedAt: null
+    });
+
+    $('v-dest').value = '';
+    $('v-desc').value = '';
+  } catch(e) {
+    console.error(e);
+    alert('Error al guardar. Intenta de nuevo.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Agregar vuelta →';
+  }
+};
+
+window.loadVueltasListener = (date, driverFilter) => {
+  if (vueltasUnsub) { vueltasUnsub(); vueltasUnsub = null; }
+  if (!db) { renderVueltasSupervisor([]); return; }
+
+  $('v-list').innerHTML = '<div class="empty-state"><span class="spin"></span></div>';
+
+  const col = fbMod.collection(db, 'vueltas');
+  const q = driverFilter
+    ? fbMod.query(col, fbMod.where('date','==',date), fbMod.where('assignedTo','==',driverFilter), fbMod.orderBy('order','asc'))
+    : fbMod.query(col, fbMod.where('date','==',date), fbMod.orderBy('order','asc'));
+
+  vueltasUnsub = fbMod.onSnapshot(q,
+    snap => renderVueltasSupervisor(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
+    err  => {
+      $('v-list').innerHTML = `<div class="empty-state" style="color:var(--err-tx)">Error al cargar.<br/><span style="font-size:.65rem">Puede que falte un índice en Firestore.</span></div>`;
+      console.error(err);
+    }
+  );
+};
+
+window.renderVueltasSupervisor = list => {
+  const total    = list.length;
+  const enCamino = list.filter(v => v.status === 'en_camino').length;
+  const done     = list.filter(v => v.status === 'done').length;
+
+  $('v-stats').innerHTML = `
+    <div class="vstat-badge">
+      <div class="vstat-num">${total}</div><div class="vstat-lbl">Total</div>
+    </div>
+    <div class="vstat-badge" style="border-color:var(--warn-bd)">
+      <div class="vstat-num" style="color:var(--warn-tx)">${enCamino}</div><div class="vstat-lbl">En camino</div>
+    </div>
+    <div class="vstat-badge" style="border-color:var(--done-bd)">
+      <div class="vstat-num" style="color:var(--done-tx)">${done}</div><div class="vstat-lbl">Completadas</div>
+    </div>`;
+
+  const el = $('v-list');
+  if (!list.length) {
+    el.innerHTML = `<div class="empty-state"><div class="empty-icon">🚐</div><div class="empty-text">Sin vueltas para este día.<br/>Agrega la primera arriba.</div></div>`;
+    return;
+  }
+
+  el.innerHTML = list.map(v => {
+    const sc      = v.status === 'done' ? 'v-done' : v.status === 'en_camino' ? 'v-camino' : '';
+    const slabel  = v.status === 'done' ? 'Completada' : v.status === 'en_camino' ? 'En camino' : 'Pendiente';
+    const doneStr = v.completedAt
+      ? new Date(v.completedAt).toLocaleTimeString('es-SV', { hour:'2-digit', minute:'2-digit', hour12:false })
+      : '';
+    return `
+      <div class="vcard ${sc}" id="vc-${v.id}">
+        <div class="vcard-top">
+          <div class="vorder-circle ${sc}">${v.order}</div>
+          <div class="vcard-body">
+            <div class="vcard-dest">${escHtml(v.destination || '')}</div>
+            ${v.description ? `<div class="vcard-desc">${escHtml(v.description)}</div>` : ''}
+            <div class="vcard-meta">
+              <span class="vstatus vstatus-${v.status}">${slabel}</span>
+              ${v.assignedTo ? `<span style="font-size:.6rem;color:var(--text2)">👤 ${escHtml(v.assignedTo)}</span>` : ''}
+            </div>
+          </div>
+        </div>
+        ${v.status === 'en_camino' && v.paradero ? `<div class="vcard-paradero">📍 ${escHtml(v.paradero)}</div>` : ''}
+        ${v.status === 'done' && doneStr ? `<div class="vcard-done-time">✓ Completada a las ${doneStr}</div>` : ''}
+        <div class="vcard-actions" onclick="event.stopPropagation()">
+          ${v.status !== 'done' ? `<button class="btn btn-outline" style="font-size:.6rem;padding:4px 10px" onclick="editVuelta('${v.id}')">✎ Editar</button>` : ''}
+          ${v.status !== 'done' ? `<button class="btn btn-dark" style="font-size:.6rem;padding:4px 10px" onclick="markVueltaDone('${v.id}')">✓ Marcar lista</button>` : ''}
+          <button class="btn btn-danger" style="font-size:.6rem;padding:4px 10px" onclick="deleteVuelta('${v.id}','${escAttr(v.destination||'')}')">✕ Eliminar</button>
+        </div>
+      </div>`;
+  }).join('');
+};
+
+window.deleteVuelta = async (id, nombre) => {
+  if (!confirm(`¿Eliminar vuelta "${nombre}"?`)) return;
+  try { await fbMod.deleteDoc(fbMod.doc(db, 'vueltas', id)); }
+  catch(e) { console.error(e); }
+};
+
+window.markVueltaDone = async id => {
+  try {
+    await fbMod.updateDoc(fbMod.doc(db, 'vueltas', id), {
+      status: 'done', completedAt: Date.now()
+    });
+  } catch(e) { console.error(e); }
+};
+
+window.editVuelta = async id => {
+  try {
+    const snap = await fbMod.getDoc(fbMod.doc(db, 'vueltas', id));
+    if (!snap.exists()) return;
+    const v = snap.data();
+    editingVueltaId = id;
+    $('ve-dest').value = v.destination || '';
+    $('ve-desc').value = v.description || '';
+    const members = await loadTeamMembers();
+    const sel = $('ve-motorista');
+    sel.innerHTML = '<option value="">Sin asignar</option>';
+    members.forEach(m => {
+      sel.innerHTML += `<option value="${escHtml(m)}"${m === v.assignedTo ? ' selected' : ''}>${escHtml(m)}</option>`;
+    });
+    $('modal-vedit').classList.add('on');
+    setTimeout(() => $('ve-dest')?.focus(), 100);
+  } catch(e) { console.error(e); }
+};
+
+window.closeVueltaEdit = e => {
+  if (!e || e.target === $('modal-vedit')) $('modal-vedit').classList.remove('on');
+};
+
+window.saveVueltaEdit = async () => {
+  const dest = $('ve-dest').value.trim();
+  if (!dest) { $('ve-dest').focus(); return; }
+  const btn = $('btn-save-vedit');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span>Guardando…';
+  try {
+    await fbMod.updateDoc(fbMod.doc(db, 'vueltas', editingVueltaId), {
+      destination: dest.toUpperCase(),
+      description: $('ve-desc').value.trim(),
+      assignedTo:  $('ve-motorista').value
+    });
+    $('modal-vedit').classList.remove('on');
+  } catch(e) {
+    console.error(e);
+    alert('Error al actualizar.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Actualizar →';
+  }
 };
 
 /* ═══════════════════════════════════
