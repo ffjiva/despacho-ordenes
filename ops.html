@@ -341,7 +341,7 @@ html, body {
 <!-- ══════════════ MODAL NUEVO ══════════════ -->
 <div class="modal-overlay" id="modal-new" onclick="closeNewModal(event)">
   <div class="modal">
-    <div class="modal-title">Nuevo pendiente</div>
+    <div class="modal-title" id="modal-title-text">Nuevo pendiente</div>
     <div class="modal-sub">Selecciona el tipo y describe la tarea.</div>
 
     <div style="font-size:.6rem;font-weight:700;letter-spacing:.1em;color:var(--muted);text-transform:uppercase;margin-bottom:6px">Tipo</div>
@@ -359,6 +359,7 @@ html, body {
           <option value="ordenar">Ordenar</option>
           <option value="organizar">Organizar</option>
           <option value="mover">Mover en bodega</option>
+          <option value="revisar">Revisar inventario</option>
         </select>
       </div>
     </div>
@@ -413,7 +414,8 @@ let selectedType = '';
 let selectedUrgency = 'normal';
 let homeUnsub = null;
 
-const SUBTYPE_LABEL = { ordenar: 'Ordenar', organizar: 'Organizar', mover: 'Mover en bodega' };
+const SUBTYPE_LABEL = { ordenar: 'Ordenar', organizar: 'Organizar', mover: 'Mover en bodega', revisar: 'Revisar inventario' };
+let editingId = null;
 
 const $ = id => document.getElementById(id);
 
@@ -553,6 +555,8 @@ function renderList(all) {
           new Date(p.doneAt).toLocaleDateString('es-SV', { day:'2-digit', month:'short', year:'numeric' })
         } por ${escHtml(p.doneBy || '—')}</div>` : ''}
         <div class="pcard-actions" onclick="event.stopPropagation()">
+          ${!p.done ? `<button class="btn btn-outline" style="font-size:.6rem;padding:4px 10px"
+            onclick="editPend('${p.id}')">✎ Editar</button>` : ''}
           <button class="btn btn-danger" style="font-size:.6rem;padding:4px 10px"
             onclick="deletePend('${p.id}','${escAttr(p.title)}')">✕ Eliminar</button>
         </div>
@@ -609,20 +613,41 @@ window.deletePend = async (id, title) => {
 /* ═══════════════════════════════════
    NEW MODAL
 ═══════════════════════════════════ */
-window.openNewModal = () => {
-  selectedType = '';
-  selectedUrgency = 'normal';
-  $('new-title').value = '';
-  $('new-detail').value = '';
+function openModal(p = null) {
+  editingId = p ? p.id : null;
+  selectedType    = p?.type    || '';
+  selectedUrgency = p?.urgency || 'normal';
+
+  $('modal-title-text').textContent = p ? 'Editar pendiente' : 'Nuevo pendiente';
+  $('btn-save-new').textContent     = p ? 'Actualizar →' : 'Guardar →';
+  $('new-title').value  = p?.title  || '';
+  $('new-detail').value = p?.detail || '';
   $('new-err').style.display = 'none';
-  ['dist','auth','comp','inv'].forEach(t => { $(`opt-${t}`).className = 'type-opt'; });
-  ['high','normal','low'].forEach(u => {
-    $(`urg-${u}`).className = `urg-opt${u === 'normal' ? ' sel-normal' : ''}`;
+
+  ['dist','auth','comp','inv'].forEach(t => {
+    $(`opt-${t}`).className = `type-opt${t === selectedType ? ` sel-${t}` : ''}`;
   });
-  $('inv-subtype-wrap').style.display = 'none';
-  $('inv-subtype').value = 'ordenar';
+  ['high','normal','low'].forEach(u => {
+    $(`urg-${u}`).className = `urg-opt${u === selectedUrgency ? ` sel-${u}` : ''}`;
+  });
+
+  const isInv = selectedType === 'inv';
+  $('inv-subtype-wrap').style.display = isInv ? 'block' : 'none';
+  if (isInv && p?.subtype) $('inv-subtype').value = p.subtype;
+  else $('inv-subtype').value = 'ordenar';
+
   $('modal-new').classList.add('on');
   setTimeout(() => $('new-title')?.focus(), 100);
+}
+
+window.openNewModal = () => openModal(null);
+
+window.editPend = async id => {
+  if (!db) return;
+  try {
+    const snap = await fbMod.getDoc(fbMod.doc(db, COLLECTION, id));
+    if (snap.exists()) openModal({ id: snap.id, ...snap.data() });
+  } catch(e) { console.error(e); }
 };
 
 window.closeNewModal = e => {
@@ -663,18 +688,21 @@ window.saveNew = async () => {
   btn.innerHTML = '<span class="spin"></span>Guardando…';
 
   try {
-    await fbMod.addDoc(fbMod.collection(db, COLLECTION), {
-      type:      selectedType,
-      subtype:   selectedType === 'inv' ? $('inv-subtype').value : null,
-      urgency:   selectedUrgency,
+    const payload = {
+      type:    selectedType,
+      subtype: selectedType === 'inv' ? $('inv-subtype').value : null,
+      urgency: selectedUrgency,
       title,
-      detail:    $('new-detail').value.trim(),
-      done:      false,
-      doneAt:    null,
-      doneBy:    null,
-      createdBy: currentUser,
-      createdAt: Date.now()
-    });
+      detail:  $('new-detail').value.trim(),
+    };
+    if (editingId) {
+      await fbMod.updateDoc(fbMod.doc(db, COLLECTION, editingId), payload);
+    } else {
+      await fbMod.addDoc(fbMod.collection(db, COLLECTION), {
+        ...payload, done: false, doneAt: null, doneBy: null,
+        createdBy: currentUser, createdAt: Date.now()
+      });
+    }
     $('modal-new').classList.remove('on');
   } catch(e) {
     $('new-err').textContent = 'Error al guardar. Intenta de nuevo.';
