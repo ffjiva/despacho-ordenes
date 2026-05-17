@@ -478,7 +478,7 @@ const TYPE_META = {
 
 function renderList(all) {
   let list = all;
-  if (!showDone)              list = list.filter(p => !p.done);
+  list = showDone ? list.filter(p => p.done) : list.filter(p => !p.done);
   if (activeFilter !== 'all') list = list.filter(p => p.type === activeFilter);
 
   const el = $('pend-list');
@@ -495,7 +495,8 @@ function renderList(all) {
   el.innerHTML = list.map(p => {
     const meta = TYPE_META[p.type] || { label: p.type, cls: 'type-dist' };
     const dateStr = p.createdAt
-      ? new Date(p.createdAt).toLocaleDateString('es-SV', { day: '2-digit', month: 'short', year: 'numeric' })
+      ? new Date(p.createdAt).toLocaleDateString('es-SV', { day: '2-digit', month: 'short', year: 'numeric' }) + ' ' +
+        new Date(p.createdAt).toLocaleTimeString('es-SV', { hour: '2-digit', minute: '2-digit', hour12: false })
       : '';
     return `
       <div class="pcard${p.done ? ' done' : ''}" id="pc-${p.id}">
