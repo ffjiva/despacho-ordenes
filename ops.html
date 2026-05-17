@@ -40,6 +40,31 @@
   --comp-bg: #fdf4e3; --comp-bd: #f0cc7a; --comp-tx: #7a4f0a;
   --inv-bg:  #f5edfb; --inv-bd:  #d0a8f0; --inv-tx:  #5a1c9b;
 }
+body.dark {
+  --bg: #1a1a1a;
+  --surface: #2a2a2a;
+  --surface2: #242424;
+  --border: #3a3a3a;
+  --border2: #303030;
+  --text: #e8e6df;
+  --text2: #a8a69e;
+  --muted: #6a6a5e;
+  --done-bg: #1a2e12; --done-bd: #3a6424; --done-tx: #7ab84a;
+  --warn-bg: #2a2212; --warn-bd: #6a5418; --warn-tx: #d0a030;
+  --err-bg:  #2a1212; --err-bd:  #6a2424; --err-tx:  #e06868;
+  --info-bg: #121a2a; --info-bd: #264472; --info-tx: #6090d8;
+  --dist-bg: #1a2e12; --dist-bd: #3a6424; --dist-tx: #7ab84a;
+  --auth-bg: #121a2a; --auth-bd: #264472; --auth-tx: #6090d8;
+  --comp-bg: #2a2212; --comp-bd: #6a5418; --comp-tx: #d0a030;
+  --inv-bg:  #1e1228; --inv-bd:  #502e72; --inv-tx:  #a870d8;
+}
+body.dark .pcard.urg-high   { border-left-color: #e05555; }
+body.dark .pcard.urg-normal { border-left-color: #c09030; }
+body.dark .btn-light { background: #3a3a3a; color: var(--text); }
+body.dark .fld input, body.dark .fld textarea, body.dark .fld select { background: #222; }
+body.dark .modal { background: #252525; }
+body.dark .name-card { background: #252525; }
+
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 html, body {
   font-family: var(--mono);
@@ -288,6 +313,9 @@ html, body {
 <div id="s-login" class="scr on">
   <div class="topbar">
     <div class="topbar-title">⚙ Operaciones Ops</div>
+    <div class="topbar-actions">
+      <button class="btn btn-ghost" style="font-size:.85rem;padding:5px 9px" onclick="toggleDark()" id="theme-btn-login" title="Modo oscuro">🌙</button>
+    </div>
   </div>
   <div class="login-wrap">
     <div class="login-logo">⚙</div>
@@ -314,6 +342,7 @@ html, body {
       <button class="btn btn-ghost" style="font-size:.65rem" onclick="toggleDone()">
         <span id="toggle-done-lbl">Ver resueltos</span>
       </button>
+      <button class="btn btn-ghost" style="font-size:.85rem;padding:5px 9px" onclick="toggleDark()" id="theme-btn" title="Modo oscuro">🌙</button>
       <button class="btn btn-light" style="font-size:.65rem" onclick="doLogout()">Salir</button>
     </div>
   </div>
@@ -415,6 +444,7 @@ let selectedUrgency = 'normal';
 let homeUnsub = null;
 
 const SUBTYPE_LABEL = { ordenar: 'Ordenar', organizar: 'Organizar', mover: 'Mover en bodega', revisar: 'Revisar inventario' };
+const THEME_KEY = 'ops_theme_v1';
 let editingId = null;
 
 const $ = id => document.getElementById(id);
@@ -432,6 +462,8 @@ async function init() {
   } catch(e) {
     console.error('Firebase init error:', e);
   }
+
+  if (localStorage.getItem(THEME_KEY) === 'dark') applyDark(true);
 
   const session = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null');
   if (session && Date.now() < session.exp) {
@@ -711,6 +743,24 @@ window.saveNew = async () => {
     btn.disabled = false;
     btn.textContent = 'Guardar →';
   }
+};
+
+/* ═══════════════════════════════════
+   DARK MODE
+═══════════════════════════════════ */
+function applyDark(on) {
+  document.body.classList.toggle('dark', on);
+  const icon = on ? '☀️' : '🌙';
+  ['theme-btn', 'theme-btn-login'].forEach(id => {
+    const el = $(id);
+    if (el) el.textContent = icon;
+  });
+}
+
+window.toggleDark = () => {
+  const isDark = document.body.classList.contains('dark');
+  applyDark(!isDark);
+  localStorage.setItem(THEME_KEY, isDark ? 'light' : 'dark');
 };
 
 /* ═══════════════════════════════════
