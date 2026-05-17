@@ -280,8 +280,9 @@ html, body {
     <div class="login-sub">Ingresa tu nombre para continuar.</div>
     <div class="login-form">
       <div class="fld">
-        <label>Tu nombre</label>
-        <input id="login-name" type="text" placeholder="Ej: Fernando" autocomplete="off"
+        <label>PIN de acceso</label>
+        <input id="login-pin" type="password" inputmode="numeric" maxlength="4"
+          placeholder="••••" autocomplete="off" style="letter-spacing:.3em;font-size:1.2rem;text-align:center"
           onkeydown="if(event.key==='Enter')doLogin()"/>
       </div>
       <div id="login-err" class="box box-err" style="display:none;margin-bottom:.75rem"></div>
@@ -365,11 +366,14 @@ const FIREBASE_CFG = {
   appId: "1:694628838838:web:30e9745a0465b004f42517"
 };
 
-const USER_KEY = 'ops_user_v1';
-const COLLECTION = 'ops_pendientes';
+const PIN          = '1909';          // ← cambia este valor
+const SESSION_KEY  = 'ops_session_v1';
+const SESSION_TTL  = 7 * 24 * 60 * 60 * 1000; // 7 días
+const CURRENT_USER = 'Fernando';
+const COLLECTION   = 'ops_pendientes';
 
 let db = null, fbMod = null;
-let currentUser = '';
+let currentUser = CURRENT_USER;
 let activeFilter = 'all';
 let showDone = false;
 let selectedType = '';
@@ -391,12 +395,13 @@ async function init() {
     console.error('Firebase init error:', e);
   }
 
-  currentUser = localStorage.getItem(USER_KEY) || '';
-  if (currentUser) {
+  const session = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null');
+  if (session && Date.now() < session.exp) {
     goHome();
   } else {
+    localStorage.removeItem(SESSION_KEY);
     showScreen('s-login');
-    setTimeout(() => $('login-name')?.focus(), 100);
+    setTimeout(() => $('login-pin')?.focus(), 100);
   }
 }
 
@@ -410,25 +415,25 @@ function showScreen(id) {
    LOGIN
 ═══════════════════════════════════ */
 window.doLogin = () => {
-  const name = $('login-name').value.trim();
-  if (!name) {
-    $('login-err').textContent = 'Ingresa tu nombre para continuar.';
+  const pin = $('login-pin').value.trim();
+  if (pin !== PIN) {
+    $('login-err').textContent = 'PIN incorrecto. Intenta de nuevo.';
     $('login-err').style.display = 'block';
+    $('login-pin').value = '';
+    $('login-pin').focus();
     return;
   }
   $('login-err').style.display = 'none';
-  currentUser = name;
-  localStorage.setItem(USER_KEY, name);
+  localStorage.setItem(SESSION_KEY, JSON.stringify({ exp: Date.now() + SESSION_TTL }));
   goHome();
 };
 
 window.doLogout = () => {
   if (homeUnsub) { homeUnsub(); homeUnsub = null; }
-  currentUser = '';
-  localStorage.removeItem(USER_KEY);
-  $('login-name').value = '';
+  localStorage.removeItem(SESSION_KEY);
+  $('login-pin').value = '';
   showScreen('s-login');
-  setTimeout(() => $('login-name')?.focus(), 100);
+  setTimeout(() => $('login-pin')?.focus(), 100);
 };
 
 /* ═══════════════════════════════════
