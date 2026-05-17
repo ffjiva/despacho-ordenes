@@ -59,6 +59,22 @@ The live endpoint is `https://parsedocument-aqd2rvesuq-uc.a.run.app`. The fronte
 ### Deployment / CI
 Pushing to `main` triggers `.github/workflows/deploy.yml`, which deploys only Firebase Hosting (frontend). Cloud Function deploys are manual.
 
+## Contexto del negocio
+
+- Fernando Figueroa, Gerente Operativo de distribución
+- 1 bodega principal → 1 bodega secundaria + 6 sucursales
+- Equipo de 1 a 10 personas por día
+- Proceso actual: emitir reportes PDF → leer → decidir acciones de distribución
+- Usuarios acceden desde celulares y laptops
+
+## Reglas de desarrollo
+
+- Nunca mostrar el archivo completo al hacer cambios, solo bloques exactos a modificar
+- No usar frameworks externos (sin React, sin Vue)
+- Respetar variables CSS `:root` existentes
+- Priorizar usabilidad en móvil
+- Al terminar cambios importantes ejecutar: `firebase deploy --only hosting`
+
 ## Key Constraints
 
 - The frontend Firebase config is hardcoded at the bottom of `index.html` (public web config — intentional).
