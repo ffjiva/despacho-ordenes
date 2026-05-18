@@ -33,6 +33,21 @@
   --r: 6px;
   --r2: 10px;
 }
+body.dark {
+  --bg: #1a1a1a;
+  --surface: #2a2a2a;
+  --surface2: #242424;
+  --border: #3a3a3a;
+  --border2: #303030;
+  --text: #e8e6df;
+  --text2: #a8a69e;
+  --muted: #6a6a5e;
+  --done-bg: #1a2e12; --done-bd: #3a6424; --done-tx: #7ab84a;
+  --warn-bg: #2a2212; --warn-bd: #6a5418; --warn-tx: #d0a030;
+  --err-bg:  #2a1212; --err-bd:  #6a2424; --err-tx:  #e06868;
+  --info-bg: #121a2a; --info-bd: #264472; --info-tx: #6090d8;
+}
+body.dark .fld select { background: #222; }
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 html, body {
   font-family: var(--mono);
@@ -234,6 +249,7 @@ html, body {
         <div class="m-name" id="m-name-lbl">—</div>
         <div class="m-date" id="m-date-lbl"></div>
       </div>
+      <button class="m-logout" id="theme-btn" onclick="toggleDark()" title="Modo oscuro">🌙</button>
       <button class="m-logout" onclick="doLogout()">Salir</button>
     </div>
   </div>
@@ -269,6 +285,7 @@ const FIREBASE_CFG = {
 };
 
 const USER_KEY   = 'moto_user_v1';
+const THEME_KEY  = 'moto_theme_v1';
 const COLLECTION = 'vueltas';
 
 let db = null, fbMod = null;
@@ -297,6 +314,8 @@ async function init() {
   } catch(e) {
     console.error('Firebase init error:', e);
   }
+
+  if (localStorage.getItem(THEME_KEY) === 'dark') applyDark(true);
 
   if ('Notification' in window && Notification.permission === 'default') {
     Notification.requestPermission();
@@ -503,12 +522,27 @@ function renderCards(list) {
             </button>` : ''}
           ${isCamino ? `
             <button class="btn btn-done-action" onclick="completarVuelta('${v.id}')">
-              ✓ Completé esta vuelta
+              ✓ ACABÉ
             </button>` : ''}
         </div>` : ''}
       </div>`;
   }).join('');
 }
+
+/* ═══════════════════════════════════
+   DARK MODE
+═══════════════════════════════════ */
+function applyDark(on) {
+  document.body.classList.toggle('dark', on);
+  const btn = $('theme-btn');
+  if (btn) btn.textContent = on ? '☀️' : '🌙';
+}
+
+window.toggleDark = () => {
+  const isDark = document.body.classList.contains('dark');
+  applyDark(!isDark);
+  localStorage.setItem(THEME_KEY, isDark ? 'light' : 'dark');
+};
 
 /* ═══════════════════════════════════
    ACCIONES
@@ -527,7 +561,8 @@ window.completarVuelta = async id => {
     await fbMod.updateDoc(fbMod.doc(db, COLLECTION, id), {
       status:      'done',
       completedAt: Date.now(),
-      paradero:    ''
+      paradero:    '',
+      emergency:   false
     });
   } catch(e) { console.error(e); }
 };

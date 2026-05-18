@@ -1202,7 +1202,7 @@ window.deleteVuelta = async (id, nombre) => {
 window.markVueltaDone = async id => {
   try {
     await fbMod.updateDoc(fbMod.doc(db, 'vueltas', id), {
-      status: 'done', completedAt: Date.now()
+      status: 'done', completedAt: Date.now(), emergency: false
     });
   } catch(e) { console.error(e); }
 };
