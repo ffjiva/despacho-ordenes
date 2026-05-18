@@ -376,12 +376,28 @@ html, body {
   .scr:not(#s-pick) { display: none !important; }
   @page { margin: 1.5cm; size: A4 portrait; }
 }
+#s-setup { display: none; }
+#s-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  gap: 1.5rem;
+  font-size: 3rem;
+}
 </style>
 </head>
 <body>
 
+<!-- ══════════════ LOADING ══════════════ -->
+<div id="s-loading" class="scr on">
+  <span>📦</span>
+  <span class="spin" style="font-size:1rem"></span>
+</div>
+
 <!-- ══════════════ SETUP ══════════════ -->
-<div id="s-setup" class="scr on">
+<div id="s-setup" class="scr">
   <div class="topbar">
     <div class="topbar-title">📦 Despacho Manager</div>
   </div>
@@ -1694,6 +1710,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   currentUser = localStorage.getItem(USER_KEY) || '';
 
   const ok = await initFirebase(FIREBASE_CFG);
+  $('s-loading').classList.remove('on');
+
   if (ok) {
     const deepId = new URLSearchParams(window.location.search).get('orden');
     if (!currentUser) {
