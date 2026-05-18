@@ -553,6 +553,10 @@ html, body {
       <label>Descripción</label>
       <input id="mv-desc" type="text" placeholder="Qué lleva o hace…" autocomplete="off"/>
     </div>
+    <div class="fld">
+      <label>Orden vinculada (opcional)</label>
+      <select id="mv-orden"><option value="">Sin vincular</option></select>
+    </div>
     <div class="modal-btns">
       <button class="btn btn-outline" onclick="closeNewVueltaModal()">Cancelar</button>
       <button class="btn btn-dark" id="btn-save-mv" onclick="createVuelta()">Agregar →</button>
@@ -582,6 +586,10 @@ html, body {
     <div class="fld">
       <label>Descripción</label>
       <input id="ve-desc" type="text" autocomplete="off"/>
+    </div>
+    <div class="fld">
+      <label>Orden vinculada (opcional)</label>
+      <select id="ve-orden"><option value="">Sin vincular</option></select>
     </div>
     <div class="modal-btns">
       <button class="btn btn-outline" onclick="closeVueltaEdit()">Cancelar</button>
@@ -1032,6 +1040,24 @@ window.reloadVueltas = () => {
   if (date) loadVueltasListener(date, driver);
 };
 
+async function loadRecentDespachos() {
+  if (!db) return [];
+  try {
+    const snap = await fbMod.getDocs(
+      fbMod.query(fbMod.collection(db, 'despachos'), fbMod.orderBy('createdAt', 'desc'), fbMod.limit(20))
+    );
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch { return []; }
+}
+
+function fillOrdenSelect(sel, despachos, selectedId = '') {
+  sel.innerHTML = '<option value="">Sin vincular</option>';
+  despachos.forEach(d => {
+    const label = d.orderNumber ? `Orden ${d.orderNumber}` : escHtml(d.name || d.id);
+    sel.innerHTML += `<option value="${d.id}"${d.id === selectedId ? ' selected' : ''}>${label}</option>`;
+  });
+}
+
 window.openNewVueltaModal = async () => {
   newVueltaUrg = 'normal';
   ['high','normal','low'].forEach(u =>
@@ -1039,12 +1065,13 @@ window.openNewVueltaModal = async () => {
   );
   $('mv-dest').value = '';
   $('mv-desc').value = '';
-  const members = await loadTeamMembers();
+  const [members, despachos] = await Promise.all([loadTeamMembers(), loadRecentDespachos()]);
   const sel = $('mv-motorista');
   sel.innerHTML = '<option value="">Sin asignar</option>';
   members.forEach(m => {
     sel.innerHTML += `<option value="${escHtml(m)}">${escHtml(m)}</option>`;
   });
+  fillOrdenSelect($('mv-orden'), despachos);
   $('modal-nvuelta').classList.add('on');
   setTimeout(() => $('mv-dest')?.focus(), 100);
 };
@@ -1081,15 +1108,16 @@ window.createVuelta = async () => {
 
     await fbMod.addDoc(fbMod.collection(db, 'vueltas'), {
       date, order,
-      destination: dest.toUpperCase(),
-      description: desc,
-      assignedTo:  moto,
-      urgency:     newVueltaUrg,
-      status:      'pending',
-      paradero:    '',
-      createdBy:   currentUser,
-      createdAt:   Date.now(),
-      completedAt: null
+      destination:    dest.toUpperCase(),
+      description:    desc,
+      assignedTo:     moto,
+      urgency:        newVueltaUrg,
+      linkedOrderId:  $('mv-orden').value || null,
+      status:         'pending',
+      paradero:       '',
+      createdBy:      currentUser,
+      createdAt:      Date.now(),
+      completedAt:    null
     });
 
     $('modal-nvuelta').classList.remove('on');
@@ -1185,6 +1213,9 @@ window.renderVueltasSupervisor = list => {
         ${v.status === 'done' && v.location_end
           ? `<div style="padding:0 12px 6px 50px"><a class="vloc-link" href="https://maps.google.com/?q=${v.location_end.lat},${v.location_end.lng}" target="_blank" rel="noopener">📍 Entregó aquí</a></div>`
           : ''}
+        ${v.linkedOrderId
+          ? `<div style="padding:0 12px 6px 50px"><a class="vloc-link" href="https://despacho-ordenes.web.app/?orden=${v.linkedOrderId}" target="_blank" rel="noopener">📋 Ver orden →</a></div>`
+          : ''}
         ${v.photos?.length ? `
           <div style="padding:4px 12px 8px 50px">
             <div style="font-size:.6rem;color:var(--muted);margin-bottom:4px">📷 ${v.photos.length} foto${v.photos.length > 1 ? 's' : ''}</div>
@@ -1234,12 +1265,13 @@ window.editVuelta = async id => {
     ['high','normal','low'].forEach(u =>
       $(`ve-urg-${u}`).className = `urg-opt${u === editingVueltaUrg ? ` sel-${u}` : ''}`
     );
-    const members = await loadTeamMembers();
+    const [members, despachos] = await Promise.all([loadTeamMembers(), loadRecentDespachos()]);
     const sel = $('ve-motorista');
     sel.innerHTML = '<option value="">Sin asignar</option>';
     members.forEach(m => {
       sel.innerHTML += `<option value="${escHtml(m)}"${m === v.assignedTo ? ' selected' : ''}>${escHtml(m)}</option>`;
     });
+    fillOrdenSelect($('ve-orden'), despachos, v.linkedOrderId || '');
     $('modal-vedit').classList.add('on');
     setTimeout(() => $('ve-dest')?.focus(), 100);
   } catch(e) { console.error(e); }
@@ -1264,10 +1296,11 @@ window.saveVueltaEdit = async () => {
   btn.innerHTML = '<span class="spin"></span>Guardando…';
   try {
     await fbMod.updateDoc(fbMod.doc(db, 'vueltas', editingVueltaId), {
-      destination: dest.toUpperCase(),
-      description: $('ve-desc').value.trim(),
-      assignedTo:  $('ve-motorista').value,
-      urgency:     editingVueltaUrg
+      destination:   dest.toUpperCase(),
+      description:   $('ve-desc').value.trim(),
+      assignedTo:    $('ve-motorista').value,
+      urgency:       editingVueltaUrg,
+      linkedOrderId: $('ve-orden').value || null
     });
     $('modal-vedit').classList.remove('on');
   } catch(e) {

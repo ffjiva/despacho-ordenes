@@ -536,6 +536,9 @@ function renderCards(list) {
     const thumbsHtml = photos.length
       ? `<div class="photo-strip">${photos.map(u => `<img class="photo-thumb" src="${esc(u)}" onclick="window.open('${escAttr(u)}','_blank')" alt="foto"/>`).join('')}</div>`
       : '';
+    const ordenLink = v.linkedOrderId
+      ? `<div style="padding:0 14px 8px"><a href="https://despacho-ordenes.web.app/?orden=${v.linkedOrderId}" target="_blank" rel="noopener" style="display:block;text-align:center;padding:10px 14px;border:1px solid var(--info-bd);border-radius:var(--r);color:var(--info-tx);font-size:.78rem;font-weight:600;text-decoration:none;background:var(--info-bg)">📋 Ver lista de productos →</a></div>`
+      : '';
 
     return `
       <div class="mcard ${cardCls} ${emgCls}" id="mc-${v.id}">
@@ -551,6 +554,7 @@ function renderCards(list) {
           </div>
         </div>
         ${isCamino ? `<div class="mcard-yendo">🚐 Yendo a ${esc(v.destination || '')}…</div>` : ''}
+        ${ordenLink}
         ${!isDone ? `
         <div class="mcard-actions">
           ${isPending ? `

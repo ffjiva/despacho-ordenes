@@ -1695,8 +1695,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const ok = await initFirebase(FIREBASE_CFG);
   if (ok) {
+    const deepId = new URLSearchParams(window.location.search).get('orden');
     if (!currentUser) {
-      showNameModal(() => goHome());
+      showNameModal(() => deepId ? openDespacho(deepId) : goHome());
+    } else if (deepId) {
+      await openDespacho(deepId);
     } else {
       goHome();
     }
