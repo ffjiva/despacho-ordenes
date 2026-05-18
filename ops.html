@@ -1185,6 +1185,13 @@ window.renderVueltasSupervisor = list => {
         ${v.status === 'done' && v.location_end
           ? `<div style="padding:0 12px 6px 50px"><a class="vloc-link" href="https://maps.google.com/?q=${v.location_end.lat},${v.location_end.lng}" target="_blank" rel="noopener">📍 Entregó aquí</a></div>`
           : ''}
+        ${v.photos?.length ? `
+          <div style="padding:4px 12px 8px 50px">
+            <div style="font-size:.6rem;color:var(--muted);margin-bottom:4px">📷 ${v.photos.length} foto${v.photos.length > 1 ? 's' : ''}</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap">${v.photos.map(u =>
+              `<img src="${escHtml(u)}" style="width:60px;height:60px;border-radius:6px;object-fit:cover;cursor:pointer;border:1px solid var(--border2)" onclick="window.open('${escAttr(u)}','_blank')" alt="foto"/>`
+            ).join('')}</div>
+          </div>` : ''}
         <div class="vcard-actions" onclick="event.stopPropagation()">
           ${v.status !== 'done' ? `<button class="btn btn-outline" style="font-size:.6rem;padding:4px 10px" onclick="editVuelta('${v.id}')">✎ Editar</button>` : ''}
           ${v.status !== 'done' ? `<button class="btn btn-dark" style="font-size:.6rem;padding:4px 10px" onclick="markVueltaDone('${v.id}')">✓ Marcar lista</button>` : ''}

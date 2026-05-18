@@ -214,6 +214,16 @@ html, body {
 }
 
 .mcard-actions { padding: 8px 12px 12px; display: flex; flex-direction: column; gap: 8px; }
+.photo-strip { display: flex; gap: 6px; flex-wrap: wrap; padding: 0 12px 6px; }
+.photo-thumb { width: 60px; height: 60px; border-radius: 6px; object-fit: cover; cursor: pointer; border: 1px solid var(--border); }
+.btn-foto {
+  font-family: var(--mono); font-size: .72rem; font-weight: 600;
+  background: var(--info-bg); color: var(--info-tx); border: 1px solid var(--info-bd);
+  border-radius: var(--r); padding: 8px 14px; cursor: pointer;
+  margin: 0 12px 10px; display: block; width: calc(100% - 24px);
+  min-height: 40px;
+}
+.btn-foto:disabled { opacity: .45; cursor: not-allowed; }
 
 .empty-state { text-align: center; padding: 3rem 1rem 2rem; color: var(--muted); }
 .empty-icon  { font-size: 2.5rem; opacity: .3; margin-bottom: .75rem; }
@@ -295,6 +305,9 @@ let currentDriver = '';
 let homeUnsub   = null;
 let cachedList  = [];
 let motoFilter  = 'all';
+let storageMod  = null;
+let storage     = null;
+let fotoVueltaId = null;
 
 const $ = id => document.getElementById(id);
 
@@ -309,10 +322,14 @@ function nowTime() {
 async function init() {
   try {
     const { initializeApp, getApps } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
-    fbMod = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+    [fbMod, storageMod] = await Promise.all([
+      import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'),
+      import('https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js')
+    ]);
     const existing = getApps().find(a => a.name === 'moto-main');
     const app = existing || initializeApp(FIREBASE_CFG, 'moto-main');
-    db = fbMod.getFirestore(app);
+    db      = fbMod.getFirestore(app);
+    storage = storageMod.getStorage(app);
   } catch(e) {
     console.error('Firebase init error:', e);
   }
@@ -514,6 +531,12 @@ function renderCards(list) {
       ? new Date(v.completedAt).toLocaleTimeString('es-SV', { hour: '2-digit', minute: '2-digit', hour12: false })
       : '';
 
+    const photos    = v.photos || [];
+    const canPhoto  = (isCamino || isDone) && photos.length < 3;
+    const thumbsHtml = photos.length
+      ? `<div class="photo-strip">${photos.map(u => `<img class="photo-thumb" src="${esc(u)}" onclick="window.open('${escAttr(u)}','_blank')" alt="foto"/>`).join('')}</div>`
+      : '';
+
     return `
       <div class="mcard ${cardCls} ${emgCls}" id="mc-${v.id}">
         ${v.emergency ? `<div class="emergency-bar">🚨 ATENCIÓN — VUELTA DE EMERGENCIA</div>` : ''}
@@ -539,6 +562,10 @@ function renderCards(list) {
               ✓ ACABÉ
             </button>` : ''}
         </div>` : ''}
+        ${thumbsHtml}
+        ${(isCamino || isDone) ? `<button class="btn-foto" onclick="tomarFoto('${v.id}')" ${canPhoto ? '' : 'disabled'}>
+          ${canPhoto ? '📷 Foto' : '📷 3/3 — máximo alcanzado'}
+        </button>` : ''}
       </div>`;
   }).join('');
 }
@@ -587,6 +614,34 @@ window.completarVuelta = async id => {
   } catch(e) { console.error(e); }
 };
 
+window.tomarFoto = id => {
+  fotoVueltaId = id;
+  const inp = $('foto-input');
+  inp.value = '';
+  inp.click();
+};
+
+window.uploadFoto = async input => {
+  const file = input.files[0];
+  if (!file || !fotoVueltaId) return;
+  const id  = fotoVueltaId;
+  const btn = document.querySelector(`#mc-${id} .btn-foto`);
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Subiendo…'; }
+  try {
+    const path    = `vueltas/${id}/${Date.now()}_${currentDriver}.jpg`;
+    const storRef = storageMod.ref(storage, path);
+    await storageMod.uploadBytes(storRef, file);
+    const url = await storageMod.getDownloadURL(storRef);
+    await fbMod.updateDoc(fbMod.doc(db, COLLECTION, id), {
+      photos: fbMod.arrayUnion(url)
+    });
+  } catch(e) {
+    console.error(e);
+    alert('Error al subir la foto. Intenta de nuevo.');
+    if (btn) { btn.disabled = false; btn.textContent = '📷 Foto'; }
+  }
+};
+
 window.revertirVuelta = async id => {
   try {
     await fbMod.updateDoc(fbMod.doc(db, COLLECTION, id), {
@@ -609,5 +664,6 @@ function escAttr(s) { return String(s).replace(/'/g,"\\'"); }
 ═══════════════════════════════════ */
 document.addEventListener('DOMContentLoaded', init);
 </script>
+<input type="file" id="foto-input" accept="image/*" capture="environment" style="display:none" onchange="uploadFoto(this)"/>
 </body>
 </html>
