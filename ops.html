@@ -317,6 +317,9 @@ html, body {
 }
 .vcard.v-done   { background: var(--done-bg); border-color: var(--done-bd); }
 .vcard.v-camino { border-color: var(--warn-bd); }
+.vcard.urg-high   { border-left: 4px solid #ff3b30; }
+.vcard.urg-normal { border-left: 4px solid #ffcc00; }
+.vcard.urg-low    { border-left: 4px solid #0a84ff; }
 .vcard-top { display: flex; align-items: flex-start; gap: 10px; padding: 11px 12px 8px; }
 .vorder-circle {
   width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
@@ -437,6 +440,8 @@ html, body {
   <button class="fab" onclick="openNewModal()" title="Nuevo pendiente">+</button>
 </div>
 
+<button class="fab" id="fab-vuelta" style="left:1.25rem;right:auto;display:none" onclick="openNewVueltaModal()" title="Nueva vuelta">+</button>
+
 <!-- ══════════════ MODAL NUEVO ══════════════ -->
 <div class="modal-overlay" id="modal-new" onclick="closeNewModal(event)">
   <div class="modal">
@@ -508,27 +513,37 @@ html, body {
     <div class="vstat-badge"><div class="vstat-num">—</div><div class="vstat-lbl">Completadas</div></div>
   </div>
 
-  <div style="padding:0 .875rem .5rem;max-width:720px;margin:0 auto">
-    <div class="section-lbl">Nueva vuelta</div>
-    <div class="vform">
-      <div class="fld">
-        <label>Destino</label>
-        <input id="v-dest" type="text" placeholder="Ej: Sucursal Norte" autocomplete="off"/>
-      </div>
-      <div class="fld">
-        <label>Motorista</label>
-        <select id="v-motorista"><option value="">Sin asignar</option></select>
-      </div>
-      <div class="fld">
-        <label>Descripción</label>
-        <input id="v-desc" type="text" placeholder="Qué lleva o hace…" autocomplete="off"/>
-      </div>
-      <button class="btn btn-dark btn-full" id="v-add-btn" onclick="createVuelta()">Agregar vuelta →</button>
-    </div>
-  </div>
-
   <div class="pend-list" id="v-list">
     <div class="empty-state"><span class="spin"></span></div>
+  </div>
+</div>
+
+<!-- ══════════════ MODAL NUEVA VUELTA ══════════════ -->
+<div class="modal-overlay" id="modal-nvuelta" onclick="closeNewVueltaModal(event)">
+  <div class="modal">
+    <div class="modal-title">Nueva vuelta</div>
+    <div style="font-size:.6rem;font-weight:700;letter-spacing:.1em;color:var(--muted);text-transform:uppercase;margin-bottom:6px">Urgencia</div>
+    <div class="urg-opts">
+      <div class="urg-opt" id="mv-urg-high"   onclick="selectVueltaUrg('high')">🔴 Alta</div>
+      <div class="urg-opt sel-normal" id="mv-urg-normal" onclick="selectVueltaUrg('normal')">🟡 Normal</div>
+      <div class="urg-opt" id="mv-urg-low"    onclick="selectVueltaUrg('low')">🔵 Baja</div>
+    </div>
+    <div class="fld">
+      <label>Destino</label>
+      <input id="mv-dest" type="text" placeholder="Ej: Sucursal Norte" autocomplete="off"/>
+    </div>
+    <div class="fld">
+      <label>Motorista</label>
+      <select id="mv-motorista"><option value="">Sin asignar</option></select>
+    </div>
+    <div class="fld">
+      <label>Descripción</label>
+      <input id="mv-desc" type="text" placeholder="Qué lleva o hace…" autocomplete="off"/>
+    </div>
+    <div class="modal-btns">
+      <button class="btn btn-outline" onclick="closeNewVueltaModal()">Cancelar</button>
+      <button class="btn btn-dark" id="btn-save-mv" onclick="createVuelta()">Agregar →</button>
+    </div>
   </div>
 </div>
 
@@ -584,6 +599,7 @@ let selectedUrgency = 'normal';
 let homeUnsub = null;
 let vueltasUnsub = null;
 let editingVueltaId = null;
+let newVueltaUrg = 'normal';
 
 const SUBTYPE_LABEL = { ordenar: 'Ordenar', organizar: 'Organizar', mover: 'Mover en bodega', revisar: 'Revisar inventario' };
 const THEME_KEY = 'ops_theme_v1';
@@ -945,12 +961,14 @@ async function loadTeamMembers() {
 
 window.goVueltas = async () => {
   if (homeUnsub) { homeUnsub(); homeUnsub = null; }
+  $('fab-vuelta').style.display = 'flex';
   showScreen('s-vueltas');
   await initVueltasScreen();
 };
 
 window.goBackFromVueltas = () => {
   if (vueltasUnsub) { vueltasUnsub(); vueltasUnsub = null; }
+  $('fab-vuelta').style.display = 'none';
   goHome();
 };
 
@@ -960,13 +978,10 @@ window.initVueltasScreen = async () => {
 
   const members = await loadTeamMembers();
   const filterSel = $('v-driver-filter');
-  const formSel   = $('v-motorista');
 
   filterSel.innerHTML = '<option value="">Todos los motoristas</option>';
-  formSel.innerHTML   = '<option value="">Sin asignar</option>';
   members.forEach(m => {
     filterSel.innerHTML += `<option value="${escHtml(m)}">${escHtml(m)}</option>`;
-    formSel.innerHTML   += `<option value="${escHtml(m)}">${escHtml(m)}</option>`;
   });
 
   reloadVueltas();
@@ -978,16 +993,44 @@ window.reloadVueltas = () => {
   if (date) loadVueltasListener(date, driver);
 };
 
+window.openNewVueltaModal = async () => {
+  newVueltaUrg = 'normal';
+  ['high','normal','low'].forEach(u =>
+    $(`mv-urg-${u}`).className = `urg-opt${u === 'normal' ? ' sel-normal' : ''}`
+  );
+  $('mv-dest').value = '';
+  $('mv-desc').value = '';
+  const members = await loadTeamMembers();
+  const sel = $('mv-motorista');
+  sel.innerHTML = '<option value="">Sin asignar</option>';
+  members.forEach(m => {
+    sel.innerHTML += `<option value="${escHtml(m)}">${escHtml(m)}</option>`;
+  });
+  $('modal-nvuelta').classList.add('on');
+  setTimeout(() => $('mv-dest')?.focus(), 100);
+};
+
+window.closeNewVueltaModal = e => {
+  if (!e || e.target === $('modal-nvuelta')) $('modal-nvuelta').classList.remove('on');
+};
+
+window.selectVueltaUrg = u => {
+  newVueltaUrg = u;
+  ['high','normal','low'].forEach(v =>
+    $(`mv-urg-${v}`).className = `urg-opt${v === u ? ` sel-${v}` : ''}`
+  );
+};
+
 window.createVuelta = async () => {
-  const dest = $('v-dest').value.trim();
-  const moto = $('v-motorista').value;
-  const desc = $('v-desc').value.trim();
+  const dest = $('mv-dest').value.trim();
+  const moto = $('mv-motorista').value;
+  const desc = $('mv-desc').value.trim();
   const date = $('v-date').value;
 
-  if (!dest) { $('v-dest').focus(); return; }
+  if (!dest) { $('mv-dest').focus(); return; }
   if (!moto) { alert('Selecciona un motorista.'); return; }
 
-  const btn = $('v-add-btn');
+  const btn = $('btn-save-mv');
   btn.disabled = true;
   btn.innerHTML = '<span class="spin"></span>Agregando…';
 
@@ -1002,6 +1045,7 @@ window.createVuelta = async () => {
       destination: dest.toUpperCase(),
       description: desc,
       assignedTo:  moto,
+      urgency:     newVueltaUrg,
       status:      'pending',
       paradero:    '',
       createdBy:   currentUser,
@@ -1009,14 +1053,13 @@ window.createVuelta = async () => {
       completedAt: null
     });
 
-    $('v-dest').value = '';
-    $('v-desc').value = '';
+    $('modal-nvuelta').classList.remove('on');
   } catch(e) {
     console.error(e);
     alert('Error al guardar. Intenta de nuevo.');
   } finally {
     btn.disabled = false;
-    btn.textContent = 'Agregar vuelta →';
+    btn.textContent = 'Agregar →';
   }
 };
 
@@ -1058,18 +1101,19 @@ window.renderVueltasSupervisor = list => {
 
   const el = $('v-list');
   if (!list.length) {
-    el.innerHTML = `<div class="empty-state"><div class="empty-icon">🚐</div><div class="empty-text">Sin vueltas para este día.<br/>Agrega la primera arriba.</div></div>`;
+    el.innerHTML = `<div class="empty-state"><div class="empty-icon">🚐</div><div class="empty-text">Sin vueltas para este día.<br/>Usa el botón + para agregar.</div></div>`;
     return;
   }
 
   el.innerHTML = list.map(v => {
     const sc      = v.status === 'done' ? 'v-done' : v.status === 'en_camino' ? 'v-camino' : '';
+    const urgCls  = v.urgency === 'high' ? 'urg-high' : v.urgency === 'low' ? 'urg-low' : 'urg-normal';
     const slabel  = v.status === 'done' ? 'Completada' : v.status === 'en_camino' ? 'En camino' : 'Pendiente';
     const doneStr = v.completedAt
       ? new Date(v.completedAt).toLocaleTimeString('es-SV', { hour:'2-digit', minute:'2-digit', hour12:false })
       : '';
     return `
-      <div class="vcard ${sc}" id="vc-${v.id}">
+      <div class="vcard ${sc} ${urgCls}" id="vc-${v.id}">
         <div class="vcard-top">
           <div class="vorder-circle ${sc}">${v.order}</div>
           <div class="vcard-body">
