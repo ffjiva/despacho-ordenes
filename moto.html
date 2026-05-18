@@ -139,6 +139,20 @@ html, body {
 }
 .mcard.mc-camino { border-color: var(--warn-bd); border-left: 4px solid var(--warn-tx); }
 .mcard.mc-done   { background: var(--done-bg); border-color: var(--done-bd); }
+@keyframes pulse-border {
+  0%, 100% { border-top-color: #ff3b30; }
+  50%       { border-top-color: rgba(255,59,48,.3); }
+}
+.mcard.emergency {
+  background: var(--err-bg);
+  border-top: 3px solid #ff3b30;
+  animation: pulse-border .8s ease-in-out infinite;
+}
+.emergency-bar {
+  background: #ff3b30; color: #fff;
+  font-size: .7rem; font-weight: 700; text-align: center;
+  padding: 8px; letter-spacing: .05em;
+}
 
 .mcard-top { display: flex; align-items: flex-start; gap: 12px; padding: 14px 14px 10px; }
 .m-order-circle {
@@ -255,6 +269,10 @@ async function init() {
     console.error('Firebase init error:', e);
   }
 
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+
   await loadLoginSelect();
 
   currentDriver = localStorage.getItem(USER_KEY) || '';
@@ -324,6 +342,12 @@ function goHome() {
   startListener();
 }
 
+function notify(title, body) {
+  if ('Notification' in window && Notification.permission === 'granted') {
+    new Notification(title, { body });
+  }
+}
+
 function startListener() {
   if (!db) { renderList([]); return; }
   if (homeUnsub) { homeUnsub(); homeUnsub = null; }
@@ -337,8 +361,23 @@ function startListener() {
     fbMod.orderBy('order', 'asc')
   );
 
+  let firstSnap = true;
+  let prevEmergencyIds = new Set();
+
   homeUnsub = fbMod.onSnapshot(q,
-    snap => renderList(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
+    snap => {
+      const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      if (!firstSnap) {
+        list.forEach(v => {
+          if (v.emergency && !prevEmergencyIds.has(v.id)) {
+            notify('🚨 Emergencia asignada', `Vuelta a ${v.destination} marcada como emergencia`);
+          }
+        });
+      }
+      firstSnap = false;
+      prevEmergencyIds = new Set(list.filter(v => v.emergency).map(v => v.id));
+      renderList(list);
+    },
     err  => {
       $('m-list').innerHTML = `<div class="empty-state" style="color:var(--err-tx)">Error al cargar. Verifica tu conexión.</div>`;
       console.error(err);
@@ -374,18 +413,26 @@ function renderList(list) {
     return;
   }
 
-  el.innerHTML = list.map(v => {
+  const sorted = [...list].sort((a, b) => {
+    if (a.emergency && !b.emergency) return -1;
+    if (!a.emergency && b.emergency) return 1;
+    return (a.order || 0) - (b.order || 0);
+  });
+
+  el.innerHTML = sorted.map(v => {
     const isPending  = v.status === 'pending';
     const isCamino   = v.status === 'en_camino';
     const isDone     = v.status === 'done';
     const cardCls    = isDone ? 'mc-done' : isCamino ? 'mc-camino' : '';
+    const emgCls     = v.emergency ? 'emergency' : '';
     const circleCls  = isDone ? 'mc-done' : isCamino ? 'mc-camino' : '';
     const doneTime   = v.completedAt
       ? new Date(v.completedAt).toLocaleTimeString('es-SV', { hour: '2-digit', minute: '2-digit', hour12: false })
       : '';
 
     return `
-      <div class="mcard ${cardCls}" id="mc-${v.id}">
+      <div class="mcard ${cardCls} ${emgCls}" id="mc-${v.id}">
+        ${v.emergency ? `<div class="emergency-bar">🚨 ATENCIÓN — VUELTA DE EMERGENCIA</div>` : ''}
         <div class="mcard-top">
           <div class="m-order-circle ${circleCls}">${v.order}</div>
           <div class="mcard-info">
