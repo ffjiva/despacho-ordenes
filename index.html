@@ -376,8 +376,7 @@ html, body {
   .scr:not(#s-pick) { display: none !important; }
   @page { margin: 1.5cm; size: A4 portrait; }
 }
-#s-setup { display: none; }
-#s-loading {
+#s-loading.on {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -579,7 +578,7 @@ html, body {
 /* ═══════════════════════════════════════
    STATE
 ═══════════════════════════════════════ */
-let fbApp = null, db = null, fbMod = null;
+let db = null, fbMod = null;
 let isLocal = false;
 let curId = null, curData = null;
 let unsub = null, homeUnsub = null;
@@ -1708,12 +1707,12 @@ const FIREBASE_CFG = {
 
 document.addEventListener('DOMContentLoaded', async () => {
   currentUser = localStorage.getItem(USER_KEY) || '';
+  const deepId = new URLSearchParams(window.location.search).get('orden');
 
   const ok = await initFirebase(FIREBASE_CFG);
   $('s-loading').classList.remove('on');
 
   if (ok) {
-    const deepId = new URLSearchParams(window.location.search).get('orden');
     if (!currentUser) {
       showNameModal(() => deepId ? openDespacho(deepId) : goHome());
     } else if (deepId) {
@@ -1723,9 +1722,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   } else {
     showScreen('s-setup');
-    const err = document.getElementById('cfg-err');
+    const err = $('cfg-err');
     if (err) {
-      err.textContent = 'No se pudo conectar a Firebase. Verifica tu conexión a internet.';
+      err.innerHTML = deepId
+        ? 'Hay una orden compartida contigo. Conecta Firebase para verla.'
+        : 'No se pudo conectar a Firebase. Verifica tu conexión a internet.';
       err.style.display = 'block';
     }
   }
