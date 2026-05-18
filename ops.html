@@ -77,6 +77,8 @@ html, body {
   min-height: 100vh;
   font-size: 14px;
   line-height: 1.5;
+  overflow-x: hidden;
+  max-width: 100vw;
 }
 
 .scr { display: none; min-height: 100vh; }
@@ -388,6 +390,9 @@ html, body {
   font-family: var(--mono); font-size: .72rem; background: var(--surface);
   color: var(--text); outline: none; flex: 1; min-width: 120px;
 }
+@media (max-width: 600px) {
+  .hide-mobile { display: none; }
+}
 </style>
 </head>
 <body>
@@ -425,9 +430,9 @@ html, body {
       <button class="btn btn-ghost" style="font-size:.65rem" onclick="toggleDone()">
         <span id="toggle-done-lbl">Ver resueltos</span>
       </button>
-      <button class="btn btn-ghost" style="font-size:.65rem" onclick="goVueltas()">🚐 Vueltas</button>
-      <button class="btn btn-ghost" style="font-size:.65rem" onclick="openEquipoModal()">👥 Equipo</button>
-      <button class="btn btn-ghost" style="font-size:.65rem" onclick="toggleSort()" id="sort-btn">↕ Urgencia</button>
+      <button class="btn btn-ghost" style="font-size:.65rem" onclick="goVueltas()">🚐<span class="hide-mobile"> Vueltas</span></button>
+      <button class="btn btn-ghost" style="font-size:.65rem" onclick="openEquipoModal()">👥<span class="hide-mobile"> Equipo</span></button>
+      <button class="btn btn-ghost" style="font-size:.65rem" onclick="toggleSort()" id="sort-btn">↕<span class="hide-mobile" id="sort-btn-lbl"> Urgencia</span></button>
       <button class="btn btn-ghost" style="font-size:.85rem;padding:5px 9px" onclick="toggleDark()" id="theme-btn" title="Modo oscuro">🌙</button>
       <button class="btn btn-light" style="font-size:.65rem" onclick="doLogout()">Salir</button>
     </div>
@@ -966,8 +971,8 @@ window.saveNew = async () => {
    SORT
 ═══════════════════════════════════ */
 function applySortBtn() {
-  const btn = $('sort-btn');
-  if (btn) btn.textContent = sortOrder === 'urgency' ? '↕ Urgencia' : '↕ Reciente';
+  const lbl = $('sort-btn-lbl');
+  if (lbl) lbl.textContent = sortOrder === 'urgency' ? ' Urgencia' : ' Reciente';
 }
 
 window.toggleSort = () => {
