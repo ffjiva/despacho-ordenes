@@ -320,6 +320,16 @@ html, body {
 .vcard.urg-high   { border-left: 4px solid #ff3b30; }
 .vcard.urg-normal { border-left: 4px solid #ffcc00; }
 .vcard.urg-low    { border-left: 4px solid #0a84ff; }
+@keyframes pulse-border {
+  0%, 100% { border-left-color: #ff3b30; }
+  50%       { border-left-color: rgba(255,59,48,.3); }
+}
+@keyframes pulse-text {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: .4; }
+}
+.vcard.emergency { border-left: 4px solid #ff3b30; animation: pulse-border .8s ease-in-out infinite; }
+.emergency-badge { font-size: .62rem; font-weight: 700; color: #ff3b30; animation: pulse-text .8s ease-in-out infinite; }
 .vcard-top { display: flex; align-items: flex-start; gap: 10px; padding: 11px 12px 8px; }
 .vorder-circle {
   width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
@@ -440,7 +450,7 @@ html, body {
   <button class="fab" onclick="openNewModal()" title="Nuevo pendiente">+</button>
 </div>
 
-<button class="fab" id="fab-vuelta" style="left:1.25rem;right:auto;display:none" onclick="openNewVueltaModal()" title="Nueva vuelta">+</button>
+<button class="fab" id="fab-vuelta" style="right:1.25rem;display:none" onclick="openNewVueltaModal()" title="Nueva vuelta">+</button>
 
 <!-- ══════════════ MODAL NUEVO ══════════════ -->
 <div class="modal-overlay" id="modal-new" onclick="closeNewModal(event)">
@@ -552,6 +562,12 @@ html, body {
   <div class="modal">
     <div class="modal-title">Editar vuelta</div>
     <div class="modal-sub">Modifica los datos de esta vuelta.</div>
+    <div style="font-size:.6rem;font-weight:700;letter-spacing:.1em;color:var(--muted);text-transform:uppercase;margin-bottom:6px">Urgencia</div>
+    <div class="urg-opts">
+      <div class="urg-opt" id="ve-urg-high"   onclick="selectEditVueltaUrg('high')">🔴 Alta</div>
+      <div class="urg-opt sel-normal" id="ve-urg-normal" onclick="selectEditVueltaUrg('normal')">🟡 Normal</div>
+      <div class="urg-opt" id="ve-urg-low"    onclick="selectEditVueltaUrg('low')">🔵 Baja</div>
+    </div>
     <div class="fld">
       <label>Destino</label>
       <input id="ve-dest" type="text" autocomplete="off"/>
@@ -599,7 +615,8 @@ let selectedUrgency = 'normal';
 let homeUnsub = null;
 let vueltasUnsub = null;
 let editingVueltaId = null;
-let newVueltaUrg = 'normal';
+let newVueltaUrg    = 'normal';
+let editingVueltaUrg = 'normal';
 
 const SUBTYPE_LABEL = { ordenar: 'Ordenar', organizar: 'Organizar', mover: 'Mover en bodega', revisar: 'Revisar inventario' };
 const THEME_KEY = 'ops_theme_v1';
@@ -1105,15 +1122,27 @@ window.renderVueltasSupervisor = list => {
     return;
   }
 
-  el.innerHTML = list.map(v => {
+  const sorted = [...list].sort((a, b) => {
+    if (a.emergency && !b.emergency) return -1;
+    if (!a.emergency && b.emergency) return 1;
+    return (a.order || 0) - (b.order || 0);
+  });
+
+  el.innerHTML = sorted.map(v => {
     const sc      = v.status === 'done' ? 'v-done' : v.status === 'en_camino' ? 'v-camino' : '';
     const urgCls  = v.urgency === 'high' ? 'urg-high' : v.urgency === 'low' ? 'urg-low' : 'urg-normal';
+    const emgCls  = v.emergency ? 'emergency' : '';
     const slabel  = v.status === 'done' ? 'Completada' : v.status === 'en_camino' ? 'En camino' : 'Pendiente';
     const doneStr = v.completedAt
       ? new Date(v.completedAt).toLocaleTimeString('es-SV', { hour:'2-digit', minute:'2-digit', hour12:false })
       : '';
+    const emgBtn  = v.status !== 'done'
+      ? (v.emergency
+          ? `<button class="btn btn-outline" style="font-size:.6rem;padding:4px 10px" onclick="toggleEmergencia('${v.id}',true)">✓ Normal</button>`
+          : `<button class="btn btn-outline" style="font-size:.6rem;padding:4px 10px" onclick="toggleEmergencia('${v.id}',false)">🚨</button>`)
+      : '';
     return `
-      <div class="vcard ${sc} ${urgCls}" id="vc-${v.id}">
+      <div class="vcard ${sc} ${urgCls} ${emgCls}" id="vc-${v.id}">
         <div class="vcard-top">
           <div class="vorder-circle ${sc}">${v.order}</div>
           <div class="vcard-body">
@@ -1121,6 +1150,7 @@ window.renderVueltasSupervisor = list => {
             ${v.description ? `<div class="vcard-desc">${escHtml(v.description)}</div>` : ''}
             <div class="vcard-meta">
               <span class="vstatus vstatus-${v.status}">${slabel}</span>
+              ${v.emergency ? `<span class="emergency-badge">🚨 EMERGENCIA</span>` : ''}
               ${v.assignedTo ? `<span style="font-size:.6rem;color:var(--text2)">👤 ${escHtml(v.assignedTo)}</span>` : ''}
             </div>
           </div>
@@ -1130,10 +1160,17 @@ window.renderVueltasSupervisor = list => {
         <div class="vcard-actions" onclick="event.stopPropagation()">
           ${v.status !== 'done' ? `<button class="btn btn-outline" style="font-size:.6rem;padding:4px 10px" onclick="editVuelta('${v.id}')">✎ Editar</button>` : ''}
           ${v.status !== 'done' ? `<button class="btn btn-dark" style="font-size:.6rem;padding:4px 10px" onclick="markVueltaDone('${v.id}')">✓ Marcar lista</button>` : ''}
+          ${emgBtn}
           <button class="btn btn-danger" style="font-size:.6rem;padding:4px 10px" onclick="deleteVuelta('${v.id}','${escAttr(v.destination||'')}')">✕ Eliminar</button>
         </div>
       </div>`;
   }).join('');
+};
+
+window.toggleEmergencia = async (id, isEmergency) => {
+  try {
+    await fbMod.updateDoc(fbMod.doc(db, 'vueltas', id), { emergency: !isEmergency });
+  } catch(e) { console.error(e); }
 };
 
 window.deleteVuelta = async (id, nombre) => {
@@ -1155,9 +1192,13 @@ window.editVuelta = async id => {
     const snap = await fbMod.getDoc(fbMod.doc(db, 'vueltas', id));
     if (!snap.exists()) return;
     const v = snap.data();
-    editingVueltaId = id;
+    editingVueltaId  = id;
+    editingVueltaUrg = v.urgency || 'normal';
     $('ve-dest').value = v.destination || '';
     $('ve-desc').value = v.description || '';
+    ['high','normal','low'].forEach(u =>
+      $(`ve-urg-${u}`).className = `urg-opt${u === editingVueltaUrg ? ` sel-${u}` : ''}`
+    );
     const members = await loadTeamMembers();
     const sel = $('ve-motorista');
     sel.innerHTML = '<option value="">Sin asignar</option>';
@@ -1173,6 +1214,13 @@ window.closeVueltaEdit = e => {
   if (!e || e.target === $('modal-vedit')) $('modal-vedit').classList.remove('on');
 };
 
+window.selectEditVueltaUrg = u => {
+  editingVueltaUrg = u;
+  ['high','normal','low'].forEach(v =>
+    $(`ve-urg-${v}`).className = `urg-opt${v === u ? ` sel-${v}` : ''}`
+  );
+};
+
 window.saveVueltaEdit = async () => {
   const dest = $('ve-dest').value.trim();
   if (!dest) { $('ve-dest').focus(); return; }
@@ -1183,7 +1231,8 @@ window.saveVueltaEdit = async () => {
     await fbMod.updateDoc(fbMod.doc(db, 'vueltas', editingVueltaId), {
       destination: dest.toUpperCase(),
       description: $('ve-desc').value.trim(),
-      assignedTo:  $('ve-motorista').value
+      assignedTo:  $('ve-motorista').value,
+      urgency:     editingVueltaUrg
     });
     $('modal-vedit').classList.remove('on');
   } catch(e) {
