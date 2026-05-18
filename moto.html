@@ -172,6 +172,27 @@ html, body {
 .mcard.mc-done .mcard-dest { color: var(--done-tx); }
 .mcard-desc { font-size: .75rem; color: var(--text2); margin-top: 4px; line-height: 1.45; }
 .mcard-done-time { font-size: .68rem; color: var(--done-tx); margin-top: 6px; }
+.btn-undo {
+  font-family: var(--mono); font-size: .62rem; color: var(--muted);
+  background: transparent; border: 1px solid var(--border2);
+  border-radius: var(--r); padding: 5px 10px; cursor: pointer;
+  margin-top: 6px; display: inline-block;
+}
+/* ── FILTER BAR ── */
+.m-filter-bar {
+  display: flex; gap: 6px; padding: .6rem .875rem;
+  background: var(--surface); border-bottom: 1px solid var(--border2);
+  overflow-x: auto;
+}
+.m-filter-bar::-webkit-scrollbar { display: none; }
+.m-fbtn {
+  padding: 4px 12px; border-radius: 20px;
+  border: 1px solid var(--border); background: transparent;
+  font-family: var(--mono); font-size: .65rem;
+  cursor: pointer; white-space: nowrap; color: var(--muted);
+  letter-spacing: .04em; transition: all .15s;
+}
+.m-fbtn.on { background: var(--accent); color: #fff; border-color: var(--accent); }
 .mcard-yendo {
   font-size: .75rem; color: var(--warn-tx); font-weight: 600;
   padding: 0 14px 6px 62px;
@@ -223,6 +244,12 @@ html, body {
     <div class="m-stat"><div class="m-stat-num">—%</div><div class="m-stat-lbl">Completado</div></div>
   </div>
 
+  <div class="m-filter-bar">
+    <button class="m-fbtn on" onclick="setMotoFilter('all',this)">Todas</button>
+    <button class="m-fbtn"    onclick="setMotoFilter('pending',this)">Pendientes</button>
+    <button class="m-fbtn"    onclick="setMotoFilter('done',this)">Completadas</button>
+  </div>
+
   <div class="m-list" id="m-list">
     <div class="empty-state"><span class="spin"></span></div>
   </div>
@@ -246,7 +273,9 @@ const COLLECTION = 'vueltas';
 
 let db = null, fbMod = null;
 let currentDriver = '';
-let homeUnsub = null;
+let homeUnsub   = null;
+let cachedList  = [];
+let motoFilter  = 'all';
 
 const $ = id => document.getElementById(id);
 
@@ -389,6 +418,8 @@ function startListener() {
    RENDER
 ═══════════════════════════════════ */
 function renderList(list) {
+  cachedList = list;
+
   const total = list.length;
   const done  = list.filter(v => v.status === 'done').length;
   const pct   = total ? Math.round(done / total * 100) : 0;
@@ -404,12 +435,32 @@ function renderList(list) {
       <div class="m-stat-num" style="color:${pct===100?'var(--done-tx)':'var(--text)'}">${pct}%</div><div class="m-stat-lbl">Completado</div>
     </div>`;
 
+  applyMotoFilter();
+}
+
+function applyMotoFilter() {
+  const filtered = motoFilter === 'done'
+    ? cachedList.filter(v => v.status === 'done')
+    : motoFilter === 'pending'
+      ? cachedList.filter(v => v.status !== 'done')
+      : cachedList;
+  renderCards(filtered);
+}
+
+window.setMotoFilter = (f, btn) => {
+  motoFilter = f;
+  document.querySelectorAll('.m-fbtn').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+  applyMotoFilter();
+};
+
+function renderCards(list) {
   const el = $('m-list');
   if (!list.length) {
-    el.innerHTML = `<div class="empty-state">
-      <div class="empty-icon">🚐</div>
-      <div class="empty-text">No tienes vueltas asignadas para hoy.<br/>Consulta con el supervisor.</div>
-    </div>`;
+    const msg = motoFilter === 'done'
+      ? 'No hay vueltas completadas.' : motoFilter === 'pending'
+      ? 'No hay vueltas pendientes.' : 'No tienes vueltas asignadas para hoy.<br/>Consulta con el supervisor.';
+    el.innerHTML = `<div class="empty-state"><div class="empty-icon">🚐</div><div class="empty-text">${msg}</div></div>`;
     return;
   }
 
@@ -420,13 +471,13 @@ function renderList(list) {
   });
 
   el.innerHTML = sorted.map(v => {
-    const isPending  = v.status === 'pending';
-    const isCamino   = v.status === 'en_camino';
-    const isDone     = v.status === 'done';
-    const cardCls    = isDone ? 'mc-done' : isCamino ? 'mc-camino' : '';
-    const emgCls     = v.emergency ? 'emergency' : '';
-    const circleCls  = isDone ? 'mc-done' : isCamino ? 'mc-camino' : '';
-    const doneTime   = v.completedAt
+    const isPending = v.status === 'pending';
+    const isCamino  = v.status === 'en_camino';
+    const isDone    = v.status === 'done';
+    const cardCls   = isDone ? 'mc-done' : isCamino ? 'mc-camino' : '';
+    const emgCls    = v.emergency ? 'emergency' : '';
+    const circleCls = isDone ? 'mc-done' : isCamino ? 'mc-camino' : '';
+    const doneTime  = v.completedAt
       ? new Date(v.completedAt).toLocaleTimeString('es-SV', { hour: '2-digit', minute: '2-digit', hour12: false })
       : '';
 
@@ -438,7 +489,9 @@ function renderList(list) {
           <div class="mcard-info">
             <div class="mcard-dest">${esc(v.destination || '')}</div>
             ${v.description ? `<div class="mcard-desc">${esc(v.description)}</div>` : ''}
-            ${isDone && doneTime ? `<div class="mcard-done-time">✓ Completada a las ${doneTime}</div>` : ''}
+            ${isDone && doneTime ? `
+              <div class="mcard-done-time">✓ Completada a las ${doneTime}</div>
+              <button class="btn-undo" onclick="revertirVuelta('${v.id}')">↩ Deshacer</button>` : ''}
           </div>
         </div>
         ${isCamino ? `<div class="mcard-yendo">🚐 Yendo a ${esc(v.destination || '')}…</div>` : ''}
@@ -475,6 +528,15 @@ window.completarVuelta = async id => {
       status:      'done',
       completedAt: Date.now(),
       paradero:    ''
+    });
+  } catch(e) { console.error(e); }
+};
+
+window.revertirVuelta = async id => {
+  try {
+    await fbMod.updateDoc(fbMod.doc(db, COLLECTION, id), {
+      status:      'en_camino',
+      completedAt: null
     });
   } catch(e) { console.error(e); }
 };

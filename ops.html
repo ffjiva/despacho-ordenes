@@ -424,6 +424,7 @@ html, body {
         <span id="toggle-done-lbl">Ver resueltos</span>
       </button>
       <button class="btn btn-ghost" style="font-size:.65rem" onclick="goVueltas()">🚐 Vueltas</button>
+      <button class="btn btn-ghost" style="font-size:.65rem" onclick="openEquipoModal()">👥 Equipo</button>
       <button class="btn btn-ghost" style="font-size:.65rem" onclick="toggleSort()" id="sort-btn">↕ Urgencia</button>
       <button class="btn btn-ghost" style="font-size:.85rem;padding:5px 9px" onclick="toggleDark()" id="theme-btn" title="Modo oscuro">🌙</button>
       <button class="btn btn-light" style="font-size:.65rem" onclick="doLogout()">Salir</button>
@@ -583,6 +584,25 @@ html, body {
     <div class="modal-btns">
       <button class="btn btn-outline" onclick="closeVueltaEdit()">Cancelar</button>
       <button class="btn btn-dark" id="btn-save-vedit" onclick="saveVueltaEdit()">Actualizar →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ MODAL EQUIPO ══════════════ -->
+<div class="modal-overlay" id="modal-equipo" onclick="closeEquipoModal(event)">
+  <div class="modal">
+    <div class="modal-title">👥 Equipo</div>
+    <div class="modal-sub">Miembros del equipo de motoristas.</div>
+    <div id="team-list"></div>
+    <div class="fld" style="margin-top:.75rem">
+      <label>Nuevo miembro</label>
+      <input id="new-member-input" type="text" placeholder="Nombre del motorista"
+        autocomplete="off" onkeydown="if(event.key==='Enter')addTeamMember()"/>
+    </div>
+    <div id="team-msg" style="display:none;font-size:.68rem;margin-bottom:.5rem;padding:8px 10px;border-radius:var(--r)"></div>
+    <div class="modal-btns">
+      <button class="btn btn-outline" onclick="closeEquipoModal()">Cerrar</button>
+      <button class="btn btn-dark" onclick="addTeamMember()">Agregar →</button>
     </div>
   </div>
 </div>
@@ -1241,6 +1261,90 @@ window.saveVueltaEdit = async () => {
   } finally {
     btn.disabled = false;
     btn.textContent = 'Actualizar →';
+  }
+};
+
+/* ═══════════════════════════════════
+   EQUIPO
+═══════════════════════════════════ */
+async function getTeamMembers() {
+  try {
+    const snap = await fbMod.getDoc(fbMod.doc(db, 'config', 'team'));
+    return snap.exists() ? (snap.data().members || []) : [];
+  } catch { return []; }
+}
+
+async function saveTeamMembers(members) {
+  await fbMod.setDoc(fbMod.doc(db, 'config', 'team'), { members });
+}
+
+function renderTeamList(members) {
+  $('team-list').innerHTML = members.length
+    ? members.map(m => `
+        <div style="display:flex;align-items:center;justify-content:space-between;
+          padding:8px 10px;border:1px solid var(--border2);border-radius:var(--r);
+          margin-bottom:6px;font-size:.78rem">
+          <span>${escHtml(m)}</span>
+          <button class="btn btn-danger" style="font-size:.6rem;padding:3px 8px;min-height:0"
+            onclick="deleteTeamMember('${escHtml(m)}')">✕</button>
+        </div>`).join('')
+    : `<div style="font-size:.72rem;color:var(--muted);text-align:center;padding:.75rem">Sin miembros.</div>`;
+}
+
+function teamMsg(txt, isErr) {
+  const el = $('team-msg');
+  el.textContent = txt;
+  el.style.display = 'block';
+  el.style.background = isErr ? 'var(--err-bg)' : 'var(--done-bg)';
+  el.style.color       = isErr ? 'var(--err-tx)' : 'var(--done-tx)';
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.style.display = 'none'; }, 2500);
+}
+
+window.openEquipoModal = async () => {
+  const members = await getTeamMembers();
+  renderTeamList(members);
+  $('new-member-input').value = '';
+  $('team-msg').style.display = 'none';
+  $('modal-equipo').classList.add('on');
+  setTimeout(() => $('new-member-input')?.focus(), 100);
+};
+
+window.closeEquipoModal = e => {
+  if (!e || e.target === $('modal-equipo')) $('modal-equipo').classList.remove('on');
+};
+
+window.deleteTeamMember = async name => {
+  const members = await getTeamMembers();
+  const updated = members.filter(m => m !== name);
+  try {
+    await saveTeamMembers(updated);
+    renderTeamList(updated);
+    teamMsg(`"${name}" eliminado.`, false);
+  } catch(e) {
+    teamMsg('Error al guardar.', true);
+    console.error(e);
+  }
+};
+
+window.addTeamMember = async () => {
+  const val = $('new-member-input').value.trim();
+  if (!val) { $('new-member-input').focus(); return; }
+  const members = await getTeamMembers();
+  if (members.includes(val)) {
+    teamMsg(`"${val}" ya existe.`, true);
+    return;
+  }
+  const updated = [...members, val];
+  try {
+    await saveTeamMembers(updated);
+    renderTeamList(updated);
+    $('new-member-input').value = '';
+    teamMsg(`"${val}" agregado.`, false);
+    $('new-member-input').focus();
+  } catch(e) {
+    teamMsg('Error al guardar.', true);
+    console.error(e);
   }
 };
 
