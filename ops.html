@@ -427,12 +427,10 @@ html, body {
   <div class="topbar">
     <div class="topbar-title">⚙ Ops</div>
     <div class="topbar-actions">
-      <button class="btn btn-ghost" style="font-size:.65rem" onclick="toggleDone()">
-        <span id="toggle-done-lbl">Ver resueltos</span>
-      </button>
+      <button class="btn btn-ghost" style="font-size:.65rem" onclick="toggleDone()">📋<span class="hide-mobile" id="toggle-done-lbl"> Ver resueltos</span></button>
       <button class="btn btn-ghost" style="font-size:.65rem" onclick="goVueltas()">🚐<span class="hide-mobile"> Vueltas</span></button>
       <button class="btn btn-ghost" style="font-size:.65rem" onclick="openEquipoModal()">👥<span class="hide-mobile"> Equipo</span></button>
-      <button class="btn btn-ghost" style="font-size:.65rem" onclick="toggleSort()" id="sort-btn">↕<span class="hide-mobile" id="sort-btn-lbl"> Urgencia</span></button>
+      <button class="btn btn-ghost" style="font-size:.65rem" onclick="window.open('https://despacho-ordenes.web.app','_blank')">📦<span class="hide-mobile"> Órdenes</span></button>
       <button class="btn btn-ghost" style="font-size:.85rem;padding:5px 9px" onclick="toggleDark()" id="theme-btn" title="Modo oscuro">🌙</button>
       <button class="btn btn-light" style="font-size:.65rem" onclick="doLogout()">Salir</button>
     </div>
@@ -449,6 +447,7 @@ html, body {
     <button class="fbtn" id="f-auth"    onclick="setFilter('auth',this)">Gestiones</button>
     <button class="fbtn" id="f-comp"    onclick="setFilter('comp',this)">Compras</button>
     <button class="fbtn" id="f-inv"     onclick="setFilter('inv',this)">Inventario</button>
+    <button class="fbtn" id="f-urg"     onclick="setFilter('urg',this)">🔴 Urgentes</button>
   </div>
 
   <div class="pend-list" id="pend-list">
@@ -764,7 +763,11 @@ const URG_ORDER = { high: 0, normal: 1, low: 2 };
 function renderList(all) {
   let list = all;
   list = showDone ? list.filter(p => p.done) : list.filter(p => !p.done);
-  if (activeFilter !== 'all') list = list.filter(p => p.type === activeFilter);
+  if (activeFilter === 'urg') {
+    list = list.filter(p => (p.urgency ?? 'normal') === 'high');
+  } else if (activeFilter !== 'all') {
+    list = list.filter(p => p.type === activeFilter);
+  }
   if (sortOrder === 'urgency') {
     list = [...list].sort((a, b) =>
       (URG_ORDER[a.urgency ?? 'normal'] ?? 1) - (URG_ORDER[b.urgency ?? 'normal'] ?? 1)
@@ -833,7 +836,7 @@ window.setFilter = (f, btn) => {
 
 window.toggleDone = () => {
   showDone = !showDone;
-  $('toggle-done-lbl').textContent = showDone ? 'Ocultar resueltos' : 'Ver resueltos';
+  $('toggle-done-lbl').textContent = showDone ? ' Ocultar resueltos' : ' Ver resueltos';
   startListener();
 };
 
