@@ -363,6 +363,8 @@ html, body {
 .vcard.v-camino .vcard-actions { border-top-color: var(--warn-bd); }
 .vcard-paradero  { font-size: .65rem; color: var(--warn-tx); padding: 0 12px 6px 50px; }
 .vcard-done-time { font-size: .6rem;  color: var(--done-tx); padding: 0 12px 6px 50px; }
+.vloc-link { font-size: .6rem; color: var(--info-tx); text-decoration: none; display: inline-block; margin-top: 2px; }
+.vloc-link:hover { text-decoration: underline; }
 .vstats { display: flex; gap: 8px; padding: .75rem .875rem; flex-wrap: wrap; }
 .vstat-badge {
   flex: 1; min-width: 70px; background: var(--surface); border: 1px solid var(--border);
@@ -1177,6 +1179,12 @@ window.renderVueltasSupervisor = list => {
         </div>
         ${v.status === 'en_camino' && v.paradero ? `<div class="vcard-paradero">📍 ${escHtml(v.paradero)}</div>` : ''}
         ${v.status === 'done' && doneStr ? `<div class="vcard-done-time">✓ Completada a las ${doneStr}</div>` : ''}
+        ${(v.status === 'en_camino' || v.status === 'done') && v.location_start
+          ? `<div style="padding:0 12px 4px 50px"><a class="vloc-link" href="https://maps.google.com/?q=${v.location_start.lat},${v.location_start.lng}" target="_blank" rel="noopener">📍 Salió desde aquí</a></div>`
+          : ''}
+        ${v.status === 'done' && v.location_end
+          ? `<div style="padding:0 12px 6px 50px"><a class="vloc-link" href="https://maps.google.com/?q=${v.location_end.lat},${v.location_end.lng}" target="_blank" rel="noopener">📍 Entregó aquí</a></div>`
+          : ''}
         <div class="vcard-actions" onclick="event.stopPropagation()">
           ${v.status !== 'done' ? `<button class="btn btn-outline" style="font-size:.6rem;padding:4px 10px" onclick="editVuelta('${v.id}')">✎ Editar</button>` : ''}
           ${v.status !== 'done' ? `<button class="btn btn-dark" style="font-size:.6rem;padding:4px 10px" onclick="markVueltaDone('${v.id}')">✓ Marcar lista</button>` : ''}

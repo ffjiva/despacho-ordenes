@@ -383,6 +383,17 @@ window.doLogout = () => {
 /* ═══════════════════════════════════
    HOME
 ═══════════════════════════════════ */
+function getGPS() {
+  return new Promise(resolve => {
+    if (!navigator.geolocation) { resolve(null); return; }
+    navigator.geolocation.getCurrentPosition(
+      pos => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude, timestamp: Date.now() }),
+      ()  => resolve(null),
+      { timeout: 8000, maximumAge: 30000 }
+    );
+  });
+}
+
 function goHome() {
   $('m-name-lbl').textContent = `🚐 ${currentDriver}`;
   $('m-date-lbl').textContent = new Date().toLocaleDateString('es-SV', {
@@ -390,6 +401,7 @@ function goHome() {
   }).toUpperCase();
   showScreen('s-home');
   startListener();
+  if (navigator.geolocation) navigator.geolocation.getCurrentPosition(() => {}, () => {});
 }
 
 function notify(title, body) {
@@ -550,22 +562,28 @@ window.toggleDark = () => {
    ACCIONES
 ═══════════════════════════════════ */
 window.irEnCamino = async (id, dest) => {
+  const gps = await getGPS();
+  const update = {
+    status:   'en_camino',
+    paradero: `En camino a ${dest} — ${nowTime()}`
+  };
+  if (gps) update.location_start = gps;
   try {
-    await fbMod.updateDoc(fbMod.doc(db, COLLECTION, id), {
-      status:   'en_camino',
-      paradero: `En camino a ${dest} — ${nowTime()}`
-    });
+    await fbMod.updateDoc(fbMod.doc(db, COLLECTION, id), update);
   } catch(e) { console.error(e); }
 };
 
 window.completarVuelta = async id => {
+  const gps = await getGPS();
+  const update = {
+    status:      'done',
+    completedAt: Date.now(),
+    paradero:    '',
+    emergency:   false
+  };
+  if (gps) update.location_end = gps;
   try {
-    await fbMod.updateDoc(fbMod.doc(db, COLLECTION, id), {
-      status:      'done',
-      completedAt: Date.now(),
-      paradero:    '',
-      emergency:   false
-    });
+    await fbMod.updateDoc(fbMod.doc(db, COLLECTION, id), update);
   } catch(e) { console.error(e); }
 };
 
