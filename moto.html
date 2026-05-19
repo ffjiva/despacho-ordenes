@@ -228,6 +228,36 @@ html, body {
 .empty-state { text-align: center; padding: 3rem 1rem 2rem; color: var(--muted); }
 .empty-icon  { font-size: 2.5rem; opacity: .3; margin-bottom: .75rem; }
 .empty-text  { font-size: .8rem; line-height: 1.7; }
+/* ── PIN LOGIN ── */
+.moto-user-btn {
+  width: 100%; padding: 16px 18px; border-radius: var(--r);
+  border: 2px solid var(--border); background: var(--surface);
+  font-family: var(--mono); font-size: .9rem; font-weight: 600;
+  color: var(--text); text-align: left; cursor: pointer;
+  margin-bottom: 10px; transition: all .15s; display: block;
+}
+.moto-user-btn:active, .moto-user-btn.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.pin-keypad {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 10px; max-width: 300px; margin: 0 auto 1rem;
+}
+.pin-key {
+  aspect-ratio: 1; border-radius: var(--r2);
+  border: 1px solid var(--border); background: var(--surface);
+  font-family: var(--mono); font-size: 1.5rem; font-weight: 700;
+  color: var(--text); cursor: pointer; transition: all .1s;
+  display: flex; align-items: center; justify-content: center;
+  min-height: 72px;
+}
+.pin-key:active { background: var(--accent); color: #fff; transform: scale(.94); }
+.pin-key-enter  { background: var(--accent); color: #fff; font-size: 1.2rem; }
+.pin-dots { display: flex; gap: 14px; justify-content: center; margin: .75rem 0 1.25rem; }
+.pin-dot {
+  width: 16px; height: 16px; border-radius: 50%;
+  border: 2px solid var(--border); transition: all .15s;
+}
+.pin-dot.filled { background: var(--accent); border-color: var(--accent); }
+body.dark .pin-key { background: var(--surface2); }
 </style>
 </head>
 <body>
@@ -237,16 +267,33 @@ html, body {
   <div class="login-wrap">
     <div class="login-logo">🚐</div>
     <div class="login-h">Portal Motorista</div>
-    <div class="login-sub">Selecciona tu nombre para ver tus vueltas del día.</div>
-    <div class="login-form">
-      <div class="fld">
-        <label>¿Quién eres?</label>
-        <select id="login-name">
-          <option value="">Cargando equipo…</option>
-        </select>
+    <div class="login-sub" id="moto-pin-sub">Selecciona tu nombre para continuar.</div>
+
+    <div id="moto-user-list" style="width:100%"></div>
+
+    <div id="moto-pin-entry" style="display:none;width:100%">
+      <div class="pin-dots" id="moto-pin-dots">
+        <span class="pin-dot"></span>
+        <span class="pin-dot"></span>
+        <span class="pin-dot"></span>
+        <span class="pin-dot"></span>
       </div>
-      <div id="login-err" class="box-err" style="display:none;margin-bottom:.75rem"></div>
-      <button class="btn btn-dark" onclick="doLogin()" style="margin-top:.5rem">Entrar →</button>
+      <div class="pin-keypad">
+        <button class="pin-key" onclick="mPinKey('1')">1</button>
+        <button class="pin-key" onclick="mPinKey('2')">2</button>
+        <button class="pin-key" onclick="mPinKey('3')">3</button>
+        <button class="pin-key" onclick="mPinKey('4')">4</button>
+        <button class="pin-key" onclick="mPinKey('5')">5</button>
+        <button class="pin-key" onclick="mPinKey('6')">6</button>
+        <button class="pin-key" onclick="mPinKey('7')">7</button>
+        <button class="pin-key" onclick="mPinKey('8')">8</button>
+        <button class="pin-key" onclick="mPinKey('9')">9</button>
+        <button class="pin-key" onclick="mPinBackspace()">⌫</button>
+        <button class="pin-key" onclick="mPinKey('0')">0</button>
+        <button class="pin-key pin-key-enter" onclick="mDoPinLogin()">✓</button>
+      </div>
+      <div id="moto-login-err" class="box-err" style="display:none;text-align:center;margin-bottom:.75rem"></div>
+      <button class="btn btn-outline" style="width:100%;margin-top:.25rem;font-size:.72rem" onclick="mBackToUsers()">← Cambiar usuario</button>
     </div>
   </div>
 </div>
@@ -296,9 +343,9 @@ const FIREBASE_CFG = {
   appId: "1:694628838838:web:30e9745a0465b004f42517"
 };
 
-const USER_KEY   = 'moto_user_v1';
-const THEME_KEY  = 'moto_theme_v1';
-const COLLECTION = 'vueltas';
+const SESSION_KEY = 'dsp_session_v1';
+const THEME_KEY   = 'moto_theme_v1';
+const COLLECTION  = 'vueltas';
 
 let db = null, fbMod = null;
 let currentDriver = '';
@@ -307,7 +354,10 @@ let cachedList  = [];
 let motoFilter  = 'all';
 let storageMod  = null;
 let storage     = null;
-let fotoVueltaId = null;
+let fotoVueltaId   = null;
+let motoUsers      = [];
+let motoPinSelected = null;
+let motoPinValue    = '';
 
 const $ = id => document.getElementById(id);
 
@@ -319,7 +369,20 @@ function nowTime() {
 /* ═══════════════════════════════════
    INIT
 ═══════════════════════════════════ */
+function getExpiry(loginAt) {
+  const d = new Date(loginAt);
+  d.setDate(d.getDate() + 1);
+  d.setHours(3, 0, 0, 0);
+  return d.getTime();
+}
+
 async function init() {
+  if (localStorage.getItem(THEME_KEY) === 'dark') applyDark(true);
+
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+
   try {
     const { initializeApp, getApps } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
     [fbMod, storageMod] = await Promise.all([
@@ -334,20 +397,19 @@ async function init() {
     console.error('Firebase init error:', e);
   }
 
-  if (localStorage.getItem(THEME_KEY) === 'dark') applyDark(true);
+  // Verificar sesión
+  try {
+    const session = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null');
+    if (session && session.role === 'motorista' && Date.now() < getExpiry(session.loginAt)) {
+      currentDriver = session.name;
+      goHome();
+      return;
+    }
+  } catch {}
 
-  if ('Notification' in window && Notification.permission === 'default') {
-    Notification.requestPermission();
-  }
-
-  await loadLoginSelect();
-
-  currentDriver = localStorage.getItem(USER_KEY) || '';
-  if (currentDriver) {
-    goHome();
-  } else {
-    showScreen('s-login');
-  }
+  localStorage.removeItem(SESSION_KEY);
+  await loadLoginScreen();
+  showScreen('s-login');
 }
 
 function showScreen(id) {
@@ -356,44 +418,105 @@ function showScreen(id) {
   window.scrollTo(0, 0);
 }
 
-async function loadLoginSelect() {
+async function loadLoginScreen() {
   if (!db) return;
   try {
     const snap = await fbMod.getDoc(fbMod.doc(db, 'config', 'team'));
     const members = snap.exists() ? (snap.data().members || []) : [];
-    const sel = $('login-name');
-    sel.innerHTML = '<option value="">Selecciona tu nombre…</option>';
-    members.forEach(m => {
-      sel.innerHTML += `<option value="${esc(m)}">${esc(m)}</option>`;
-    });
-    if (!members.length) {
-      sel.innerHTML = '<option value="">Sin miembros configurados</option>';
-    }
-  } catch(e) {
-    console.error(e);
+    motoUsers = members.filter(m => m.active !== false && m.role === 'motorista');
+  } catch { motoUsers = []; }
+  renderMotoUsers();
+}
+
+function renderMotoUsers() {
+  const el = $('moto-user-list');
+  if (!motoUsers.length) {
+    el.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:.75rem;padding:1rem">Sin motoristas configurados.</div>';
+    return;
   }
+  el.innerHTML = motoUsers.map(u =>
+    `<button class="moto-user-btn" onclick="mSelectUser('${u.id}','${u.name.replace(/'/g,"\\'")}',this)">🚐 ${esc(u.name)}</button>`
+  ).join('');
 }
 
 /* ═══════════════════════════════════
-   LOGIN / LOGOUT
+   PIN LOGIN
 ═══════════════════════════════════ */
-window.doLogin = () => {
-  const name = $('login-name').value.trim();
-  if (!name) {
-    $('login-err').textContent = 'Selecciona tu nombre para continuar.';
-    $('login-err').style.display = 'block';
+window.mSelectUser = (id, name, btn) => {
+  motoPinSelected = { id, name };
+  motoPinValue = '';
+  mUpdateDots();
+  document.querySelectorAll('.moto-user-btn').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+  $('moto-pin-sub').textContent = `Hola, ${name}. Ingresa tu PIN.`;
+  $('moto-pin-entry').style.display = 'block';
+  $('moto-login-err').style.display = 'none';
+};
+
+window.mBackToUsers = () => {
+  $('moto-pin-entry').style.display = 'none';
+  $('moto-pin-sub').textContent = 'Selecciona tu nombre para continuar.';
+  document.querySelectorAll('.moto-user-btn').forEach(b => b.classList.remove('on'));
+  motoPinValue = ''; motoPinSelected = null;
+};
+
+window.mPinKey = digit => {
+  if (motoPinValue.length >= 4) return;
+  motoPinValue += digit;
+  mUpdateDots();
+  if (motoPinValue.length === 4) setTimeout(mDoPinLogin, 120);
+};
+
+window.mPinBackspace = () => {
+  motoPinValue = motoPinValue.slice(0, -1);
+  mUpdateDots();
+};
+
+function mUpdateDots() {
+  document.querySelectorAll('#moto-pin-dots .pin-dot').forEach((dot, i) => {
+    dot.classList.toggle('filled', i < motoPinValue.length);
+  });
+}
+
+window.mDoPinLogin = async () => {
+  if (!motoPinSelected || motoPinValue.length !== 4) return;
+  const user = motoUsers.find(u => u.id === motoPinSelected.id);
+  if (!user || user.pin !== motoPinValue) {
+    $('moto-login-err').textContent = 'PIN incorrecto.';
+    $('moto-login-err').style.display = 'block';
+    motoPinValue = '';
+    mUpdateDots();
     return;
   }
-  $('login-err').style.display = 'none';
-  currentDriver = name;
-  localStorage.setItem(USER_KEY, name);
+  const session = { userId: user.id, name: user.name, role: user.role, loginAt: Date.now() };
+  localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  updateMotoLastAccess(user.id); // fire-and-forget
+  currentDriver = user.name;
+  $('moto-login-err').style.display = 'none';
   goHome();
 };
 
+async function updateMotoLastAccess(userId) {
+  if (!db || !fbMod) return;
+  try {
+    const snap = await fbMod.getDoc(fbMod.doc(db, 'config', 'team'));
+    if (!snap.exists()) return;
+    const members = snap.data().members || [];
+    const idx = members.findIndex(m => m.id === userId);
+    if (idx === -1) return;
+    members[idx].lastAccess = Date.now();
+    await fbMod.setDoc(fbMod.doc(db, 'config', 'team'), { members });
+  } catch(e) { console.error(e); }
+}
+
 window.doLogout = () => {
   if (homeUnsub) { homeUnsub(); homeUnsub = null; }
-  currentDriver = '';
-  localStorage.removeItem(USER_KEY);
+  localStorage.removeItem(SESSION_KEY);
+  currentDriver = ''; motoPinValue = ''; motoPinSelected = null;
+  $('moto-pin-entry').style.display = 'none';
+  $('moto-pin-sub').textContent = 'Selecciona tu nombre para continuar.';
+  document.querySelectorAll('.moto-user-btn').forEach(b => b.classList.remove('on'));
+  renderMotoUsers();
   showScreen('s-login');
 };
 
