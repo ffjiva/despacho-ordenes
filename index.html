@@ -385,6 +385,20 @@ html, body {
   gap: 1.5rem;
   font-size: 3rem;
 }
+/* ── PIN LOGIN ── */
+.pin-wrap { max-width: 380px; margin: 0 auto; padding: 2.5rem 1.25rem; }
+.pin-logo { font-size: 2.4rem; text-align: center; margin-bottom: .75rem; }
+.pin-h    { font-size: 1rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; text-align: center; margin-bottom: .25rem; }
+.pin-sub  { font-size: .72rem; color: var(--text2); text-align: center; margin-bottom: 1.5rem; }
+.pin-user-btn {
+  width: 100%; padding: 13px 16px; border-radius: var(--r);
+  border: 1px solid var(--border); background: var(--surface);
+  font-family: var(--mono); font-size: .82rem; font-weight: 600;
+  color: var(--text); text-align: left; cursor: pointer;
+  margin-bottom: 8px; transition: all .15s; display: block;
+}
+.pin-user-btn:hover { border-color: var(--accent); }
+.pin-user-btn.on { background: var(--accent); color: #fff; border-color: var(--accent); }
 </style>
 </head>
 <body>
@@ -393,6 +407,30 @@ html, body {
 <div id="s-loading" class="scr on">
   <span>📦</span>
   <span class="spin" style="font-size:1rem"></span>
+</div>
+
+<!-- ══════════════ PIN LOGIN ══════════════ -->
+<div id="s-pin" class="scr">
+  <div class="topbar">
+    <div class="topbar-title">📦 Despacho Manager</div>
+  </div>
+  <div class="pin-wrap">
+    <div class="pin-logo">📦</div>
+    <div class="pin-h">¿Quién eres?</div>
+    <div class="pin-sub" id="pin-sub">Selecciona tu usuario para continuar.</div>
+    <div id="pin-users"></div>
+    <div id="pin-entry" style="display:none;margin-top:.5rem">
+      <div class="fld">
+        <label>PIN de acceso</label>
+        <input id="pin-field" type="password" inputmode="numeric" maxlength="4"
+          placeholder="••••" autocomplete="off"
+          style="letter-spacing:.3em;font-size:1.2rem;text-align:center"
+          onkeydown="if(event.key==='Enter')doPinLogin()"/>
+      </div>
+      <div id="pin-err" class="box box-err" style="display:none;margin-bottom:.75rem"></div>
+      <button class="btn btn-dark btn-full" onclick="doPinLogin()">Entrar →</button>
+    </div>
+  </div>
 </div>
 
 <!-- ══════════════ SETUP ══════════════ -->
@@ -448,9 +486,10 @@ html, body {
   <div class="topbar">
     <div class="topbar-title">📦 Despachos</div>
     <div class="topbar-actions">
-      <button class="btn btn-ghost" style="font-size:.65rem" onclick="showUsersModal()">👥 Equipo</button>
+      <button id="btn-equipo" class="btn btn-ghost" style="font-size:.65rem" onclick="showUsersModal()">👥 Equipo</button>
       <button class="btn btn-ghost" style="font-size:.65rem" onclick="window.open('https://despacho-ordenes.web.app/ops.html','_blank')">⚙️ Ops</button>
-      <button class="btn btn-light" onclick="goNew()">+ Nuevo</button>
+      <button id="btn-nuevo" class="btn btn-light" onclick="goNew()">+ Nuevo</button>
+      <button class="btn btn-ghost" style="font-size:.65rem" onclick="doPinLogout()">Salir</button>
     </div>
   </div>
   <div class="home-header">
@@ -594,7 +633,11 @@ const LOCAL_KEY   = 'dspmgr_v1';
 const CFG_KEY     = 'dspmgr_cfg_v1';
 const USER_KEY    = 'dspmgr_user_v1';
 const USERS_KEY   = 'dspmgr_team_v1';
+const SESSION_KEY = 'dsp_session_v1';
 const LOCK_TTL_MS = 2 * 60 * 60 * 1000; // 2 horas
+
+let pinUsers = [];
+let pinSelectedUser = null;
 
 /* ═══════════════════════════════════════
    UTILS
@@ -671,18 +714,9 @@ window.connectFirebase = async () => {
 
   const ok = await initFirebase(cfg);
   if (ok) {
-    // Save name from setup
-    const setupName = $('setup-name')?.value.trim();
-    if (setupName) {
-      currentUser = setupName;
-      localStorage.setItem(USER_KEY, currentUser);
-    }
     try { localStorage.setItem(CFG_KEY, JSON.stringify(cfg)); } catch{}
-    if (!currentUser) {
-      showNameModal(() => goHome());
-    } else {
-      goHome();
-    }
+    await loadPinScreen();
+    showScreen('s-pin');
   } else {
     $('cfg-err').innerHTML = 'No se pudo conectar. Verifica:<br>· Que el <strong>projectId</strong> sea correcto<br>· Que <strong>Firestore</strong> esté habilitado en Firebase Console<br>· Las reglas de Firestore permitan lectura/escritura';
     $('cfg-err').style.display = 'block';
@@ -692,16 +726,8 @@ window.connectFirebase = async () => {
 
 window.useLocalMode = () => {
   isLocal = true;
-  const setupName = $('setup-name')?.value.trim();
-  if (setupName) {
-    currentUser = setupName;
-    localStorage.setItem(USER_KEY, currentUser);
-  }
-  if (!currentUser) {
-    showNameModal(() => goHome());
-  } else {
-    goHome();
-  }
+  currentUser = 'Local';
+  goHome();
 };
 
 /* ═══════════════════════════════════════
@@ -808,7 +834,9 @@ async function loadUsers() {
   }
   try {
     const snap = await fbMod.getDoc(fbMod.doc(db, 'config', 'team'));
-    return snap.exists() ? (snap.data().members || []) : [];
+    const members = snap.exists() ? (snap.data().members || []) : [];
+    // Normalize: support both string[] (legacy) and object[] (new schema)
+    return members.filter(m => m.active !== false).map(m => typeof m === 'string' ? m : m.name);
   } catch { return []; }
 }
 
@@ -896,6 +924,96 @@ window.showUsersModal = async () => {
 };
 
 /* ═══════════════════════════════════════
+   PIN AUTH
+═══════════════════════════════════════ */
+function getExpiry(loginAt) {
+  const d = new Date(loginAt);
+  d.setDate(d.getDate() + 1);
+  d.setHours(3, 0, 0, 0);
+  return d.getTime();
+}
+
+function getSession() {
+  try { return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); } catch { return null; }
+}
+
+async function loadPinScreen() {
+  if (!db) return;
+  try {
+    const snap = await fbMod.getDoc(fbMod.doc(db, 'config', 'team'));
+    const members = snap.exists() ? (snap.data().members || []) : [];
+    pinUsers = members.filter(m => m.active !== false && m.role === 'bodeguero');
+  } catch { pinUsers = []; }
+  renderPinUsers();
+}
+
+function renderPinUsers() {
+  const el = $('pin-users');
+  if (!pinUsers.length) {
+    el.innerHTML = '<div style="color:var(--muted);font-size:.75rem;text-align:center;padding:1rem">Sin usuarios configurados.<br/>Accede a <strong>⚙️ Ops</strong> para agregar usuarios.</div>';
+    return;
+  }
+  el.innerHTML = pinUsers.map(u =>
+    `<button class="pin-user-btn" onclick="selectPinUser('${u.id}','${u.name.replace(/'/g,"\\'")}',this)">👤 ${u.name}</button>`
+  ).join('');
+}
+
+window.selectPinUser = (id, name, btn) => {
+  pinSelectedUser = { id, name };
+  document.querySelectorAll('.pin-user-btn').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+  $('pin-sub').textContent = `Hola, ${name}. Ingresa tu PIN.`;
+  $('pin-entry').style.display = 'block';
+  $('pin-field').value = '';
+  $('pin-err').style.display = 'none';
+  setTimeout(() => $('pin-field').focus(), 50);
+};
+
+window.doPinLogin = async () => {
+  if (!pinSelectedUser) return;
+  const pin = $('pin-field').value.trim();
+  const user = pinUsers.find(u => u.id === pinSelectedUser.id);
+  if (!user || user.pin !== pin) {
+    $('pin-err').textContent = 'PIN incorrecto.';
+    $('pin-err').style.display = 'block';
+    $('pin-field').value = '';
+    setTimeout(() => $('pin-field').focus(), 50);
+    return;
+  }
+  const session = { userId: user.id, name: user.name, role: user.role, loginAt: Date.now() };
+  localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  updateLastAccess(user.id); // fire-and-forget
+  currentUser = user.name;
+  $('pin-err').style.display = 'none';
+  const deepId = new URLSearchParams(window.location.search).get('orden');
+  if (deepId) { await openDespacho(deepId); } else { goHome(); }
+};
+
+async function updateLastAccess(userId) {
+  if (!db || !fbMod) return;
+  try {
+    const snap = await fbMod.getDoc(fbMod.doc(db, 'config', 'team'));
+    if (!snap.exists()) return;
+    const members = snap.data().members || [];
+    const idx = members.findIndex(m => m.id === userId);
+    if (idx === -1) return;
+    members[idx].lastAccess = Date.now();
+    await fbMod.setDoc(fbMod.doc(db, 'config', 'team'), { members });
+  } catch(e) { console.error(e); }
+}
+
+window.doPinLogout = () => {
+  localStorage.removeItem(SESSION_KEY);
+  currentUser = '';
+  if (homeUnsub) { homeUnsub(); homeUnsub = null; }
+  pinSelectedUser = null;
+  $('pin-sub').textContent = 'Selecciona tu usuario para continuar.';
+  $('pin-entry').style.display = 'none';
+  document.querySelectorAll('.pin-user-btn').forEach(b => b.classList.remove('on'));
+  showScreen('s-pin');
+};
+
+/* ═══════════════════════════════════════
    STORAGE HELPERS
 ═══════════════════════════════════════ */
 function localGet() {
@@ -974,6 +1092,11 @@ window.goHome = async () => {
   }).toUpperCase();
   $('home-user').textContent = currentUser ? `👤 ${currentUser}` : '';
 
+  const session = getSession();
+  const isBodeguero = session?.role === 'bodeguero';
+  if ($('btn-nuevo'))  $('btn-nuevo').style.display  = isBodeguero ? 'none' : '';
+  if ($('btn-equipo')) $('btn-equipo').style.display = isBodeguero ? 'none' : '';
+
   startHomeListener();
 };
 
@@ -989,10 +1112,11 @@ function startHomeListener() {
   if (homeUnsub) { homeUnsub(); homeUnsub = null; }
 
   try {
-    const q = fbMod.query(
-      fbMod.collection(db,'despachos'),
-      fbMod.orderBy('createdAt','desc')
-    );
+    const session = getSession();
+    const isBodeguero = session?.role === 'bodeguero';
+    const q = isBodeguero
+      ? fbMod.query(fbMod.collection(db,'despachos'), fbMod.where('assignedTo','==',currentUser), fbMod.orderBy('createdAt','desc'))
+      : fbMod.query(fbMod.collection(db,'despachos'), fbMod.orderBy('createdAt','desc'));
     homeUnsub = fbMod.onSnapshot(q,
       snap => {
         const list = snap.docs.map(d => ({id: d.id, ...d.data()}));
@@ -1708,21 +1832,12 @@ const FIREBASE_CFG = {
 };
 
 document.addEventListener('DOMContentLoaded', async () => {
-  currentUser = localStorage.getItem(USER_KEY) || '';
   const deepId = new URLSearchParams(window.location.search).get('orden');
 
   const ok = await initFirebase(FIREBASE_CFG);
   $('s-loading').classList.remove('on');
 
-  if (ok) {
-    if (!currentUser) {
-      showNameModal(() => deepId ? openDespacho(deepId) : goHome());
-    } else if (deepId) {
-      await openDespacho(deepId);
-    } else {
-      goHome();
-    }
-  } else {
+  if (!ok) {
     showScreen('s-setup');
     const err = $('cfg-err');
     if (err) {
@@ -1731,7 +1846,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         : 'No se pudo conectar a Firebase. Verifica tu conexión a internet.';
       err.style.display = 'block';
     }
+    return;
   }
+
+  // Verificar sesión PIN
+  const session = getSession();
+  if (session && session.role === 'bodeguero' && Date.now() < getExpiry(session.loginAt)) {
+    currentUser = session.name;
+    if (deepId) { await openDespacho(deepId); } else { goHome(); }
+    return;
+  }
+
+  // Sesión inválida o expirada
+  localStorage.removeItem(SESSION_KEY);
+  await loadPinScreen();
+  showScreen('s-pin');
 });
 
 </script>
