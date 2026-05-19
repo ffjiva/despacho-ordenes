@@ -393,6 +393,20 @@ html, body {
 @media (max-width: 600px) {
   .hide-mobile { display: none; }
 }
+/* ── EQUIPO SCREEN ── */
+.equipo-wrap { max-width: 560px; margin: 0 auto; padding: 1rem; }
+.ucard { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r2); padding: 10px 12px; margin-bottom: 8px; }
+.ucard-meta { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.ucard-role { font-size: .55rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; padding: 2px 7px; border-radius: 20px; border: 1px solid; }
+.ucard-role.super     { background: var(--warn-bg);  border-color: var(--warn-bd);  color: var(--warn-tx); }
+.ucard-role.motorista { background: var(--info-bg);  border-color: var(--info-bd);  color: var(--info-tx); }
+.ucard-role.bodeguero { background: var(--done-bg);  border-color: var(--done-bd);  color: var(--done-tx); }
+.ucard-last { margin-left: auto; font-size: .58rem; color: var(--muted); }
+.uname-inp { flex: 1; background: transparent; border: none; border-bottom: 1px solid var(--border2); font-family: var(--mono); font-size: .82rem; font-weight: 600; padding: 2px 4px; color: var(--text); outline: none; min-width: 0; }
+.uname-inp:focus { border-bottom-color: var(--accent); }
+.ucard-actions { display: flex; gap: 5px; align-items: center; margin-top: 8px; }
+.equipo-add { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--r2); padding: 12px; margin-top: 1rem; }
+.equipo-add-title { font-size: .6rem; font-weight: 700; letter-spacing: .1em; color: var(--muted); text-transform: uppercase; margin-bottom: 10px; }
 </style>
 </head>
 <body>
@@ -407,17 +421,21 @@ html, body {
   </div>
   <div class="login-wrap">
     <div class="login-logo">⚙</div>
-    <div class="login-h">Bienvenido</div>
-    <div class="login-sub">Ingresa tu nombre para continuar.</div>
+    <div class="login-h">Acceso Restringido</div>
+    <div class="login-sub">Solo administradores.</div>
     <div class="login-form">
       <div class="fld">
-        <label>PIN de acceso</label>
-        <input id="login-pin" type="password" inputmode="numeric" maxlength="4"
-          placeholder="••••" autocomplete="off" style="letter-spacing:.3em;font-size:1.2rem;text-align:center"
-          onkeydown="if(event.key==='Enter')doLogin()"/>
+        <label>Correo electrónico</label>
+        <input id="login-email" type="email" placeholder="correo@ejemplo.com"
+          autocomplete="email" onkeydown="if(event.key==='Enter')$('login-pw').focus()"/>
+      </div>
+      <div class="fld">
+        <label>Contraseña</label>
+        <input id="login-pw" type="password" placeholder="••••••••"
+          autocomplete="current-password" onkeydown="if(event.key==='Enter')doEmailLogin()"/>
       </div>
       <div id="login-err" class="box box-err" style="display:none;margin-bottom:.75rem"></div>
-      <button class="btn btn-dark btn-full" onclick="doLogin()">Entrar →</button>
+      <button class="btn btn-dark btn-full" id="btn-login" onclick="doEmailLogin()">Ingresar →</button>
     </div>
   </div>
 </div>
@@ -429,7 +447,7 @@ html, body {
     <div class="topbar-actions">
       <button class="btn btn-ghost" style="font-size:.65rem" onclick="toggleDone()">📋<span class="hide-mobile" id="toggle-done-lbl"> Ver resueltos</span></button>
       <button class="btn btn-ghost" style="font-size:.65rem" onclick="goVueltas()">🚐<span class="hide-mobile"> Vueltas</span></button>
-      <button class="btn btn-ghost" style="font-size:.65rem" onclick="openEquipoModal()">👥<span class="hide-mobile"> Equipo</span></button>
+      <button class="btn btn-ghost" style="font-size:.65rem" onclick="goEquipoScreen()">👥<span class="hide-mobile"> Equipo</span></button>
       <button class="btn btn-ghost" style="font-size:.65rem" onclick="window.open('https://despacho-ordenes.web.app','_blank')">📦<span class="hide-mobile"> Órdenes</span></button>
       <button class="btn btn-ghost" style="font-size:.85rem;padding:5px 9px" onclick="toggleDark()" id="theme-btn" title="Modo oscuro">🌙</button>
       <button class="btn btn-light" style="font-size:.65rem" onclick="doLogout()">Salir</button>
@@ -602,21 +620,55 @@ html, body {
   </div>
 </div>
 
-<!-- ══════════════ MODAL EQUIPO ══════════════ -->
-<div class="modal-overlay" id="modal-equipo" onclick="closeEquipoModal(event)">
-  <div class="modal">
-    <div class="modal-title">👥 Equipo</div>
-    <div class="modal-sub">Miembros del equipo de motoristas.</div>
-    <div id="team-list"></div>
-    <div class="fld" style="margin-top:.75rem">
-      <label>Nuevo miembro</label>
-      <input id="new-member-input" type="text" placeholder="Nombre del motorista"
-        autocomplete="off" onkeydown="if(event.key==='Enter')addTeamMember()"/>
+<!-- ══════════════ EQUIPO ══════════════ -->
+<div id="s-equipo" class="scr">
+  <div class="topbar">
+    <div class="topbar-title">👥 Equipo</div>
+    <div class="topbar-actions">
+      <button class="btn btn-ghost" style="font-size:.65rem" onclick="goBackFromEquipo()">← Volver</button>
     </div>
-    <div id="team-msg" style="display:none;font-size:.68rem;margin-bottom:.5rem;padding:8px 10px;border-radius:var(--r)"></div>
+  </div>
+  <div class="equipo-wrap">
+    <div id="equipo-list"></div>
+    <div id="equipo-msg" style="display:none;font-size:.68rem;padding:8px 10px;border-radius:var(--r);margin-top:.5rem"></div>
+    <div class="equipo-add">
+      <div class="equipo-add-title">Agregar usuario</div>
+      <div class="fld">
+        <label>Nombre</label>
+        <input id="new-user-name" type="text" placeholder="Nombre completo" autocomplete="off"
+          onkeydown="if(event.key==='Enter')$('new-user-pin').focus()"/>
+      </div>
+      <div class="fld">
+        <label>PIN (4 dígitos)</label>
+        <input id="new-user-pin" type="password" inputmode="numeric" maxlength="4"
+          placeholder="••••" style="letter-spacing:.25em;text-align:center"/>
+      </div>
+      <div class="fld">
+        <label>Rol</label>
+        <select id="new-user-role">
+          <option value="bodeguero">Bodeguero</option>
+          <option value="motorista">Motorista</option>
+        </select>
+      </div>
+      <button class="btn btn-dark btn-full" onclick="createUser()">Agregar →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ MODAL CAMBIAR PIN ══════════════ -->
+<div class="modal-overlay" id="modal-pin" onclick="closePinModal(event)">
+  <div class="modal">
+    <div class="modal-title">🔑 Cambiar PIN</div>
+    <div class="modal-sub" id="pin-modal-sub">Nuevo PIN de 4 dígitos.</div>
+    <div class="fld">
+      <input id="pin-change-input" type="password" inputmode="numeric" maxlength="4"
+        placeholder="••••" style="letter-spacing:.3em;font-size:1.2rem;text-align:center"
+        onkeydown="if(event.key==='Enter')savePinChange()"/>
+    </div>
+    <div id="pin-change-err" style="display:none;font-size:.65rem;color:var(--err-tx);margin-bottom:.5rem"></div>
     <div class="modal-btns">
-      <button class="btn btn-outline" onclick="closeEquipoModal()">Cerrar</button>
-      <button class="btn btn-dark" onclick="addTeamMember()">Agregar →</button>
+      <button class="btn btn-outline" onclick="closePinModal()">Cancelar</button>
+      <button class="btn btn-dark" onclick="savePinChange()">Guardar →</button>
     </div>
   </div>
 </div>
@@ -634,14 +686,11 @@ const FIREBASE_CFG = {
   appId: "1:694628838838:web:30e9745a0465b004f42517"
 };
 
-const PIN          = '1909';          // ← cambia este valor
-const SESSION_KEY  = 'ops_session_v1';
-const SESSION_TTL  = 7 * 24 * 60 * 60 * 1000; // 7 días
-const CURRENT_USER = 'Fernando';
-const COLLECTION   = 'ops_pendientes';
+const COLLECTION = 'ops_pendientes';
 
-let db = null, fbMod = null;
-let currentUser = CURRENT_USER;
+let db = null, fbMod = null, auth = null, authMod = null;
+let currentUser = 'Fernando';
+let editingPinUserId = null;
 let activeFilter = 'all';
 let showDone = false;
 let selectedType = '';
@@ -664,28 +713,41 @@ const $ = id => document.getElementById(id);
    INIT
 ═══════════════════════════════════ */
 async function init() {
-  try {
-    const { initializeApp, getApps } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
-    fbMod = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
-    const existing = getApps().find(a => a.name === 'ops-main');
-    const app = existing || initializeApp(FIREBASE_CFG, 'ops-main');
-    db = fbMod.getFirestore(app);
-  } catch(e) {
-    console.error('Firebase init error:', e);
-  }
-
   if (localStorage.getItem(THEME_KEY) === 'dark') applyDark(true);
   sortOrder = localStorage.getItem(SORT_KEY) || 'urgency';
   applySortBtn();
 
-  const session = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null');
-  if (session && Date.now() < session.exp) {
-    goHome();
-  } else {
-    localStorage.removeItem(SESSION_KEY);
+  try {
+    const { initializeApp, getApps } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
+    [fbMod, authMod] = await Promise.all([
+      import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'),
+      import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js')
+    ]);
+    const existing = getApps().find(a => a.name === 'ops-main');
+    const app = existing || initializeApp(FIREBASE_CFG, 'ops-main');
+    db   = fbMod.getFirestore(app);
+    auth = authMod.getAuth(app);
+  } catch(e) {
+    console.error('Firebase init error:', e);
     showScreen('s-login');
-    setTimeout(() => $('login-pin')?.focus(), 100);
+    return;
   }
+
+  authMod.onAuthStateChanged(auth, async user => {
+    if (user) {
+      const members = await getAllMembers();
+      const isSuper = members.some(m => m.role === 'super' && m.active !== false);
+      if (!isSuper) {
+        await authMod.signOut(auth);
+        showScreen('s-login');
+        showLoginErr('No tienes acceso a esta sección.');
+        return;
+      }
+      goHome();
+    } else {
+      showScreen('s-login');
+    }
+  });
 }
 
 function showScreen(id) {
@@ -697,26 +759,43 @@ function showScreen(id) {
 /* ═══════════════════════════════════
    LOGIN
 ═══════════════════════════════════ */
-window.doLogin = () => {
-  const pin = $('login-pin').value.trim();
-  if (pin !== PIN) {
-    $('login-err').textContent = 'PIN incorrecto. Intenta de nuevo.';
-    $('login-err').style.display = 'block';
-    $('login-pin').value = '';
-    $('login-pin').focus();
-    return;
-  }
-  $('login-err').style.display = 'none';
-  localStorage.setItem(SESSION_KEY, JSON.stringify({ exp: Date.now() + SESSION_TTL }));
-  goHome();
+const AUTH_ERRORS = {
+  'auth/user-not-found':         'Correo no registrado',
+  'auth/wrong-password':         'Contraseña incorrecta',
+  'auth/invalid-credential':     'Correo o contraseña incorrectos',
+  'auth/invalid-email':          'Correo no válido',
+  'auth/too-many-requests':      'Demasiados intentos. Espera unos minutos',
+  'auth/network-request-failed': 'Sin conexión a internet',
 };
 
-window.doLogout = () => {
+function showLoginErr(msg) {
+  $('login-err').textContent = msg;
+  $('login-err').style.display = 'block';
+}
+
+window.doEmailLogin = async () => {
+  const email = $('login-email').value.trim();
+  const pw    = $('login-pw').value;
+  if (!email || !pw) { showLoginErr('Completa todos los campos.'); return; }
+  const btn = $('btn-login');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span>Ingresando...';
+  $('login-err').style.display = 'none';
+  try {
+    await authMod.signInWithEmailAndPassword(auth, email, pw);
+    // onAuthStateChanged maneja la navegación
+  } catch(e) {
+    btn.disabled = false;
+    btn.textContent = 'Ingresar →';
+    showLoginErr(AUTH_ERRORS[e.code] || 'Error al ingresar. Intenta de nuevo.');
+  }
+};
+
+window.doLogout = async () => {
   if (homeUnsub) { homeUnsub(); homeUnsub = null; }
-  localStorage.removeItem(SESSION_KEY);
-  $('login-pin').value = '';
-  showScreen('s-login');
-  setTimeout(() => $('login-pin')?.focus(), 100);
+  if (vueltasUnsub) { vueltasUnsub(); vueltasUnsub = null; }
+  try { await authMod.signOut(auth); } catch {}
+  // onAuthStateChanged mostrará s-login
 };
 
 /* ═══════════════════════════════════
@@ -1010,7 +1089,8 @@ async function loadTeamMembers() {
   if (!db) return [];
   try {
     const snap = await fbMod.getDoc(fbMod.doc(db, 'config', 'team'));
-    return snap.exists() ? (snap.data().members || []) : [];
+    const members = snap.exists() ? (snap.data().members || []) : [];
+    return members.filter(m => m.active !== false && m.role === 'motorista').map(m => m.name);
   } catch { return []; }
 }
 
@@ -1321,87 +1401,159 @@ window.saveVueltaEdit = async () => {
 };
 
 /* ═══════════════════════════════════
-   EQUIPO
+   EQUIPO — CRUD
 ═══════════════════════════════════ */
-async function getTeamMembers() {
+async function getAllMembers() {
+  if (!db) return [];
   try {
     const snap = await fbMod.getDoc(fbMod.doc(db, 'config', 'team'));
     return snap.exists() ? (snap.data().members || []) : [];
   } catch { return []; }
 }
 
-async function saveTeamMembers(members) {
+async function saveAllMembers(members) {
   await fbMod.setDoc(fbMod.doc(db, 'config', 'team'), { members });
 }
 
-function renderTeamList(members) {
-  $('team-list').innerHTML = members.length
-    ? members.map(m => `
-        <div style="display:flex;align-items:center;justify-content:space-between;
-          padding:8px 10px;border:1px solid var(--border2);border-radius:var(--r);
-          margin-bottom:6px;font-size:.78rem">
-          <span>${escHtml(m)}</span>
-          <button class="btn btn-danger" style="font-size:.6rem;padding:3px 8px;min-height:0"
-            onclick="deleteTeamMember('${escHtml(m)}')">✕</button>
-        </div>`).join('')
-    : `<div style="font-size:.72rem;color:var(--muted);text-align:center;padding:.75rem">Sin miembros.</div>`;
+function fmtAccess(ts) {
+  if (!ts) return 'Nunca';
+  const d = new Date(ts);
+  const p = n => String(n).padStart(2, '0');
+  return `${p(d.getDate())}/${p(d.getMonth()+1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
-function teamMsg(txt, isErr) {
-  const el = $('team-msg');
+function equipoMsg(txt, isErr) {
+  const el = $('equipo-msg');
   el.textContent = txt;
   el.style.display = 'block';
   el.style.background = isErr ? 'var(--err-bg)' : 'var(--done-bg)';
   el.style.color       = isErr ? 'var(--err-tx)' : 'var(--done-tx)';
+  el.style.border      = `1px solid ${isErr ? 'var(--err-bd)' : 'var(--done-bd)'}`;
   clearTimeout(el._t);
-  el._t = setTimeout(() => { el.style.display = 'none'; }, 2500);
+  el._t = setTimeout(() => { el.style.display = 'none'; }, 3000);
 }
 
-window.openEquipoModal = async () => {
-  const members = await getTeamMembers();
-  renderTeamList(members);
-  $('new-member-input').value = '';
-  $('team-msg').style.display = 'none';
-  $('modal-equipo').classList.add('on');
-  setTimeout(() => $('new-member-input')?.focus(), 100);
-};
-
-window.closeEquipoModal = e => {
-  if (!e || e.target === $('modal-equipo')) $('modal-equipo').classList.remove('on');
-};
-
-window.deleteTeamMember = async name => {
-  const members = await getTeamMembers();
-  const updated = members.filter(m => m !== name);
-  try {
-    await saveTeamMembers(updated);
-    renderTeamList(updated);
-    teamMsg(`"${name}" eliminado.`, false);
-  } catch(e) {
-    teamMsg('Error al guardar.', true);
-    console.error(e);
-  }
-};
-
-window.addTeamMember = async () => {
-  const val = $('new-member-input').value.trim();
-  if (!val) { $('new-member-input').focus(); return; }
-  const members = await getTeamMembers();
-  if (members.includes(val)) {
-    teamMsg(`"${val}" ya existe.`, true);
+async function renderTeamTable() {
+  const members = await getAllMembers();
+  const el = $('equipo-list');
+  if (!members.length) {
+    el.innerHTML = '<div style="text-align:center;color:var(--muted);padding:1rem;font-size:.72rem">Sin usuarios.</div>';
     return;
   }
-  const updated = [...members, val];
-  try {
-    await saveTeamMembers(updated);
-    renderTeamList(updated);
-    $('new-member-input').value = '';
-    teamMsg(`"${val}" agregado.`, false);
-    $('new-member-input').focus();
-  } catch(e) {
-    teamMsg('Error al guardar.', true);
-    console.error(e);
+  el.innerHTML = members.map(m => `
+    <div class="ucard">
+      <div class="ucard-meta">
+        <span class="ucard-role ${escHtml(m.role)}">${escHtml(m.role)}</span>
+        <span class="ucard-last">Último acceso: ${fmtAccess(m.lastAccess)}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <input class="uname-inp" type="text" value="${escHtml(m.name)}"
+          onblur="saveUserName('${escHtml(m.id)}',this.value)"
+          onkeydown="if(event.key==='Enter')this.blur()"/>
+      </div>
+      ${m.role !== 'super' ? `
+      <div class="ucard-actions">
+        <button class="btn" style="font-size:.6rem;padding:3px 8px;min-height:0;background:var(--surface2);color:var(--text);border:1px solid var(--border)"
+          onclick="openPinModal('${escHtml(m.id)}','${escHtml(m.name)}')">🔑 PIN</button>
+        <button class="btn" style="font-size:.6rem;padding:3px 8px;min-height:0;background:${m.active!==false?'var(--done-bg)':'var(--err-bg)'};color:${m.active!==false?'var(--done-tx)':'var(--err-tx)'};border:1px solid ${m.active!==false?'var(--done-bd)':'var(--err-bd)'}"
+          onclick="toggleUserActive('${escHtml(m.id)}',${m.active!==false})">${m.active!==false?'✓ Activo':'✗ Inactivo'}</button>
+        <button class="btn btn-danger" style="font-size:.6rem;padding:3px 8px;min-height:0;margin-left:auto"
+          onclick="deleteUser('${escHtml(m.id)}','${escHtml(m.name)}')">✕</button>
+      </div>` : ''}
+    </div>`).join('');
+}
+
+window.goEquipoScreen = async () => {
+  if (homeUnsub) { homeUnsub(); homeUnsub = null; }
+  showScreen('s-equipo');
+  await renderTeamTable();
+};
+
+window.goBackFromEquipo = () => goHome();
+
+window.saveUserName = async (id, newName) => {
+  newName = newName.trim();
+  if (!newName) return;
+  const members = await getAllMembers();
+  const idx = members.findIndex(m => m.id === id);
+  if (idx === -1 || members[idx].name === newName) return;
+  members[idx].name = newName;
+  try { await saveAllMembers(members); equipoMsg('Nombre actualizado.', false); }
+  catch { equipoMsg('Error al guardar.', true); }
+};
+
+window.openPinModal = (id, name) => {
+  editingPinUserId = id;
+  $('pin-modal-sub').textContent = `Nuevo PIN para ${name}.`;
+  $('pin-change-input').value = '';
+  $('pin-change-err').style.display = 'none';
+  $('modal-pin').classList.add('on');
+  setTimeout(() => $('pin-change-input').focus(), 100);
+};
+
+window.closePinModal = e => {
+  if (!e || e.target === $('modal-pin')) {
+    $('modal-pin').classList.remove('on');
+    editingPinUserId = null;
   }
+};
+
+window.savePinChange = async () => {
+  const pin = $('pin-change-input').value.trim();
+  if (!/^\d{4}$/.test(pin)) {
+    $('pin-change-err').textContent = 'Debe ser exactamente 4 dígitos numéricos.';
+    $('pin-change-err').style.display = 'block';
+    return;
+  }
+  const members = await getAllMembers();
+  const idx = members.findIndex(m => m.id === editingPinUserId);
+  if (idx === -1) return;
+  members[idx].pin = pin;
+  try {
+    await saveAllMembers(members);
+    $('modal-pin').classList.remove('on');
+    editingPinUserId = null;
+    equipoMsg('PIN actualizado.', false);
+  } catch {
+    $('pin-change-err').textContent = 'Error al guardar.';
+    $('pin-change-err').style.display = 'block';
+  }
+};
+
+window.toggleUserActive = async (id, currentActive) => {
+  const members = await getAllMembers();
+  const idx = members.findIndex(m => m.id === id);
+  if (idx === -1) return;
+  members[idx].active = !currentActive;
+  try { await saveAllMembers(members); await renderTeamTable(); equipoMsg(members[idx].active ? 'Usuario activado.' : 'Usuario desactivado.', false); }
+  catch { equipoMsg('Error al guardar.', true); }
+};
+
+window.deleteUser = async (id, name) => {
+  if (!confirm(`¿Eliminar a "${name}"? Esta acción no se puede deshacer.`)) return;
+  const members = await getAllMembers();
+  const updated = members.filter(m => m.id !== id);
+  try { await saveAllMembers(updated); await renderTeamTable(); equipoMsg(`"${name}" eliminado.`, false); }
+  catch { equipoMsg('Error al guardar.', true); }
+};
+
+window.createUser = async () => {
+  const name = $('new-user-name').value.trim();
+  const pin  = $('new-user-pin').value.trim();
+  const role = $('new-user-role').value;
+  if (!name) { $('new-user-name').focus(); return; }
+  if (!/^\d{4}$/.test(pin)) { equipoMsg('PIN debe tener 4 dígitos.', true); $('new-user-pin').focus(); return; }
+  const members = await getAllMembers();
+  if (members.some(m => m.name.toLowerCase() === name.toLowerCase())) {
+    equipoMsg(`"${name}" ya existe.`, true); return;
+  }
+  const newMember = { id: 'u' + Date.now().toString(36), name, pin, role, active: true, lastAccess: null };
+  try {
+    await saveAllMembers([...members, newMember]);
+    $('new-user-name').value = ''; $('new-user-pin').value = '';
+    await renderTeamTable();
+    equipoMsg(`"${name}" agregado.`, false);
+  } catch { equipoMsg('Error al guardar.', true); }
 };
 
 /* ═══════════════════════════════════
