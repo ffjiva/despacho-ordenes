@@ -4282,24 +4282,82 @@ window.generateActiveRepXLS = () => generateRepXLS(repActiveTab);
 
 window.generateAllRepXLS = () => {
   const activos = REP_DESTS.filter(id =>
-    Object.values(repSendData[id]||{}).some(v=>v>0)
+    Object.values(repSendData[id] || {}).some(v => v > 0)
   );
-  if (!activos.length) { alert('Sin cantidades asignadas en ninguna sucursal.'); return; }
-  activos.forEach((id,i) => setTimeout(() => generateRepXLS(id), i*400));
+  if (!activos.length) {
+    alert('Sin cantidades asignadas en ninguna sucursal.');
+    return;
+  }
+  let delay = 0;
+  activos.forEach(sucId => {
+    const { fromB01, fromB02 } = assignOrigins(sucId);
+    const hasB01 = Object.values(fromB01).some(v => v > 0);
+    const hasB02 = Object.values(fromB02).some(v => v > 0);
+    if (hasB01 || hasB02) {
+      setTimeout(() => generateRepXLS(sucId), delay);
+      delay += (hasB01 && hasB02 ? 900 : 450);
+    }
+  });
+};
+
+function assignOrigins(sucId) {
+  const send   = repSendData[sucId] || {};
+  const fromB01 = {};
+  const fromB02 = {};
+
+  for (const [code, qty] of Object.entries(send)) {
+    if (!qty || qty <= 0) continue;
+    const p   = repProductMap.get(code);
+    if (!p) continue;
+    const b01 = p.stock.B01 || 0;
+    const b02 = p.stock.B02 || 0;
+
+    if (b01 >= qty) {
+      fromB01[code] = qty;
+    } else if (b01 > 0) {
+      fromB01[code] = b01;
+      const resto = qty - b01;
+      if (b02 >= resto) fromB02[code] = resto;
+      else if (b02 > 0) fromB02[code] = b02;
+    } else if (b02 >= qty) {
+      fromB02[code] = qty;
+    } else if (b02 > 0) {
+      fromB02[code] = b02;
+    }
+  }
+
+  return { fromB01, fromB02 };
+}
+
+const REP_ORIGIN_NAMES = {
+  B01: 'HangarSF',
+  B02: 'BodegaCentral',
 };
 
 function generateRepXLS(sucId) {
   if (typeof XLSX === 'undefined') return;
-  const send = repSendData[sucId] || {};
-  const rows = repProducts
-    .filter(p => (send[p.code]||0) > 0)
-    .map(p    => [p.code, send[p.code]]);
-  if (!rows.length) { alert(`Sin cantidades para ${REP_LBLS[sucId]}.`); return; }
-  const ws = XLSX.utils.aoa_to_sheet([['Código','Cantidad'], ...rows]);
-  ws['!cols'] = [{wch:22},{wch:10}];
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Reposicion');
-  XLSX.writeFile(wb, `Reposicion_${REP_FNAMES[sucId]}_${new Date().toISOString().slice(0,10)}.xlsx`);
+  const { fromB01, fromB02 } = assignOrigins(sucId);
+
+  let generated = 0;
+  [['B01', fromB01], ['B02', fromB02]].forEach(([originId, sendMap]) => {
+    const rows = Object.entries(sendMap)
+      .filter(([, v]) => v > 0)
+      .map(([code, qty]) => [code, qty]);
+    if (!rows.length) return;
+
+    setTimeout(() => {
+      const ws = XLSX.utils.aoa_to_sheet([['Código', 'Cantidad'], ...rows]);
+      ws['!cols'] = [{ wch: 22 }, { wch: 10 }];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Reposicion');
+      const fecha = new Date().toISOString().slice(0, 10);
+      XLSX.writeFile(wb,
+        `Reposicion_${REP_ORIGIN_NAMES[originId]}_${REP_FNAMES[sucId]}_${fecha}.xlsx`
+      );
+    }, generated++ * 400);
+  });
+
+  if (!generated) alert(`Sin cantidades para ${REP_LBLS[sucId]}.`);
 }
 
 window.analyzeWithAI = async () => {
