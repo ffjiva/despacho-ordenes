@@ -737,7 +737,6 @@ body:not(.dark) input[type="time"] {
   padding: 6px 8px; text-align: left;
   font-size: .57rem; font-weight: 700; letter-spacing: .07em;
   text-transform: uppercase; color: var(--muted); white-space: nowrap;
-  position: sticky; top: 88px;
 }
 .rep-table td {
   border: 1px solid var(--border2); padding: 5px 8px;
@@ -769,6 +768,9 @@ body:not(.dark) input[type="time"] {
 .rep-qty.has-qty {
   border-color: var(--done-bd); background: var(--done-bg); color: var(--done-tx);
 }
+.rep-qty::-webkit-inner-spin-button,
+.rep-qty::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.rep-qty { -moz-appearance: textfield; }
 .rep-total-row td {
   background: var(--surface2) !important; border-top: 2px solid var(--border2);
   font-weight: 700; font-family: var(--mono); font-size: .65rem;
@@ -1224,6 +1226,7 @@ let repActiveTab   = 'M01';
 let repActiveCat   = '';
 let repActiveBrand = '';
 let repSearch      = '';
+let repSortBy      = 'suggested';
 
 const $ = id => document.getElementById(id);
 
@@ -4131,7 +4134,15 @@ function renderRepFilters() {
     <select class="rep-filter-sel" onchange="setRepCat(this.value)">${catOpts}</select>
     ${brandSel}
     <input type="search" class="rep-search" placeholder="Buscar código o producto…"
-      value="${escHtml(repSearch)}" oninput="onRepSearch(this.value)"/>`;
+      value="${escHtml(repSearch)}" oninput="onRepSearch(this.value)"/>
+    <select class="rep-filter-sel" onchange="setRepSort(this.value)"
+      style="min-width:130px">
+      <option value="suggested" ${repSortBy==='suggested' ?'selected':''}>▲ Sugeridos primero</option>
+      <option value="stock_asc" ${repSortBy==='stock_asc' ?'selected':''}>Suc. stock ↑ (más urgente)</option>
+      <option value="b_desc"    ${repSortBy==='b_desc'    ?'selected':''}>B01+B02 disponible ↓</option>
+      <option value="name_asc"  ${repSortBy==='name_asc'  ?'selected':''}>Nombre A→Z</option>
+      <option value="code_asc"  ${repSortBy==='code_asc'  ?'selected':''}>Código ↑</option>
+    </select>`;
 }
 
 function renderRepTable() {
@@ -4184,7 +4195,39 @@ function renderRepTable() {
   }
 
   const LIMIT    = 300;
-  const toRender = filtered.slice(0, LIMIT);
+  const sorted = [...filtered].sort((a, b) => {
+    const sendA   = send[a.code] || 0;
+    const sendB   = send[b.code] || 0;
+    const pri     = REP_PRIORITY[sucId];
+    const thresh  = REP_THRESH[pri];
+    const sugA    = ((a.stock[sucId]||0) < thresh.min &&
+                     (a.stock.B01||0)+(a.stock.B02||0) > 0) ? 1 : 0;
+    const sugB    = ((b.stock[sucId]||0) < thresh.min &&
+                     (b.stock.B01||0)+(b.stock.B02||0) > 0) ? 1 : 0;
+    const bavailA = (a.stock.B01||0) + (a.stock.B02||0);
+    const bavailB = (b.stock.B01||0) + (b.stock.B02||0);
+
+    switch (repSortBy) {
+      case 'stock_asc':
+        if (sendA !== sendB) return sendB - sendA;
+        return (a.stock[sucId]||0) - (b.stock[sucId]||0);
+      case 'b_desc':
+        if (sendA !== sendB) return sendB - sendA;
+        return bavailB - bavailA;
+      case 'name_asc':
+        if (sendA !== sendB) return sendB - sendA;
+        return a.name.localeCompare(b.name, 'es');
+      case 'code_asc':
+        if (sendA !== sendB) return sendB - sendA;
+        return a.code.localeCompare(b.code);
+      case 'suggested':
+      default:
+        if (sendA !== sendB) return sendB - sendA;
+        if (sugA  !== sugB)  return sugB  - sugA;
+        return 0;
+    }
+  });
+  const toRender = sorted.slice(0, LIMIT);
   const extraRow = filtered.length > LIMIT ? `<tr><td colspan="${hasBrand?8:7}"
     style="text-align:center;padding:10px;font-size:.65rem;color:var(--muted)">
     Mostrando ${LIMIT} de ${filtered.length} — aplicá un filtro para ver más.</td></tr>` : '';
@@ -4255,6 +4298,7 @@ window.switchRepTab = id => {
 
 window.setRepCat   = cat   => { repActiveCat   = cat;   renderRepTable(); };
 window.setRepBrand = brand => { repActiveBrand = brand; renderRepTable(); };
+window.setRepSort  = val   => { repSortBy      = val;   renderRepTable(); };
 
 let _repSearchTimer = null;
 window.onRepSearch = val => {
