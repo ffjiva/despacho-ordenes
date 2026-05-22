@@ -4099,7 +4099,11 @@ function renderRepFileList() {
       <span class="rep-file-icon">✓</span>
       <span class="rep-file-name" title="${escHtml(f.name)}">${escHtml(f.name)}</span>
       ${f.brand ? `<span class="rep-file-brand">${escHtml(f.brand)}</span>` : ''}
-      <span class="rep-file-count">${f.added.toLocaleString()} prods</span>
+      <span class="rep-file-count">
+        ${f.added > 0 ? `${f.added.toLocaleString()} nuevos` : ''}
+        ${f.enriched > 0 ? `${f.enriched} marcas` : ''}
+        ${f.added === 0 && f.enriched === 0 ? '0 nuevos' : ''}
+      </span>
     </div>`).join('');
 }
 
@@ -4224,7 +4228,7 @@ function renderRepTable() {
       default:
         if (sendA !== sendB) return sendB - sendA;
         if (sugA  !== sugB)  return sugB  - sugA;
-        return 0;
+        return a.name.localeCompare(b.name, 'es');
     }
   });
   const toRender = sorted.slice(0, LIMIT);
