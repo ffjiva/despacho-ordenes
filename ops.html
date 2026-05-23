@@ -539,7 +539,7 @@ input[type="time"] {
   #s-home .topbar-actions .btn-ghost:not(#btn-briefing):not(#btn-mob-menu):not(#btn-reposicion) { display: none !important; }
   #s-home .topbar-actions .btn-light { display: none !important; }
   #btn-mob-menu { display: inline-flex !important; }
-  .mob-bottom-bar { display: flex !important; }
+  .mob-bottom-bar { display: flex; }
   body { padding-bottom: 64px; }
 }
 #btn-mob-menu { display: none; }
@@ -743,8 +743,22 @@ body:not(.dark) input[type="time"] {
   vertical-align: middle; background: var(--surface);
 }
 .rep-table tr:hover td { background: var(--surface2); }
-.td-code  { font-size: .6rem; color: var(--muted); white-space: nowrap; }
-.td-name  { font-weight: 500; min-width: 160px; }
+.td-code  {
+  font-size: .6rem; color: var(--muted); white-space: nowrap;
+  position: sticky; left: 0; background: var(--surface); z-index: 1;
+}
+.td-name  {
+  font-weight: 500; min-width: 160px; max-width: 320px;
+  position: sticky; left: 72px; background: var(--surface); z-index: 1;
+}
+.rep-table tr:hover .td-code,
+.rep-table tr:hover .td-name { background: var(--surface2); }
+.rep-table th:first-child {
+  position: sticky; left: 0; z-index: 2; background: var(--surface2);
+}
+.rep-table th:nth-child(2) {
+  position: sticky; left: 72px; z-index: 2; background: var(--surface2);
+}
 .td-brand { font-size: .6rem; color: var(--info-tx); white-space: nowrap; }
 .td-stk   { text-align: right; font-family: var(--mono); font-size: .65rem; min-width: 38px; }
 .td-sug   { text-align: center; min-width: 44px; }
@@ -1227,6 +1241,8 @@ let repActiveCat   = '';
 let repActiveBrand = '';
 let repSearch      = '';
 let repSortBy      = 'suggested';
+let repSortDir     = 'desc';
+let repSortCol     = '';
 
 const $ = id => document.getElementById(id);
 
@@ -1269,6 +1285,7 @@ async function init() {
       goHome();
     } else {
       showScreen('s-login');
+      $('mob-bottom-bar').style.display = 'none';
     }
   });
 }
@@ -1331,6 +1348,7 @@ function goHome() {
   }).toUpperCase();
   briefingLoaded = false;
   showScreen('s-home');
+  $('mob-bottom-bar').style.display = '';
   startListener();
   initBriefingBtn();
 }
@@ -3868,24 +3886,103 @@ const REP_THRESH   = {
   low:    { min: 0, target: 1 },
 };
 const REP_KNOWN_BRANDS = [
-  'MSI','APPLE','BEATS','SAMSUNG','LG','HP','DELL','LENOVO','ASUS','ACER',
-  'LOGITECH','RAZER','CORSAIR','KINGSTON','SONY','JBL','UGREEN','NINTENDO',
-  'TP-LINK','TPLINK','EPSON','ADATA','AEROCOOL','INTEL','CANON','REDRAGON',
-  'MAXELL','AMD','PLAYSTATION','XBOX','FORZA','ANKER','THERMALTAKE','BELKIN',
-  'GIGABYTE','PATRIOT','SEAGATE','HYPERX','PHILIPS','WD','MICROSOFT','CDP',
-  'ANTEC','BROTHER','AOC','HIKVISION','D-LINK','DLINK','APC','SANDISK',
-  'CRUCIAL','SMARTBITT','ORBITEC','NZXT','XTECH','REMAX','ORAIMO','ARGOM',
-  'DAHUA','OTTERBOX','ZAGG','XIAOMI','BANDAI','FUNKO','VIEWSONIC','BENQ',
-  'SENNHEISER','JABRA','LIAN LI','ZOTAC','SAPPHIRE','TEAMGROUP','NETGEAR',
-  'CISCO','UBIQUITI','MIKROTIK','TARGUS','COOLERMASTER','DRAGONWAR','FANTECH',
+  'BLUE MICROPHONE','THONET & VANDER','WESTERN DIGITAL','FORMULA V LINE','NIPPON AMERICA',
+  'COOLER MASTER','EAGLE WARRIOR','HARMAN KARDON','SILICON POWER','BIT DEFENDER',
+  'STEEL SERIES','TURTLE BEACH','KLIP XTREME','PLANTRONICS','PLAYSTATION',
+  'SKULL CANDY','THERMALTAKE','CASE LOGIC','SONY MUSIC','BANPRESTO',
+  'DATALOGIC','EA SPORTS','ENERGIZER','HIKVISION','HONEYWELL',
+  'KASPERSKY','MICROSOFT','PROVISION','SMARTBITT','TEAMGROUP',
+  'TRANSCEND','TRIPPLITE','VERTAGEAR','VIEWSONIC','AEROCOOL',
+  'BEMATECH','DEEPCOOL','FUJIFILM','FURUKAWA','GIGABYTE',
+  'GLORIOUS','INSTA360','KINGSTON','LOGITECH','MERCUSYS',
+  'MOTOROLA','NANOLEAF','NINTENDO','PLAYSEAT','POLAROID',
+  'PUREGEAR','REDRAGON','SAPPHIRE','SEASONIC','SHARKOON',
+  'STARLINK','T-DAGGER','UBIQUITI','VERBATIM','ABLEREX',
+  'ALCATEL','ANDROID','BIOSTAR','BROTHER','CORSAIR',
+  'CRUCIAL','FORMULA','GAMESIR','GATEWAY','GRIZZLY',
+  'HHGEARS','HIKSEMI','HISENSE','HITACHI','HYUNDAI',
+  'INFOCUS','KINGWIN','KLIPSCH','LIAN LI','LINKSYS',
+  'MUSHKIN','NETGEAR','ORBITEC','PATRIOT','PHILIPS',
+  'POWER A','SAMSUNG','SANDISK','SAT PCS','SEAGATE',
+  'TECHMAN','TOSHIBA','TP-LINK','UNITECH','3NSTAR',
+  'AGILER','AMAZON','ARCTIC','ARZOPA','ASROCK',
+  'AVTECH','BELKIN','COUGAR','ELGATO','ETOUCH',
+  'GENIUS','GOOGLE','GSKILL','HILOOK','HUAWEI',
+  'HYPERX','LENOVO','MARLEY','MAXELL','MOPHIE',
+  'NOCTUA','ORAIMO','PRIMUS','SCRIBE','UCTECH',
+  'UGREEN','VSEVEN','XIAOMI','ZKTECO','ADATA',
+  'ALTEC','ANKER','ANTEC','APPLE','ARGOM',
+  'CANON','CASIO','CISCO','DAHUA','DLINK',
+  'EPSON','EZVIZ','FORZA','GOPRO','GOVEE',
+  'HAIER','HYNIX','INTEL','JABRA','LEXAR',
+  'LOGIC','MAONO','MARVO','NACON','NEMAX',
+  'NETIS','NEXXT','NOKIA','OMEGA','PALIT',
+  'PANDA','RAZER','REMAX','TENDA','THULE',
+  'WACOM','XTECH','ZEBRA','ZOTAC','ZYXEL',
+  '@ONE','ACER','AIWA','ASUS','AZZA',
+  'BENQ','CUDY','DELL','ESET','EVGA',
+  'EZRA','FURY','HORI','HYTE','ILUV',
+  'IMOU','NZXT','QNAP','ROKU','SABO',
+  'SONY','UNNO','ZAGG','AKG','AMD',
+  'AOC','APC','CDP','DJI','ECS',
+  'ELO','HPE','JAM','JBL','KTC',
+  'MSI','PNY','RDS','ROG','XPG',
+  '3M','HP','KZ','LG',
 ];
 
-window.goReposicion = () => { showScreen('s-reposicion'); };
+const REP_STORAGE_KEY = 'rep_session_v1';
+
+function saveRepSession() {
+  try {
+    sessionStorage.setItem(REP_STORAGE_KEY, JSON.stringify({
+      products:    repProducts,
+      sendData:    repSendData,
+      loadedFiles: repLoadedFiles,
+      activeTab:   repActiveTab,
+      activeCat:   repActiveCat,
+      activeBrand: repActiveBrand,
+      sortBy:      repSortBy,
+    }));
+  } catch(e) { console.warn('saveRepSession:', e); }
+}
+
+let _repSaveTimer = null;
+function saveRepSessionDebounced() {
+  clearTimeout(_repSaveTimer);
+  _repSaveTimer = setTimeout(saveRepSession, 600);
+}
+
+function loadRepSession() {
+  try {
+    const raw = sessionStorage.getItem(REP_STORAGE_KEY);
+    if (!raw) return false;
+    const d = JSON.parse(raw);
+    repProducts    = d.products    || [];
+    repSendData    = d.sendData    || {};
+    repLoadedFiles = d.loadedFiles || [];
+    repActiveTab   = d.activeTab   || 'M01';
+    repActiveCat   = d.activeCat   || '';
+    repActiveBrand = d.activeBrand || '';
+    repSortBy      = d.sortBy      || 'suggested';
+    repProductMap.clear();
+    repProducts.forEach(p => repProductMap.set(p.code, p));
+    return repProducts.length > 0;
+  } catch(e) { console.warn('loadRepSession:', e); return false; }
+}
+
+window.goReposicion = () => {
+  showScreen('s-reposicion');
+  if (!repProducts.length && loadRepSession()) {
+    showRepState('data');
+    renderRepFull();
+  }
+};
 
 window.goBackFromReposicion = () => { showScreen('s-home'); };
 
 window.clearRepSession = () => {
   if (repLoadedFiles.length && !confirm('¿Limpiar todo y empezar de nuevo?')) return;
+  sessionStorage.removeItem(REP_STORAGE_KEY);
   repProductMap.clear();
   repProducts    = [];
   repSendData    = {};
@@ -3931,6 +4028,7 @@ window.handleRepFiles = async inputEl => {
     computeRepSuggestions();
     showRepState('data');
     renderRepFull();
+    saveRepSession();
   } catch(e) {
     showRepState(repLoadedFiles.length ? 'data' : 'empty');
     if (repLoadedFiles.length) renderRepFull();
@@ -3941,12 +4039,27 @@ window.handleRepFiles = async inputEl => {
 };
 
 function detectRepBrand(filename) {
-  const up = filename.toUpperCase().replace(/[^A-Z0-9]/g, ' ');
-  for (const b of REP_KNOWN_BRANDS) {
-    const bUp = b.toUpperCase().replace(/[^A-Z0-9]/g, ' ');
-    if (up.includes(bUp)) return b;
+  const base = filename.replace(/\.[^.]+$/, '');
+
+  const prefixes = [
+    'InventarioGerencial','ReporteGerencial',
+    'Gerencial','Inventario','Reporte'
+  ];
+  let candidate = base;
+  for (const prefix of prefixes) {
+    if (base.toLowerCase().startsWith(prefix.toLowerCase())) {
+      candidate = base.slice(prefix.length);
+      break;
+    }
   }
-  return '';
+
+  const norm = s => s.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const cuNorm = norm(candidate);
+  for (const b of REP_KNOWN_BRANDS) {
+    if (cuNorm === norm(b)) return b;
+    if (cuNorm.includes(norm(b)) && norm(b).length >= 3) return b;
+  }
+  return candidate.trim() || '';
 }
 
 function parseRepXLS(workbook, brand) {
@@ -3969,7 +4082,7 @@ function parseRepXLS(workbook, brand) {
     if (!c1 || c1 === 'nan') continue;
     if (SKIP_RE.test(c1)) continue;
     if (/^\d+$/.test(c1)) continue;
-    if (/garantia|exhibi/i.test(c1)) { cur = null; continue; }
+    if (/garantia|exhibi/i.test(c1)) { continue; }
 
     const sucId = matchSuc(c1);
 
@@ -4007,9 +4120,10 @@ function parseRepXLS(workbook, brand) {
 }
 
 function detectBrandFromName(name) {
-  const up = name.toUpperCase();
+  const norm = s => s.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const nameNorm = norm(name);
   for (const b of REP_KNOWN_BRANDS) {
-    if (up.includes(b.toUpperCase())) return b;
+    if (nameNorm.includes(norm(b))) return b;
   }
   return '';
 }
@@ -4117,8 +4231,13 @@ function renderRepTabs() {
 }
 
 function renderRepFilters() {
-  const cats   = [...new Set(repProducts.map(p => p.cat).filter(Boolean))].sort();
-  const brands = [...new Set(repProducts.map(p => p.brand).filter(Boolean))].sort();
+  const cats = [...new Set(
+    repProducts.map(p => (p.cat || '').trim()).filter(Boolean)
+  )].sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
+
+  const brands = [...new Set(
+    repProducts.map(p => (p.brand || '').trim().toUpperCase()).filter(Boolean)
+  )].sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
 
   const catOpts = [
     '<option value="">Todas las categorías</option>',
@@ -4130,7 +4249,7 @@ function renderRepFilters() {
     <select class="rep-filter-sel" onchange="setRepBrand(this.value)">
       <option value="">Todas las marcas</option>
       ${brands.map(b =>
-        `<option value="${escHtml(b)}"${repActiveBrand===b?' selected':''}>${escHtml(b)}</option>`
+        `<option value="${escHtml(b)}"${repActiveBrand.toUpperCase()===b?' selected':''}>${escHtml(b)}</option>`
       ).join('')}
     </select>` : '';
 
@@ -4156,7 +4275,7 @@ function renderRepTable() {
 
   const filtered = repProducts.filter(p => {
     if (repActiveCat   && p.cat   !== repActiveCat)  return false;
-    if (repActiveBrand && p.brand !== repActiveBrand) return false;
+    if (repActiveBrand && (p.brand||'').toUpperCase().trim() !== repActiveBrand) return false;
     if (repSearch) {
       const normSearch = s => String(s).toLowerCase()
         .normalize('NFD').replace(/[̀-ͯ]/g, '')
@@ -4224,6 +4343,27 @@ function renderRepTable() {
       case 'code_asc':
         if (sendA !== sendB) return sendB - sendA;
         return a.code.localeCompare(b.code);
+      case 'col': {
+        const valA = (() => {
+          if (repSortCol==='sug') {
+            const pri=REP_PRIORITY[sucId],t=REP_THRESH[pri];
+            return ((a.stock[sucId]||0)<t.min&&(a.stock.B01||0)+(a.stock.B02||0)>0)
+              ? Math.min(t.target-(a.stock[sucId]||0),(a.stock.B01||0)+(a.stock.B02||0)) : 0;
+          }
+          switch(repSortCol){case'b01':return a.stock.B01||0;case'b02':return a.stock.B02||0;case'suc':return a.stock[sucId]||0;}
+          return 0;
+        })();
+        const valB = (() => {
+          if (repSortCol==='sug') {
+            const pri=REP_PRIORITY[sucId],t=REP_THRESH[pri];
+            return ((b.stock[sucId]||0)<t.min&&(b.stock.B01||0)+(b.stock.B02||0)>0)
+              ? Math.min(t.target-(b.stock[sucId]||0),(b.stock.B01||0)+(b.stock.B02||0)) : 0;
+          }
+          switch(repSortCol){case'b01':return b.stock.B01||0;case'b02':return b.stock.B02||0;case'suc':return b.stock[sucId]||0;}
+          return 0;
+        })();
+        return repSortDir==='desc' ? valB-valA : valA-valB;
+      }
       case 'suggested':
       default:
         if (sendA !== sendB) return sendB - sendA;
@@ -4250,7 +4390,17 @@ function renderRepTable() {
     return `<tr>
       <td class="td-code">${escHtml(p.code)}</td>
       <td class="td-name">${escHtml(p.name)}</td>
-      ${hasBrand ? `<td class="td-brand">${escHtml(p.brand||'—')}</td>` : ''}
+      ${hasBrand ? `<td class="td-brand">
+        ${p.brand
+          ? `<span style="
+              display:inline-block;padding:1px 5px;border-radius:3px;
+              font-size:.58rem;font-weight:700;letter-spacing:.03em;
+              background:var(--surface2);border:1px solid var(--border2);
+              color:var(--text2);max-width:50px;overflow:hidden;
+              text-overflow:ellipsis;white-space:nowrap;
+              " title="${escAttr(p.brand)}">${escHtml(p.brand)}</span>`
+          : '<span style="color:var(--border)">—</span>'}
+      </td>` : ''}
       <td class="td-stk ${stkCls(b01)}">${b01||'—'}</td>
       <td class="td-stk ${stkCls(b02)}">${b02||'—'}</td>
       <td class="td-stk ${stkCls(sst)}">${sst||'—'}</td>
@@ -4264,15 +4414,19 @@ function renderRepTable() {
     </tr>`;
   }).join('');
 
-  const brandTh = hasBrand ? '<th>Marca</th>' : '';
+  const brandTh = hasBrand ? '<th style="width:52px">Marca</th>' : '';
   $('rep-table-wrap').innerHTML = `
     <table class="rep-table">
       <thead><tr>
         <th>Código</th><th>Producto</th>${brandTh}
-        <th title="Stock B01">B01</th>
-        <th title="Stock B02">B02</th>
-        <th title="Stock ${REP_LBLS[sucId]}">Suc.</th>
-        <th title="Sugerido">Sug.</th>
+        ${['b01','b02','suc','sug'].map(col => {
+          const labels = {b01:'B01',b02:'B02',suc:'Suc.',sug:'Sug.'};
+          const titles = {b01:'Stock B01',b02:'Stock B02',
+                          suc:`Stock ${REP_LBLS[sucId]}`,sug:'Sugerido'};
+          const arrow = repSortCol===col ? (repSortDir==='desc'?'↓':'↑') : '';
+          return `<th title="${titles[col]}" style="cursor:pointer;user-select:none"
+            onclick="toggleRepSort('${col}')">${labels[col]}${arrow}</th>`;
+        }).join('')}
         <th>Enviar</th>
       </tr></thead>
       <tbody>${rows}${extraRow}</tbody>
@@ -4300,9 +4454,19 @@ window.switchRepTab = id => {
   renderRepTable();
 };
 
-window.setRepCat   = cat   => { repActiveCat   = cat;   renderRepTable(); };
-window.setRepBrand = brand => { repActiveBrand = brand; renderRepTable(); };
-window.setRepSort  = val   => { repSortBy      = val;   renderRepTable(); };
+window.setRepCat    = cat  => { repActiveCat   = cat;   renderRepTable(); };
+window.setRepBrand  = brand => { repActiveBrand = brand.toUpperCase().trim(); renderRepTable(); };
+window.setRepSort   = val  => { repSortBy      = val; repSortCol = ''; renderRepTable(); };
+window.toggleRepSort = col => {
+  if (repSortCol === col) {
+    repSortDir = repSortDir === 'desc' ? 'asc' : 'desc';
+  } else {
+    repSortCol = col;
+    repSortDir = 'desc';
+  }
+  repSortBy = 'col';
+  renderRepTable();
+};
 
 let _repSearchTimer = null;
 window.onRepSearch = val => {
@@ -4324,6 +4488,7 @@ window.onRepQtyInput = inp => {
     btn.innerHTML = `${REP_LBLS[suc]}${badge}`;
   }
   renderRepGlobalTotals();
+  saveRepSessionDebounced();
 };
 
 window.generateActiveRepXLS = () => generateRepXLS(repActiveTab);
@@ -4492,7 +4657,7 @@ document.addEventListener('DOMContentLoaded', init);
 </div>
 
 <!-- ── MOBILE BOTTOM BAR ── -->
-<div class="mob-bottom-bar" id="mob-bottom-bar">
+<div class="mob-bottom-bar" id="mob-bottom-bar" style="display:none">
   <button class="mob-bottom-btn mob-active" id="mob-btn-home" onclick="goHomeFromNav()">
     <span class="mob-icon">📋</span>Pendientes
   </button>
