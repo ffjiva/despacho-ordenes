@@ -536,7 +536,7 @@ input[type="time"] {
 
 /* ── MOBILE NAV ── */
 @media (max-width: 768px) {
-  #s-home .topbar-actions .btn-ghost:not(#btn-briefing):not(#btn-mob-menu):not(#btn-reposicion) { display: none !important; }
+  #s-home .topbar-actions .btn-ghost:not(#btn-briefing):not(#btn-mob-menu):not(#btn-reposicion):not(#btn-vueltas) { display: none !important; }
   #s-home .topbar-actions .btn-light { display: none !important; }
   #btn-mob-menu { display: inline-flex !important; }
   .mob-bottom-bar { display: flex; }
@@ -835,7 +835,7 @@ body:not(.dark) input[type="time"] {
       <button class="btn btn-ghost" id="btn-briefing" style="font-size:.65rem;display:none" onclick="toggleBriefing()">📋<span class="hide-mobile"> Briefing</span></button>
       <button class="btn btn-ghost" style="font-size:.65rem" onclick="toggleDone()">📋<span class="hide-mobile" id="toggle-done-lbl"> Ver resueltos</span></button>
       <button class="btn btn-ghost" style="font-size:.65rem" onclick="goMetricas()">📊<span class="hide-mobile"> Métricas</span></button>
-      <button class="btn btn-ghost" style="font-size:.65rem" onclick="goVueltas()">🚐<span class="hide-mobile"> Vueltas</span></button>
+      <button class="btn btn-ghost" id="btn-vueltas" style="font-size:.65rem" onclick="goVueltas()">🚐<span class="hide-mobile"> Vueltas</span></button>
       <button class="btn btn-ghost" style="font-size:.65rem" onclick="goCierre()">🔒<span class="hide-mobile"> Cierre</span></button>
       <button class="btn btn-ghost" style="font-size:.65rem" onclick="goAgenda()">📅<span class="hide-mobile"> Agenda</span></button>
       <button class="btn btn-ghost" style="font-size:.65rem" onclick="goEquipoScreen()">👥<span class="hide-mobile"> Equipo</span></button>
