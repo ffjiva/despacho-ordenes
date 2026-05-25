@@ -258,6 +258,40 @@ html, body {
 }
 .pin-dot.filled { background: var(--accent); border-color: var(--accent); }
 body.dark .pin-key { background: var(--surface2); }
+
+/* ── DOMICILIO BADGES ── */
+.dmbadge { font-size:.58rem; font-weight:700; padding:2px 7px; border-radius:20px; border:1px solid; display:inline-block; white-space:nowrap; }
+.dmbadge-pendiente    { background:var(--warn-bg); color:var(--warn-tx); border-color:var(--warn-bd); }
+.dmbadge-en_camino    { background:var(--info-bg); color:var(--info-tx); border-color:var(--info-bd); }
+.dmbadge-entregado    { background:var(--done-bg); color:var(--done-tx); border-color:var(--done-bd); }
+.dmbadge-no_entregado { background:var(--err-bg);  color:var(--err-tx);  border-color:var(--err-bd); }
+.mcard.mc-noent       { background:var(--err-bg);  border-color:var(--err-bd); }
+.mcard.mc-noent .mcard-dest { color:var(--err-tx); }
+
+/* ── NO ENTREGA MODAL ── */
+@keyframes slideUp { from { transform:translateY(40px); opacity:0; } to { transform:translateY(0); opacity:1; } }
+.ne-opt {
+  display:block; width:100%; padding:13px 14px; margin-bottom:8px;
+  border:1px solid var(--border); border-radius:var(--r);
+  background:var(--surface); font-family:var(--mono); font-size:.8rem;
+  color:var(--text); cursor:pointer; text-align:left; transition:all .15s; min-height:48px;
+}
+.ne-opt:active, .ne-opt.ne-sel { background:var(--accent); color:#fff; border-color:var(--accent); }
+
+/* ── DATE / TIME INPUT DARK FIX ── */
+input[type="date"],
+input[type="time"] {
+  color-scheme: dark;
+}
+body:not(.dark) input[type="date"],
+body:not(.dark) input[type="time"] {
+  color-scheme: light;
+}
+.dir-line { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.dir-exp  { cursor: pointer; }
+.dir-exp::after { content: ' ▾'; font-size: .58rem; color: var(--info-tx); }
+.dir-exp.open { white-space: normal; overflow: visible; text-overflow: unset; }
+.dir-exp.open::after { content: ' ▴'; }
 </style>
 </head>
 <body>
@@ -321,12 +355,17 @@ body.dark .pin-key { background: var(--surface2); }
 
   <div class="m-filter-bar">
     <button class="m-fbtn on" onclick="setMotoFilter('all',this)">Todas</button>
-    <button class="m-fbtn"    onclick="setMotoFilter('pending',this)">Pendientes</button>
-    <button class="m-fbtn"    onclick="setMotoFilter('done',this)">Completadas</button>
+    <button class="m-fbtn"    onclick="setMotoFilter('vueltas',this)">Vueltas</button>
+    <button class="m-fbtn"    onclick="setMotoFilter('entregas',this)">Entregas</button>
   </div>
 
   <div class="m-list" id="m-list">
     <div class="empty-state"><span class="spin"></span></div>
+  </div>
+
+  <!-- Barra fija de salida -->
+  <div style="position:fixed;bottom:0;left:0;right:0;z-index:200;background:var(--surface);border-top:1px solid var(--border);padding:.55rem 1rem;display:flex;align-items:center">
+    <button onclick="doLogout()" style="min-height:44px;padding:8px 22px;border:2px solid var(--accent);border-radius:6px;background:transparent;color:var(--accent);font-family:var(--mono);font-size:.72rem;font-weight:700;letter-spacing:.07em;cursor:pointer">← Salir</button>
   </div>
 </div>
 
@@ -339,29 +378,39 @@ const FIREBASE_CFG = {
   authDomain: "despacho-ordenes.firebaseapp.com",
   projectId: "despacho-ordenes",
   storageBucket: "despacho-ordenes.firebasestorage.app",
-  messagingSenderId: "694628838838",
+  messagingSenderId: "694628838648",
   appId: "1:694628838838:web:30e9745a0465b004f42517"
 };
 
-const SESSION_KEY = 'dsp_session_v1';
-const THEME_KEY   = 'moto_theme_v1';
-const COLLECTION  = 'vueltas';
+const SESSION_KEY     = 'dsp_session_v1';
+const THEME_KEY       = 'moto_theme_v1';
+const COLLECTION      = 'vueltas';
+const WHATSAPP_GROUP  = '50377081881';
 
 let db = null, fbMod = null;
 let currentDriver = '';
-let homeUnsub   = null;
-let cachedList  = [];
-let motoFilter  = 'all';
-let storageMod  = null;
-let storage     = null;
-let fotoVueltaId   = null;
-let motoUsers      = [];
+let homeUnsub       = null;
+let domUnsub        = null;
+let cachedList      = [];
+let cachedDomicilios = [];
+let motoFilter      = 'all';
+let storageMod      = null;
+let storage         = null;
+let messagingMod    = null;
+let fotoVueltaId    = null;
+let fotoDomId       = null;
+let motoUsers       = [];
 let motoPinSelected = null;
 let motoPinValue    = '';
+let noEntregaId     = null;
+let noEntregaMotivo = '';
+const MOTIVOS_NE = ['Cliente no contesta', 'Dirección incorrecta', 'Cliente reagendó', 'Devolver a bodega'];
 
 const $ = id => document.getElementById(id);
 
-function today() { return new Date().toISOString().slice(0, 10); }
+function today() {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'America/El_Salvador' });
+}
 function nowTime() {
   return new Date().toLocaleTimeString('es-SV', { hour: '2-digit', minute: '2-digit', hour12: false });
 }
@@ -370,10 +419,7 @@ function nowTime() {
    INIT
 ═══════════════════════════════════ */
 function getExpiry(loginAt) {
-  const d = new Date(loginAt);
-  d.setDate(d.getDate() + 1);
-  d.setHours(3, 0, 0, 0);
-  return d.getTime();
+  return loginAt + 8 * 60 * 60 * 1000;
 }
 
 async function init() {
@@ -385,9 +431,10 @@ async function init() {
 
   try {
     const { initializeApp, getApps } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
-    [fbMod, storageMod] = await Promise.all([
+    [fbMod, storageMod, messagingMod] = await Promise.all([
       import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'),
-      import('https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js')
+      import('https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js'),
+      import('https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging.js')
     ]);
     const existing = getApps().find(a => a.name === 'moto-main');
     const app = existing || initializeApp(FIREBASE_CFG, 'moto-main');
@@ -509,8 +556,15 @@ async function updateMotoLastAccess(userId) {
   } catch(e) { console.error(e); }
 }
 
+window.addEventListener('beforeunload', e => {
+  const hayVueltaEnCurso = cachedList.some(v => v.status === 'en_camino' || v.status === 'en_curso')
+    || cachedDomicilios.some(d => d.status === 'en_camino');
+  if (hayVueltaEnCurso) { e.preventDefault(); e.returnValue = ''; }
+});
+
 window.doLogout = () => {
   if (homeUnsub) { homeUnsub(); homeUnsub = null; }
+  if (domUnsub)  { domUnsub();  domUnsub  = null; }
   localStorage.removeItem(SESSION_KEY);
   currentDriver = ''; motoPinValue = ''; motoPinSelected = null;
   $('moto-pin-entry').style.display = 'none';
@@ -534,14 +588,71 @@ function getGPS() {
   });
 }
 
+async function registerFCMToken(userName) {
+  if (!messagingMod || !db) return;
+  try {
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') return;
+
+    const { initializeApp, getApps } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
+    const existing = getApps().find(a => a.name === 'moto-main');
+    if (!existing) return;
+
+    const messaging = messagingMod.getMessaging(existing);
+    const token = await messagingMod.getToken(messaging, {
+      vapidKey: 'BAd50NP_cteokVTzaDCzDQeaqaZLRAgpbc2VcRveRsFBLHgl2VhBGlvQA47lJ095umC3c08luqVeFG4WPDSXuzg',
+      serviceWorkerRegistration: await navigator.serviceWorker.register('/firebase-messaging-sw.js')
+    });
+    if (!token) return;
+
+    const snap = await fbMod.getDoc(fbMod.doc(db, 'config', 'team'));
+    if (!snap.exists()) return;
+    const members = snap.data().members || [];
+    const idx = members.findIndex(m => m.name === userName);
+    if (idx === -1) return;
+    if (members[idx].fcmToken === token) return;
+    members[idx].fcmToken = token;
+    await fbMod.setDoc(fbMod.doc(db, 'config', 'team'), { members });
+    console.log('FCM token registrado para', userName);
+  } catch(e) {
+    console.warn('FCM token error:', e.message);
+  }
+}
+
+async function fetchArrastre() {
+  if (!db) return;
+  const todaySV = today();
+  const from = new Date();
+  from.setDate(from.getDate() - 14);
+  const fromDate = from.toLocaleDateString('en-CA', { timeZone: 'America/El_Salvador' });
+  try {
+    const vSnap = await fbMod.getDocs(fbMod.query(
+      fbMod.collection(db, COLLECTION),
+      fbMod.where('date', '>=', fromDate),
+      fbMod.where('date', '<', todaySV)
+    ));
+    const vPrev = vSnap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .filter(v => v.assignedTo === currentDriver && ['pending','en_camino'].includes(v.status))
+      .map(v => ({ ...v, _arrastre: true }));
+    if (vPrev.length) {
+      cachedList = [...vPrev, ...cachedList];
+      renderCombined();
+    }
+  } catch(e) { console.warn('fetchArrastre:', e.message); }
+}
+
 function goHome() {
+  registerFCMToken(currentDriver);
   $('m-name-lbl').textContent = `🚐 ${currentDriver}`;
   $('m-date-lbl').textContent = new Date().toLocaleDateString('es-SV', {
     weekday: 'long', day: '2-digit', month: 'long', year: 'numeric'
   }).toUpperCase();
   showScreen('s-home');
   startListener();
+  startDomiciliosListener();
   if (navigator.geolocation) navigator.geolocation.getCurrentPosition(() => {}, () => {});
+  setTimeout(fetchArrastre, 1500);
 }
 
 function notify(title, body) {
@@ -588,13 +699,65 @@ function startListener() {
 }
 
 /* ═══════════════════════════════════
+   DOMICILIOS LISTENER
+═══════════════════════════════════ */
+function startDomiciliosListener() {
+  if (!db) { cachedDomicilios = []; renderCombined(); return; }
+  if (domUnsub) { domUnsub(); domUnsub = null; }
+
+  let todayItems    = [];
+  let carryoverItems = [];
+
+  const merge = () => {
+    const seen = new Set();
+    cachedDomicilios = [...carryoverItems, ...todayItems].filter(d => {
+      if (seen.has(d.id)) return false;
+      seen.add(d.id);
+      return true;
+    });
+    renderCombined();
+  };
+
+  // Query en tiempo real — hoy
+  const qToday = fbMod.query(
+    fbMod.collection(db, 'domicilios'),
+    fbMod.where('date', '==', today()),
+    fbMod.where('assignedTo', '==', currentDriver),
+    fbMod.orderBy('createdAt', 'asc')
+  );
+  domUnsub = fbMod.onSnapshot(qToday,
+    snap => { todayItems = snap.docs.map(d => ({ id: d.id, ...d.data() })); merge(); },
+    err => console.warn('domicilios listener:', err.code)
+  );
+
+  // One-shot — días anteriores pendientes
+  const qPast = fbMod.query(
+    fbMod.collection(db, 'domicilios'),
+    fbMod.where('assignedTo', '==', currentDriver),
+    fbMod.where('status', 'in', ['pendiente', 'en_camino']),
+    fbMod.where('date', '<', today())
+  );
+  fbMod.getDocs(qPast).then(snap => {
+    carryoverItems = snap.docs.map(d => ({ id: d.id, ...d.data(), _carryover: true }));
+    merge();
+  }).catch(e => console.warn('domicilios carryover:', e.message));
+}
+
+/* ═══════════════════════════════════
    RENDER
 ═══════════════════════════════════ */
 function renderList(list) {
   cachedList = list;
+  renderCombined();
+}
 
-  const total = list.length;
-  const done  = list.filter(v => v.status === 'done').length;
+function renderCombined() {
+  const src = motoFilter === 'vueltas'  ? cachedList
+            : motoFilter === 'entregas' ? cachedDomicilios
+            : [...cachedList, ...cachedDomicilios];
+
+  const total = src.length;
+  const done  = src.filter(v => v.status === 'done' || v.status === 'entregado').length;
   const pct   = total ? Math.round(done / total * 100) : 0;
 
   $('m-stats').innerHTML = `
@@ -612,90 +775,217 @@ function renderList(list) {
 }
 
 function applyMotoFilter() {
-  const filtered = motoFilter === 'done'
-    ? cachedList.filter(v => v.status === 'done')
-    : motoFilter === 'pending'
-      ? cachedList.filter(v => v.status !== 'done')
-      : cachedList;
-  renderCards(filtered);
+  let items;
+  if (motoFilter === 'vueltas')        items = cachedList;
+  else if (motoFilter === 'entregas')  items = cachedDomicilios;
+  else items = [...cachedList, ...cachedDomicilios].sort((a, b) => {
+    if (a.emergency && !b.emergency) return -1;
+    if (!a.emergency && b.emergency) return 1;
+    return (a.order || 0) - (b.order || 0) || (a.createdAt || 0) - (b.createdAt || 0);
+  });
+  renderCards(items);
 }
 
 window.setMotoFilter = (f, btn) => {
   motoFilter = f;
   document.querySelectorAll('.m-fbtn').forEach(b => b.classList.remove('on'));
   btn.classList.add('on');
-  applyMotoFilter();
+  renderCombined();
 };
 
 function renderCards(list) {
   const el = $('m-list');
   if (!list.length) {
-    const msg = motoFilter === 'done'
-      ? 'No hay vueltas completadas.' : motoFilter === 'pending'
-      ? 'No hay vueltas pendientes.' : 'No tienes vueltas asignadas para hoy.<br/>Consulta con el supervisor.';
-    el.innerHTML = `<div class="empty-state"><div class="empty-icon">🚐</div><div class="empty-text">${msg}</div></div>`;
+    const icon = motoFilter === 'entregas' ? '📦' : '🚐';
+    const msg  = motoFilter === 'entregas'
+      ? 'No tienes entregas asignadas para hoy.'
+      : motoFilter === 'vueltas'
+      ? 'No tienes vueltas asignadas para hoy.<br/>Consulta con el supervisor.'
+      : 'No tienes vueltas ni entregas para hoy.<br/>Consulta con el supervisor.';
+    el.innerHTML = `<div class="empty-state"><div class="empty-icon">${icon}</div><div class="empty-text">${msg}</div></div>`;
     return;
   }
 
   const sorted = [...list].sort((a, b) => {
     if (a.emergency && !b.emergency) return -1;
     if (!a.emergency && b.emergency) return 1;
-    return (a.order || 0) - (b.order || 0);
+    return (a.order || 0) - (b.order || 0) || (a.createdAt || 0) - (b.createdAt || 0);
   });
 
-  el.innerHTML = sorted.map(v => {
-    const isPending = v.status === 'pending';
-    const isCamino  = v.status === 'en_camino';
-    const isDone    = v.status === 'done';
-    const cardCls   = isDone ? 'mc-done' : isCamino ? 'mc-camino' : '';
-    const emgCls    = v.emergency ? 'emergency' : '';
-    const circleCls = isDone ? 'mc-done' : isCamino ? 'mc-camino' : '';
-    const doneTime  = v.completedAt
-      ? new Date(v.completedAt).toLocaleTimeString('es-SV', { hour: '2-digit', minute: '2-digit', hour12: false })
-      : '';
+  el.innerHTML = sorted.map(item =>
+    item.type === 'domicilio' ? buildDomCard(item) : buildVueltaCard(item)
+  ).join('');
+}
 
-    const photos    = v.photos || [];
-    const canPhoto  = (isCamino || isDone) && photos.length < 3;
-    const thumbsHtml = photos.length
-      ? `<div class="photo-strip">${photos.map(u => `<img class="photo-thumb" src="${esc(u)}" onclick="window.open('${escAttr(u)}','_blank')" alt="foto"/>`).join('')}</div>`
-      : '';
-    const ordenLink = v.linkedOrderId
-      ? `<div style="padding:0 14px 8px"><a href="https://despacho-ordenes.web.app/?orden=${v.linkedOrderId}" target="_blank" rel="noopener" style="display:block;text-align:center;padding:10px 14px;border:1px solid var(--info-bd);border-radius:var(--r);color:var(--info-tx);font-size:.78rem;font-weight:600;text-decoration:none;background:var(--info-bg)">📋 Ver lista de productos →</a></div>`
-      : '';
+function buildVueltaCard(v) {
+  const isPending = v.status === 'pending';
+  const isCamino  = v.status === 'en_camino';
+  const isDone    = v.status === 'done';
+  const cardCls   = isDone ? 'mc-done' : isCamino ? 'mc-camino' : '';
+  const isEmerg   = !!(v.emergency || v.isEmergency);
+  const emgCls    = isEmerg ? 'emergency' : '';
+  const circleCls = isDone ? 'mc-done' : isCamino ? 'mc-camino' : '';
+  const doneTime  = v.completedAt
+    ? new Date(v.completedAt).toLocaleTimeString('es-SV', { hour: '2-digit', minute: '2-digit', hour12: false })
+    : '';
+  const photos    = v.photos || [];
+  const canPhoto  = (isCamino || isDone) && photos.length < 3;
+  const thumbsHtml = photos.length
+    ? `<div class="photo-strip">${photos.map(u => `<img class="photo-thumb" src="${esc(u)}" onclick="window.open('${escAttr(u)}','_blank')" alt="foto"/>`).join('')}</div>`
+    : '';
+  const linkedOrderIds = v.linkedOrderIds || (v.linkedOrderId ? [v.linkedOrderId] : []);
+  const ordenLink = linkedOrderIds.length
+    ? linkedOrderIds.map(oid => `
+      <div style="padding:0 14px 8px">
+        <a href="https://despacho-ordenes.web.app/?orden=${oid}&usuario=${encodeURIComponent(currentDriver)}"
+          target="_blank" rel="noopener"
+          style="display:block;text-align:center;padding:10px 14px;
+                 border:1px solid var(--info-bd);border-radius:var(--r);
+                 color:var(--info-tx);font-size:.78rem;font-weight:600;
+                 text-decoration:none;background:var(--info-bg)">
+          📋 Ver lista de productos →
+        </a>
+      </div>`).join('')
+    : '';
 
-    return `
-      <div class="mcard ${cardCls} ${emgCls}" id="mc-${v.id}">
-        ${v.emergency ? `<div class="emergency-bar">🚨 ATENCIÓN — VUELTA DE EMERGENCIA</div>` : ''}
-        <div class="mcard-top">
-          <div class="m-order-circle ${circleCls}">${v.order}</div>
-          <div class="mcard-info">
-            <div class="mcard-dest">${esc(v.destination || '')}</div>
-            ${v.description ? `<div class="mcard-desc">${esc(v.description)}</div>` : ''}
-            ${isDone && doneTime ? `
-              <div class="mcard-done-time">✓ Completada a las ${doneTime}</div>
-              <button class="btn-undo" onclick="revertirVuelta('${v.id}')">↩ Deshacer</button>` : ''}
+  return `
+    <div class="mcard ${cardCls} ${emgCls}" id="mc-${v.id}">
+      ${v._arrastre ? `<div style="font-size:.58rem;font-weight:700;padding:3px 10px;background:var(--warn-bg);color:var(--warn-tx);border-bottom:1px solid var(--warn-bd);border-radius:var(--r) var(--r) 0 0;text-align:center">📅 Arrastre — ${v.date || ''}</div>` : ''}
+      ${isEmerg ? `<div class="emergency-bar">🚨 ATENCIÓN — VUELTA DE EMERGENCIA</div>` : ''}
+      <div class="mcard-top">
+        <div class="m-order-circle ${circleCls}">${v.order}</div>
+        <div class="mcard-info">
+          <div class="mcard-dest">${esc(v.destination || '')}</div>
+          ${v.description ? `<div class="mcard-desc">${esc(v.description)}</div>` : ''}
+          ${isDone ? `
+            <div class="mcard-done-time">✓ ${doneTime ? `Completada a las ${doneTime}` : 'Completada'}</div>
+            <div style="font-size:.68rem;color:var(--done-tx);font-weight:600;margin-top:4px">✓ Entrega completada — solo lectura</div>` : ''}
+        </div>
+      </div>
+      ${isCamino ? `<div class="mcard-yendo">🚐 Yendo a ${esc(v.destination || '')}…</div>` : ''}
+      ${ordenLink}
+      ${!isDone ? `
+      <div class="mcard-actions">
+        ${isPending ? `<button class="btn btn-warn" onclick="irEnCamino('${v.id}','${escAttr(v.destination||'')}')">🚐 En camino</button>` : ''}
+        ${isCamino ? `<button class="btn btn-done-action" onclick="completarVuelta('${v.id}')">✓ ACABÉ</button>` : ''}
+      </div>` : ''}
+      ${thumbsHtml}
+      ${(isCamino || isDone) ? (canPhoto ? `<button class="btn-foto" onclick="tomarFoto('${v.id}')">📷 Cámara</button><button class="btn-foto" onclick="tomarFotoGaleria('${v.id}')">🖼 Galería</button>` : `<button class="btn-foto" disabled>📷 3/3 — máximo alcanzado</button>`) : ''}
+    </div>`;
+}
+
+function buildDomCard(d) {
+  const st      = d.status || 'pendiente';
+  const isPend  = st === 'pendiente';
+  const isCam   = st === 'en_camino';
+  const isEnt   = st === 'entregado';
+  const isNoEnt = st === 'no_entregado';
+  const cardCls = isEnt ? 'mc-done' : isCam ? 'mc-camino' : isNoEnt ? 'mc-noent' : '';
+  const cirCls  = isEnt ? 'mc-done' : isCam ? 'mc-camino' : '';
+  const STATUS_LBL = { pendiente:'Pendiente', en_camino:'En camino', entregado:'Entregado', no_entregado:'No entregado' };
+  const dirFull    = d.direccion || '';
+  const expandable = dirFull.length > 55;
+  const photos = d.photos || [];
+  const canPhoto = (isCam || isEnt) && photos.length < 3;
+  const thumbs = photos.length
+    ? `<div class="photo-strip">${photos.map(u => `<img class="photo-thumb" src="${esc(u)}" onclick="window.open('${escAttr(u)}','_blank')" alt="foto"/>`).join('')}</div>`
+    : '';
+  const comentario = d.comentario || '';
+  const btnLabel   = comentario
+    ? '💬 Comentario <span style="color:var(--warn-tx)">●</span>'
+    : '💬 Agregar comentario';
+  const doneTime = d.completadoAt
+    ? new Date(d.completadoAt).toLocaleTimeString('es-SV', { hour:'2-digit', minute:'2-digit', hour12:false })
+    : '';
+
+  return `
+    <div class="mcard ${cardCls}" id="mc-${d.id}">
+      ${d._carryover ? `<div style="font-size:.58rem;font-weight:700;padding:3px 10px;background:var(--err-bg);color:var(--err-tx);border-bottom:1px solid var(--err-bd);border-radius:var(--r) var(--r) 0 0;text-align:center">⚠ Pendiente de día anterior · ${d.date || ''}</div>` : d._arrastre ? `<div style="font-size:.58rem;font-weight:700;padding:3px 10px;background:var(--warn-bg);color:var(--warn-tx);border-bottom:1px solid var(--warn-bd);border-radius:var(--r) var(--r) 0 0;text-align:center">📅 Arrastre — ${d.date || ''}</div>` : ''}
+      <div class="mcard-top">
+        <div class="m-order-circle ${cirCls}" style="font-size:1.1rem">📦</div>
+        <div class="mcard-info">
+          <div style="font-size:.52rem;font-weight:700;letter-spacing:.1em;color:var(--muted);text-transform:uppercase;margin-bottom:2px">Entrega</div>
+          <div class="mcard-dest">${esc((d.cliente || '').toUpperCase())}</div>
+          <div style="margin-top:4px">
+            <span class="dmbadge dmbadge-${st}">${STATUS_LBL[st] || st}</span>
+            ${d.assignedTo ? ` <span style="font-size:.6rem;color:var(--text2)">👤 ${esc(d.assignedTo)}</span>` : ''}
           </div>
         </div>
-        ${isCamino ? `<div class="mcard-yendo">🚐 Yendo a ${esc(v.destination || '')}…</div>` : ''}
-        ${ordenLink}
-        ${!isDone ? `
-        <div class="mcard-actions">
-          ${isPending ? `
-            <button class="btn btn-warn" onclick="irEnCamino('${v.id}','${escAttr(v.destination||'')}')">
-              🚐 En camino
-            </button>` : ''}
-          ${isCamino ? `
-            <button class="btn btn-done-action" onclick="completarVuelta('${v.id}')">
-              ✓ ACABÉ
-            </button>` : ''}
-        </div>` : ''}
-        ${thumbsHtml}
-        ${(isCamino || isDone) ? `<button class="btn-foto" onclick="tomarFoto('${v.id}')" ${canPhoto ? '' : 'disabled'}>
-          ${canPhoto ? '📷 Foto' : '📷 3/3 — máximo alcanzado'}
-        </button>` : ''}
-      </div>`;
-  }).join('');
+      </div>
+      <div style="padding:2px 14px 10px;display:flex;flex-direction:column;gap:4px">
+        ${dirFull ? `<div class="dir-line${expandable ? ' dir-exp' : ''}" ${expandable ? 'onclick="toggleDir(this)"' : ''} style="font-size:.72rem;color:var(--text2)">📍 ${esc(dirFull)}</div>` : ''}
+        ${d.puntoReferencia ? `<div style="font-size:.67rem;color:var(--muted)">🔖 ${esc(d.puntoReferencia)}</div>` : ''}
+        ${d.telefono      ? `<div style="font-size:.68rem;color:var(--text2)">📞 ${esc(d.telefono)}</div>` : ''}
+        ${d.total         ? `<div style="font-size:.7rem;font-weight:700">💳 $${Number(d.total).toFixed(2)}${d.formaPago ? ` · ${esc(d.formaPago)}` : ''}</div>` : ''}
+      </div>
+      ${isEnt  ? `<div style="padding:0 14px 10px;font-size:.7rem;color:var(--done-tx);font-weight:600">✓ Entregado${doneTime ? ` a las ${doneTime}` : ''} — solo lectura</div>` : ''}
+      ${isNoEnt ? `<div style="padding:0 14px 10px;font-size:.7rem;color:var(--err-tx);font-weight:600">✗ ${esc(d.motivoNoEntrega||'No entregado')}${d.fechaReagenda ? ` · Reagenda: ${d.fechaReagenda}` : ''}</div>` : ''}
+      ${thumbs}
+      ${isPend ? `<div class="mcard-actions"><button class="btn btn-warn" onclick="salirDomicilio('${d.id}')">🏠 SALIR →</button></div>` : ''}
+      ${isCam  ? `<div class="mcard-actions">
+        <button class="btn btn-done-action" onclick="acabeDomicilio('${d.id}')">✓ ACABÉ</button>
+        <button class="btn" style="background:var(--err-bg);color:var(--err-tx);border:1px solid var(--err-bd);width:100%;font-size:.82rem;min-height:48px" onclick="noPudeEntregar('${d.id}')">✗ No pude entregar</button>
+      </div>` : ''}
+      ${isNoEnt ? `<div class="mcard-actions">
+        <button class="btn btn-done-action" onclick="reintentarEntrega('${d.id}')">🔄 Reintentar entrega</button>
+      </div>` : ''}
+      ${(isCam || isEnt) ? (canPhoto ? `<button class="btn-foto" onclick="tomarFotoDom('${d.id}')">📷 Cámara</button><button class="btn-foto" onclick="tomarFotoDomGaleria('${d.id}')">🖼 Galería</button>` : `<button class="btn-foto" disabled>📷 3/3 — máximo alcanzado</button>`) : ''}
+      <div style="padding:0 14px 10px">
+        <button
+          id="btn-com-${d.id}"
+          style="background:none;border:none;font-family:var(--mono);
+                 font-size:.65rem;color:var(--text2);cursor:pointer;
+                 padding:4px 0;text-align:left"
+          onclick="toggleComentario('${d.id}')">
+          ${btnLabel} ▾
+        </button>
+        <div id="com-box-${d.id}" style="display:none;margin-top:6px">
+          <textarea
+            id="com-txt-${d.id}"
+            rows="3"
+            placeholder="Escribe un comentario sobre esta entrega…"
+            style="width:100%;padding:8px 10px;border:1px solid var(--border);
+                   border-radius:var(--r);font-family:var(--mono);font-size:.68rem;
+                   background:var(--surface2);color:var(--text);resize:none;
+                   outline:none;line-height:1.5"
+            >${escHtml(comentario)}</textarea>
+          <button
+            onclick="guardarComentario('${d.id}')"
+            style="margin-top:6px;width:100%;padding:8px;border:none;
+                   border-radius:var(--r);background:var(--accent);
+                   color:#fff;font-family:var(--mono);font-size:.65rem;
+                   font-weight:700;letter-spacing:.06em;cursor:pointer;
+                   min-height:40px">
+            Guardar comentario
+          </button>
+        </div>
+      </div>
+    </div>`;
 }
+
+window.toggleComentario = id => {
+  const box  = $(`com-box-${id}`);
+  const btn  = $(`btn-com-${id}`);
+  const open = box.style.display === 'none';
+  box.style.display = open ? '' : 'none';
+  btn.innerHTML = btn.innerHTML.replace(/[▾▴]/, open ? '▴' : '▾');
+};
+
+window.guardarComentario = async id => {
+  const txt = $(`com-txt-${id}`)?.value?.trim() || '';
+  try {
+    await fbMod.updateDoc(fbMod.doc(db, 'domicilios', id), { comentario: txt });
+    const btn = $(`btn-com-${id}`);
+    if (btn) {
+      btn.innerHTML = txt
+        ? '💬 Comentario <span style="color:var(--warn-tx)">●</span> ▴'
+        : '💬 Agregar comentario ▴';
+    }
+  } catch(e) {
+    alert('Error al guardar comentario.');
+    console.error(e);
+  }
+};
 
 /* ═══════════════════════════════════
    DARK MODE
@@ -718,8 +1008,9 @@ window.toggleDark = () => {
 window.irEnCamino = async (id, dest) => {
   const gps = await getGPS();
   const update = {
-    status:   'en_camino',
-    paradero: `En camino a ${dest} — ${nowTime()}`
+    status:     'en_camino',
+    enCaminoAt: Date.now(),
+    paradero:   `En camino a ${dest} — ${nowTime()}`
   };
   if (gps) update.location_start = gps;
   try {
@@ -732,6 +1023,7 @@ window.completarVuelta = async id => {
   const update = {
     status:      'done',
     completedAt: Date.now(),
+    date:        today(),
     paradero:    '',
     emergency:   false
   };
@@ -744,6 +1036,13 @@ window.completarVuelta = async id => {
 window.tomarFoto = id => {
   fotoVueltaId = id;
   const inp = $('foto-input');
+  inp.value = '';
+  inp.click();
+};
+
+window.tomarFotoGaleria = id => {
+  fotoVueltaId = id;
+  const inp = $('foto-input-galeria');
   inp.value = '';
   inp.click();
 };
@@ -779,8 +1078,133 @@ window.revertirVuelta = async id => {
 };
 
 /* ═══════════════════════════════════
+   ACCIONES DOMICILIOS
+═══════════════════════════════════ */
+window.salirDomicilio = async id => {
+  const gps = await getGPS();
+  const update = { status: 'en_camino', enCaminoAt: Date.now() };
+  if (gps) update.gpsInicio = gps;
+  try { await fbMod.updateDoc(fbMod.doc(db, 'domicilios', id), update); }
+  catch(e) { console.error(e); }
+};
+
+window.acabeDomicilio = async id => {
+  const gps = await getGPS();
+  const d   = cachedDomicilios.find(x => x.id === id);
+  const update = { status: 'entregado', completadoAt: Date.now(), date: today() };
+  if (gps) update.gpsFin = gps;
+  try {
+    await fbMod.updateDoc(fbMod.doc(db, 'domicilios', id), update);
+    notify('📦 Entrega completada', `${currentDriver} entregó a ${d?.cliente || ''}`);
+    if (d && WHATSAPP_GROUP) {
+      const hora = new Date().toLocaleTimeString('es-SV', { hour: '2-digit', minute: '2-digit', hour12: false });
+      const msg  = encodeURIComponent(
+        `✅ Entrega completada\nCliente: ${d.cliente || '—'}\nTel: ${d.telefono || '—'}\nDirección: ${d.direccion || '—'}\nMonto: $${d.total || '0'} · ${d.formaPago || '—'}\nMotorista: ${currentDriver}\n🕐 ${hora}`
+      );
+      window.open(`https://wa.me/${WHATSAPP_GROUP}?text=${msg}`, '_blank');
+    }
+  } catch(e) { console.error(e); }
+};
+
+window.reintentarEntrega = async id => {
+  try {
+    await fbMod.updateDoc(fbMod.doc(db, 'domicilios', id), {
+      status:          'en_camino',
+      motivoNoEntrega: '',
+      fechaReagenda:   '',
+      enCaminoAt:      Date.now()
+    });
+  } catch(e) { console.error(e); }
+};
+
+window.noPudeEntregar = id => {
+  noEntregaId     = id;
+  noEntregaMotivo = '';
+  $('ne-opciones').innerHTML = MOTIVOS_NE.map((m, i) =>
+    `<button class="ne-opt" id="ne-opt-${i}" onclick="selectNEMotivo(${i},'${escAttr(m)}')">${m}</button>`
+  ).join('');
+  $('ne-reagenda').style.display = 'none';
+  $('ne-fecha').value = '';
+  $('btn-confirmar-ne').disabled = false;
+  $('modal-noentrega').style.display = '';
+};
+
+window.selectNEMotivo = (idx, motivo) => {
+  noEntregaMotivo = motivo;
+  document.querySelectorAll('.ne-opt').forEach((b, i) => b.classList.toggle('ne-sel', i === idx));
+  $('ne-reagenda').style.display = motivo === 'Cliente reagendó' ? '' : 'none';
+};
+
+window.confirmarNoEntrega = async () => {
+  if (!noEntregaMotivo) { alert('Selecciona un motivo'); return; }
+  const btn = $('btn-confirmar-ne');
+  btn.disabled = true;
+  const d = cachedDomicilios.find(x => x.id === noEntregaId);
+  const fechaReagenda = $('ne-fecha').value || '';
+  try {
+    await fbMod.updateDoc(fbMod.doc(db, 'domicilios', noEntregaId), {
+      status: 'no_entregado',
+      motivoNoEntrega: noEntregaMotivo,
+      fechaReagenda
+    });
+    closeNoEntregaModal();
+    if (d) {
+      const msg = encodeURIComponent(
+        `🚨 Entrega pendiente\nCliente: ${d.cliente}\nTel: ${d.telefono}\nMotivo: ${noEntregaMotivo}\nDirección: ${d.direccion}`
+      );
+      window.open(`https://wa.me/${WHATSAPP_GROUP}?text=${msg}`, '_blank');
+    }
+  } catch(e) {
+    console.error(e);
+    alert('Error al guardar');
+    btn.disabled = false;
+  }
+};
+
+window.closeNoEntregaModal = (e) => {
+  if (e && e.target !== $('modal-noentrega')) return;
+  $('modal-noentrega').style.display = 'none';
+  noEntregaId = null; noEntregaMotivo = '';
+};
+
+window.tomarFotoDom = id => {
+  fotoDomId = id;
+  const inp = $('foto-dom-input');
+  inp.value = '';
+  inp.click();
+};
+
+window.tomarFotoDomGaleria = id => {
+  fotoDomId = id;
+  const inp = $('foto-dom-input-galeria');
+  inp.value = '';
+  inp.click();
+};
+
+window.uploadFotoDom = async input => {
+  const file = input.files[0];
+  if (!file || !fotoDomId) return;
+  const id  = fotoDomId;
+  const btn = document.querySelector(`#mc-${id} .btn-foto`);
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Subiendo…'; }
+  try {
+    const path    = `domicilios/${id}/${Date.now()}_${currentDriver}.jpg`;
+    const storRef = storageMod.ref(storage, path);
+    await storageMod.uploadBytes(storRef, file);
+    const url = await storageMod.getDownloadURL(storRef);
+    await fbMod.updateDoc(fbMod.doc(db, 'domicilios', id), { photos: fbMod.arrayUnion(url) });
+  } catch(e) {
+    console.error(e);
+    alert('Error al subir la foto. Intenta de nuevo.');
+    if (btn) { btn.disabled = false; btn.textContent = '📷 Foto'; }
+  }
+};
+
+/* ═══════════════════════════════════
    UTILS
 ═══════════════════════════════════ */
+window.toggleDir = el => el.classList.toggle('open');
+
 function esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
@@ -791,6 +1215,25 @@ function escAttr(s) { return String(s).replace(/'/g,"\\'"); }
 ═══════════════════════════════════ */
 document.addEventListener('DOMContentLoaded', init);
 </script>
-<input type="file" id="foto-input" accept="image/*" capture="environment" style="display:none" onchange="uploadFoto(this)"/>
+<input type="file" id="foto-input"        accept="image/*" capture="environment" style="display:none" onchange="uploadFoto(this)"/>
+<input type="file" id="foto-input-galeria" accept="image/*"                      style="display:none" onchange="uploadFoto(this)"/>
+<input type="file" id="foto-dom-input"        accept="image/*" capture="environment" style="display:none" onchange="uploadFotoDom(this)"/>
+<input type="file" id="foto-dom-input-galeria" accept="image/*"                      style="display:none" onchange="uploadFotoDom(this)"/>
+
+<!-- ══════════════ MODAL NO ENTREGA ══════════════ -->
+<div id="modal-noentrega" style="display:none;position:fixed;inset:0;z-index:500;background:rgba(0,0,0,.52)" onclick="closeNoEntregaModal(event)">
+  <div style="position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-radius:10px 10px 0 0;padding:1.25rem 1.25rem 2.5rem;max-width:480px;margin:0 auto;animation:slideUp .2s ease;max-height:82vh;overflow-y:auto">
+    <div style="font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:1rem">¿Por qué no pudiste entregar?</div>
+    <div id="ne-opciones"></div>
+    <div id="ne-reagenda" style="display:none;margin-top:.75rem">
+      <label style="display:block;font-size:.6rem;font-weight:700;letter-spacing:.1em;color:var(--muted);text-transform:uppercase;margin-bottom:5px">Fecha nueva entrega</label>
+      <input type="date" id="ne-fecha" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--r);font-family:var(--mono);font-size:.78rem;background:var(--surface);color:var(--text);outline:none"/>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:1rem">
+      <button style="flex:1;padding:11px;border:1px solid var(--border);border-radius:var(--r);background:transparent;font-family:var(--mono);font-size:.7rem;font-weight:700;letter-spacing:.07em;cursor:pointer;color:var(--text2);min-height:48px" onclick="closeNoEntregaModal()">Cancelar</button>
+      <button id="btn-confirmar-ne" style="flex:1;padding:11px;border:none;border-radius:var(--r);background:var(--err-tx);color:#fff;font-family:var(--mono);font-size:.7rem;font-weight:700;letter-spacing:.07em;cursor:pointer;min-height:48px" onclick="confirmarNoEntrega()">Confirmar →</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>

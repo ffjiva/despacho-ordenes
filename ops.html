@@ -131,6 +131,7 @@ html, body {
   transition: border-color .15s; outline: none;
 }
 .fld input:focus, .fld textarea:focus, .fld select:focus { border-color: var(--accent); }
+.fld select option { color: #18180f; background: #ffffff; }
 .fld textarea { min-height: 80px; resize: vertical; }
 
 /* ── NOTICE BOXES ── */
@@ -368,6 +369,8 @@ html, body {
 .vcard-done-time { font-size: .6rem;  color: var(--done-tx); padding: 0 12px 6px 50px; }
 .vloc-link { font-size: .6rem; color: var(--info-tx); text-decoration: none; display: inline-block; margin-top: 2px; }
 .vloc-link:hover { text-decoration: underline; }
+.ord-trigger { width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--r);font-family:var(--mono);font-size:.73rem;background:var(--surface);color:var(--text);text-align:left;cursor:pointer;display:flex;justify-content:space-between;align-items:center;outline:none; }
+.ord-panel   { position:absolute;z-index:300;width:100%;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);margin-top:2px;max-height:220px;overflow-y:auto;box-shadow:0 4px 14px rgba(0,0,0,.18); }
 .vstats { display: flex; gap: 8px; padding: .75rem .875rem; flex-wrap: wrap; }
 .vstat-badge {
   flex: 1; min-width: 70px; background: var(--surface); border: 1px solid var(--border);
@@ -658,6 +661,7 @@ body:not(.dark) input[type="time"] {
   padding: 2.5rem 1rem; cursor: pointer; transition: all .15s;
 }
 .rep-dropzone:hover { border-color: var(--accent); background: var(--surface); }
+.rep-dropzone.drag-over { border-color: var(--accent); background: var(--surface); transform: scale(1.01); }
 .rep-drop-icon { font-size: 2.2rem; margin-bottom: .6rem; opacity: .35; }
 .rep-drop-text { font-size: .72rem; color: var(--text2); line-height: 1.9; }
 
@@ -793,6 +797,17 @@ body:not(.dark) input[type="time"] {
   font-size: .62rem; letter-spacing: .04em; color: var(--muted);
   text-transform: uppercase; font-family: var(--font); font-weight: 700;
 }
+.traz-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); margin-bottom: .6rem; overflow: hidden; }
+.traz-card-hdr { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; cursor: pointer; gap: 8px; }
+.traz-card-hdr:hover { background: var(--surface2); }
+.traz-badge { font-size: .65rem; font-family: var(--mono); font-weight: 700; padding: 2px 8px; border-radius: 4px; background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+.traz-badge-dest { background: var(--accent); color: #fff; border-color: transparent; }
+.traz-detail { border-top: 1px solid var(--border); }
+.traz-prod-row { display: flex; align-items: center; gap: 8px; padding: 5px 14px; border-bottom: 1px solid var(--border2, #f0f0ec); }
+.traz-prod-row:last-of-type { border-bottom: none; }
+.traz-prod-code { font-family: var(--mono); font-size: .62rem; color: var(--muted); min-width: 80px; }
+.traz-prod-name { font-size: .7rem; flex: 1; }
+.traz-prod-qty { font-family: var(--mono); font-size: .72rem; font-weight: 700; min-width: 28px; text-align: right; }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
@@ -1026,6 +1041,17 @@ body:not(.dark) input[type="time"] {
       <div class="urg-opt" id="mv-urg-low"    onclick="selectVueltaUrg('low')">🔵 Baja</div>
     </div>
     <div class="fld">
+      <label>Fecha</label>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="date" id="v-modal-date" style="flex:1;padding:10px 12px;border:1px solid var(--border);border-radius:var(--r);font-family:var(--mono);font-size:.73rem;background:var(--surface);color:var(--text);outline:none"/>
+        <div style="display:flex;gap:4px">
+          <button type="button" class="btn btn-outline" style="font-size:.65rem;padding:5px 10px" onclick="setVueltaModalDate(0)">Hoy</button>
+          <button type="button" class="btn btn-outline" style="font-size:.65rem;padding:5px 10px" onclick="setVueltaModalDate(1)">+1</button>
+          <button type="button" class="btn btn-outline" style="font-size:.65rem;padding:5px 10px" onclick="setVueltaModalDate(2)">+2</button>
+        </div>
+      </div>
+    </div>
+    <div class="fld">
       <label>Destino</label>
       <div class="ubic-wrap">
         <input id="mv-dest" type="text" placeholder="Ej: Sucursal Norte" autocomplete="off"
@@ -1036,15 +1062,20 @@ body:not(.dark) input[type="time"] {
     </div>
     <div class="fld">
       <label>Motorista</label>
-      <select id="mv-motorista"><option value="">Sin asignar</option></select>
+      <select id="mv-motorista" style="color:var(--text);background:var(--surface)"><option value="">Sin asignar</option></select>
     </div>
     <div class="fld">
       <label>Descripción</label>
       <input id="mv-desc" type="text" placeholder="Qué lleva o hace…" autocomplete="off"/>
     </div>
     <div class="fld">
-      <label>Orden vinculada (opcional)</label>
-      <select id="mv-orden"><option value="">Sin vincular</option></select>
+      <label>Órdenes vinculadas (opcional)</label>
+      <div id="mv-orden-wrap" style="position:relative">
+        <button type="button" id="mv-orden-trigger" class="ord-trigger" onclick="toggleOrdenDropdown('mv')">
+          <span id="mv-orden-label">Sin vincular</span><span>▾</span>
+        </button>
+        <div id="mv-orden-panel" class="ord-panel" style="display:none"></div>
+      </div>
     </div>
     <div class="fld">
       <label>Foto (opcional)</label>
@@ -1052,8 +1083,12 @@ body:not(.dark) input[type="time"] {
         <img id="mv-foto-img" style="width:72px;height:72px;object-fit:cover;border-radius:6px;border:1px solid var(--border)" alt="preview"/>
         <button onclick="clearMvFoto()" style="background:transparent;border:1px solid var(--err-bd);color:var(--err-tx);border-radius:var(--r);font-family:var(--mono);font-size:.6rem;padding:4px 10px;cursor:pointer">✕ Quitar</button>
       </div>
-      <button class="btn btn-outline btn-full" style="font-size:.68rem" onclick="document.getElementById('mv-foto-input').click()">📷 Adjuntar foto</button>
-      <input type="file" id="mv-foto-input" accept="image/*" capture="environment" style="display:none" onchange="previewMvFoto(this)"/>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-outline" style="font-size:.68rem;flex:1" onclick="document.getElementById('mv-foto-input').click()">📷 Cámara</button>
+        <button class="btn btn-outline" style="font-size:.68rem;flex:1" onclick="document.getElementById('mv-foto-input-galeria').click()">🖼 Galería</button>
+      </div>
+      <input type="file" id="mv-foto-input"         accept="image/*" capture="environment" style="display:none" onchange="previewMvFoto(this)"/>
+      <input type="file" id="mv-foto-input-galeria"  accept="image/*"                      style="display:none" onchange="previewMvFoto(this)"/>
     </div>
     <div class="modal-btns">
       <button class="btn btn-outline" onclick="closeNewVueltaModal()">Cancelar</button>
@@ -1074,20 +1109,35 @@ body:not(.dark) input[type="time"] {
       <div class="urg-opt" id="ve-urg-low"    onclick="selectEditVueltaUrg('low')">🔵 Baja</div>
     </div>
     <div class="fld">
+      <label>Fecha</label>
+      <div style="display:flex;gap:6px;align-items:center">
+        <input id="ve-fecha" type="date" style="flex:1"/>
+        <button type="button" class="btn btn-outline" style="font-size:.6rem;padding:4px 8px;flex-shrink:0"
+          onclick="$('ve-fecha').value=new Date().toISOString().slice(0,10)">Hoy</button>
+        <button type="button" class="btn btn-outline" style="font-size:.6rem;padding:4px 8px;flex-shrink:0"
+          onclick="const d=new Date();d.setDate(d.getDate()+1);$('ve-fecha').value=d.toISOString().slice(0,10)">+1</button>
+      </div>
+    </div>
+    <div class="fld">
       <label>Destino</label>
       <input id="ve-dest" type="text" autocomplete="off"/>
     </div>
     <div class="fld">
       <label>Motorista</label>
-      <select id="ve-motorista"></select>
+      <select id="ve-motorista" style="color:var(--text);background:var(--surface)"></select>
     </div>
     <div class="fld">
       <label>Descripción</label>
       <input id="ve-desc" type="text" autocomplete="off"/>
     </div>
     <div class="fld">
-      <label>Orden vinculada (opcional)</label>
-      <select id="ve-orden"><option value="">Sin vincular</option></select>
+      <label>Órdenes vinculadas (opcional)</label>
+      <div id="ve-orden-wrap" style="position:relative">
+        <button type="button" id="ve-orden-trigger" class="ord-trigger" onclick="toggleOrdenDropdown('ve')">
+          <span id="ve-orden-label">Sin vincular</span><span>▾</span>
+        </button>
+        <div id="ve-orden-panel" class="ord-panel" style="display:none"></div>
+      </div>
     </div>
     <div class="fld">
       <label>Foto (opcional)</label>
@@ -1095,8 +1145,12 @@ body:not(.dark) input[type="time"] {
         <img id="ve-foto-img" style="width:72px;height:72px;object-fit:cover;border-radius:6px;border:1px solid var(--border)" alt="preview"/>
         <button onclick="clearVeFoto()" style="background:transparent;border:1px solid var(--err-bd);color:var(--err-tx);border-radius:var(--r);font-family:var(--mono);font-size:.6rem;padding:4px 10px;cursor:pointer">✕ Quitar</button>
       </div>
-      <button class="btn btn-outline btn-full" style="font-size:.68rem" onclick="document.getElementById('ve-foto-input').click()">📷 Adjuntar foto</button>
-      <input type="file" id="ve-foto-input" accept="image/*" capture="environment" style="display:none" onchange="previewVeFoto(this)"/>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-outline" style="font-size:.68rem;flex:1" onclick="document.getElementById('ve-foto-input').click()">📷 Cámara</button>
+        <button class="btn btn-outline" style="font-size:.68rem;flex:1" onclick="document.getElementById('ve-foto-input-galeria').click()">🖼 Galería</button>
+      </div>
+      <input type="file" id="ve-foto-input"         accept="image/*" capture="environment" style="display:none" onchange="previewVeFoto(this)"/>
+      <input type="file" id="ve-foto-input-galeria"  accept="image/*"                      style="display:none" onchange="previewVeFoto(this)"/>
     </div>
     <div class="modal-btns">
       <button class="btn btn-outline" onclick="closeVueltaEdit()">Cancelar</button>
@@ -1207,6 +1261,8 @@ let pendingDomicilios = [];
 let editingVueltaId = null;
 let newVueltaUrg    = 'normal';
 let editingVueltaUrg    = 'normal';
+let mvOrdenSel          = [];
+let veOrdenSel          = [];
 let cachedVueltas       = [];
 let cachedDomiciliosSup = [];
 let todasTipoFilter     = 'all';
@@ -1875,22 +1931,94 @@ async function loadRecentDespachos() {
   } catch { return []; }
 }
 
-function fillOrdenSelect(sel, despachos, selectedId = '') {
-  sel.innerHTML = '<option value="">Sin vincular</option>';
+async function loadTodayVueltas(date) {
+  if (!db) return [];
+  try {
+    const snap = await fbMod.getDocs(
+      fbMod.query(fbMod.collection(db, 'vueltas'), fbMod.where('date','==',date))
+    );
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch { return []; }
+}
+
+function fillOrdenCheckboxes(prefix, despachos, todayVueltas, selectedIds = [], excludeVueltaId = null) {
+  const linkedElsewhere = new Set();
+  todayVueltas.forEach(v => {
+    if (v.id === excludeVueltaId) return;
+    const ids = v.linkedOrderIds || (v.linkedOrderId ? [v.linkedOrderId] : []);
+    ids.forEach(oid => linkedElsewhere.add(oid));
+  });
   const activas = despachos.filter(d => {
     const prods = d.products || [];
     const done  = Object.values(d.checked || {}).filter(c => c.done).length;
-    return prods.length === 0 || done < prods.length;
+    return (prods.length === 0 || done < prods.length) &&
+           (!linkedElsewhere.has(d.id) || selectedIds.includes(d.id));
   });
-  activas.forEach(d => {
-    const num   = d.orderNumber ? `Orden ${d.orderNumber}` : escHtml(d.name || d.id);
-    const ruta  = (d.origin || d.destination)
-      ? ` · ${d.origin || '—'} → ${d.destination || '—'}`
-      : '';
-    const label = num + ruta;
-    sel.innerHTML += `<option value="${d.id}"${d.id === selectedId ? ' selected' : ''}>${label}</option>`;
-  });
+  if (prefix === 'mv') mvOrdenSel = [...selectedIds];
+  else veOrdenSel = [...selectedIds];
+  const panel = $(`${prefix}-orden-panel`);
+  if (!activas.length) {
+    panel.innerHTML = `<div style="padding:10px 12px;font-size:.73rem;color:var(--muted)">Sin órdenes activas disponibles</div>`;
+  } else {
+    panel.innerHTML = activas.map(d => {
+      const num  = d.orderNumber ? `Orden ${d.orderNumber}` : escHtml(d.name || d.id);
+      const ruta = (d.origin || d.destination) ? ` · ${d.origin||'—'} → ${d.destination||'—'}` : '';
+      const chk  = selectedIds.includes(d.id) ? 'checked' : '';
+      return `<label style="display:flex;align-items:center;gap:8px;padding:8px 12px;cursor:pointer;font-family:var(--mono);font-size:.73rem;border-bottom:1px solid var(--border)">
+        <input type="checkbox" value="${escHtml(d.id)}" data-num="${escHtml(num)}" ${chk}
+          onchange="onOrdenCheck('${prefix}',this)"
+          style="accent-color:var(--accent);width:16px;height:16px;flex-shrink:0">
+        <span>${escHtml(num + ruta)}</span>
+      </label>`;
+    }).join('');
+  }
+  updateOrdenTrigger(prefix);
 }
+
+window.toggleOrdenDropdown = prefix => {
+  const panel = $(`${prefix}-orden-panel`);
+  const isOpen = panel.style.display !== 'none';
+  ['mv','ve'].forEach(p => { const pp = $(`${p}-orden-panel`); if (pp) pp.style.display = 'none'; });
+  if (!isOpen) panel.style.display = '';
+};
+
+window.onOrdenCheck = (prefix, cb) => {
+  const sel = prefix === 'mv' ? mvOrdenSel : veOrdenSel;
+  if (cb.checked) {
+    if (sel.length >= 5) { cb.checked = false; return; }
+    sel.push(cb.value);
+  } else {
+    const i = sel.indexOf(cb.value);
+    if (i >= 0) sel.splice(i, 1);
+  }
+  const atLimit = sel.length >= 5;
+  $(`${prefix}-orden-panel`).querySelectorAll('input[type=checkbox]').forEach(inp => {
+    if (!inp.checked) inp.disabled = atLimit;
+  });
+  updateOrdenTrigger(prefix);
+};
+
+function updateOrdenTrigger(prefix) {
+  const sel   = prefix === 'mv' ? mvOrdenSel : veOrdenSel;
+  const label = $(`${prefix}-orden-label`);
+  if (!sel.length)   { label.textContent = 'Sin vincular'; return; }
+  if (sel.length === 1) {
+    const cb = $(`${prefix}-orden-panel`).querySelector(`input[value="${sel[0]}"]`);
+    label.textContent = cb ? cb.dataset.num : '1 orden vinculada';
+  } else {
+    label.textContent = `${sel.length} órdenes vinculadas`;
+  }
+}
+
+document.addEventListener('click', e => {
+  ['mv','ve'].forEach(p => {
+    const wrap = $(`${p}-orden-wrap`);
+    if (wrap && !wrap.contains(e.target)) {
+      const panel = $(`${p}-orden-panel`);
+      if (panel) panel.style.display = 'none';
+    }
+  });
+});
 
 /* ── FOTO EN MODALES DE VUELTA ── */
 let mvFotoFile = null;
@@ -1966,15 +2094,23 @@ window.openNewVueltaModal = async () => {
   );
   $('mv-dest').value = '';
   $('mv-desc').value = '';
-  const [members, despachos] = await Promise.all([loadTeamMembers(), loadRecentDespachos()]);
+  const date = $('v-date').value;
+  const [members, despachos, todayVueltas] = await Promise.all([loadTeamMembers(), loadRecentDespachos(), loadTodayVueltas(date)]);
   const sel = $('mv-motorista');
   sel.innerHTML = '<option value="">Sin asignar</option>';
   members.forEach(m => {
     sel.innerHTML += `<option value="${escHtml(m)}">${escHtml(m)}</option>`;
   });
-  fillOrdenSelect($('mv-orden'), despachos);
+  fillOrdenCheckboxes('mv', despachos, todayVueltas);
+  $('v-modal-date').value = date;
   $('modal-nvuelta').classList.add('on');
   setTimeout(() => $('mv-dest')?.focus(), 100);
+};
+
+window.setVueltaModalDate = days => {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  $('v-modal-date').value = d.toISOString().slice(0,10);
 };
 
 window.closeNewVueltaModal = e => {
@@ -1995,7 +2131,7 @@ window.createVuelta = async () => {
   const dest = $('mv-dest').value.trim();
   const moto = $('mv-motorista').value;
   const desc = $('mv-desc').value.trim();
-  const date = $('v-date').value;
+  const date = $('v-modal-date').value || $('v-date').value;
 
   if (!dest) { $('mv-dest').focus(); return; }
   if (!moto) { alert('Selecciona un motorista.'); return; }
@@ -2010,28 +2146,28 @@ window.createVuelta = async () => {
     );
     const order = countSnap.size + 1;
 
-    const linkedOrderId = $('mv-orden').value || null;
+    const linkedOrderIds = [...mvOrdenSel];
     const docRef = await fbMod.addDoc(fbMod.collection(db, 'vueltas'), {
       date, order,
-      destination:   dest.toUpperCase(),
-      description:   desc,
-      assignedTo:    moto,
-      urgency:       newVueltaUrg,
-      linkedOrderId,
-      status:        'pending',
-      paradero:      '',
-      createdBy:     currentUser,
-      createdAt:     Date.now(),
-      completedAt:   null,
-      photos:        []
+      destination:    dest.toUpperCase(),
+      description:    desc,
+      assignedTo:     moto,
+      urgency:        newVueltaUrg,
+      linkedOrderIds,
+      status:         'pending',
+      paradero:       '',
+      createdBy:      currentUser,
+      createdAt:      Date.now(),
+      completedAt:    null,
+      photos:         []
     });
 
-    if (linkedOrderId && moto) {
-      try {
-        await fbMod.updateDoc(fbMod.doc(db, 'despachos', linkedOrderId), {
-          assignedTo: moto
-        });
-      } catch(e) { console.warn('No se pudo actualizar assignedTo del despacho:', e.message); }
+    if (linkedOrderIds.length && moto) {
+      for (const oid of linkedOrderIds) {
+        try {
+          await fbMod.updateDoc(fbMod.doc(db, 'despachos', oid), { assignedTo: moto });
+        } catch(e) { console.warn('No se pudo actualizar assignedTo del despacho:', e.message); }
+      }
     }
 
     if (mvFotoFile) {
@@ -2094,11 +2230,27 @@ window.renderVueltasSupervisor = list => {
   renderVueltasFiltradas();
 };
 
+function formatVueltaDateBadge(dateStr) {
+  if (!dateStr) return null;
+  const today    = new Date().toISOString().slice(0,10);
+  const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0,10);
+  if (dateStr < today)      return { label: 'VENCIDA', color: 'var(--err-tx)',  bg: 'var(--err-bg)' };
+  if (dateStr === today)    return null;
+  if (dateStr === tomorrow) return { label: 'MAÑANA',  color: 'var(--warn-tx)', bg: 'var(--warn-bg)' };
+  const [,m,d] = dateStr.split('-');
+  const meses  = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
+  return { label: `${parseInt(d)} ${meses[parseInt(m)-1]}`, color: 'var(--text2)', bg: 'var(--surface2)' };
+}
+
 function buildVueltaCard(v, prefix) {
   const sc     = v.status === 'done' ? 'v-done' : v.status === 'en_camino' ? 'v-camino' : '';
   const urgCls = v.urgency === 'high' ? 'urg-high' : v.urgency === 'low' ? 'urg-low' : 'urg-normal';
   const emgCls = v.emergency ? 'emergency' : '';
   const slabel = v.status === 'done' ? 'Completada' : v.status === 'en_camino' ? 'En camino' : 'Pendiente';
+  const dateBadge = formatVueltaDateBadge(v.date);
+  const dateBadgeHtml = dateBadge
+    ? `<span style="display:inline-block;padding:1px 7px;border-radius:3px;font-size:.6rem;font-weight:700;letter-spacing:.06em;background:${dateBadge.bg};color:${dateBadge.color};border:1px solid currentColor;opacity:.9">${dateBadge.label}</span>`
+    : '';
   const emgBtn = v.status !== 'done'
     ? (v.emergency
         ? `<button class="btn btn-outline" style="font-size:.6rem;padding:4px 10px" onclick="toggleEmergencia('${v.id}',true)">✓ Normal</button>`
@@ -2125,6 +2277,7 @@ function buildVueltaCard(v, prefix) {
             <div class="vcard-meta">
               <span class="vstatus vstatus-${v.status}">${slabel}</span>
               ${v.emergency ? `<span class="emergency-badge">🚨 EMERGENCIA</span>` : ''}
+              ${dateBadgeHtml}
               ${v.assignedTo ? `<span style="font-size:.6rem;color:var(--text2)">👤 ${escHtml(v.assignedTo)}</span>` : ''}
             </div>
           </div>
@@ -2135,9 +2288,9 @@ function buildVueltaCard(v, prefix) {
         ${buildVueltaTimeline(v)}
         ${gpsStart}
         ${gpsEnd}
-        ${(photos || v.linkedOrderId) ? `
+        ${(photos || v.linkedOrderId || (v.linkedOrderIds && v.linkedOrderIds.length)) ? `
           <div style="padding:4px 12px 10px;display:flex;flex-direction:column;gap:6px">
-            ${v.linkedOrderId ? `<a class="vloc-link" href="https://despacho-ordenes.web.app/?orden=${v.linkedOrderId}" target="_blank">📋 Ver orden vinculada →</a>` : ''}
+            ${(() => { const ids = v.linkedOrderIds || (v.linkedOrderId ? [v.linkedOrderId] : []); return ids.map(oid => `<a class="vloc-link" href="https://despacho-ordenes.web.app/?orden=${oid}" target="_blank">📋 Ver orden vinculada →</a>`).join(''); })()}
             ${photos ? `<div style="display:flex;gap:5px;flex-wrap:wrap">${photos}</div>` : ''}
           </div>` : ''}
         <div class="vcard-actions" onclick="event.stopPropagation()">
@@ -2182,16 +2335,19 @@ window.editVuelta = async id => {
     editingVueltaUrg = v.urgency || 'normal';
     $('ve-dest').value = v.destination || '';
     $('ve-desc').value = v.description || '';
+    $('ve-fecha').value = v.date || '';
     ['high','normal','low'].forEach(u =>
       $(`ve-urg-${u}`).className = `urg-opt${u === editingVueltaUrg ? ` sel-${u}` : ''}`
     );
-    const [members, despachos] = await Promise.all([loadTeamMembers(), loadRecentDespachos()]);
+    const date = $('v-date').value;
+    const [members, despachos, todayVueltas] = await Promise.all([loadTeamMembers(), loadRecentDespachos(), loadTodayVueltas(date)]);
     const sel = $('ve-motorista');
     sel.innerHTML = '<option value="">Sin asignar</option>';
     members.forEach(m => {
       sel.innerHTML += `<option value="${escHtml(m)}"${m === v.assignedTo ? ' selected' : ''}>${escHtml(m)}</option>`;
     });
-    fillOrdenSelect($('ve-orden'), despachos, v.linkedOrderId || '');
+    const existingIds = v.linkedOrderIds || (v.linkedOrderId ? [v.linkedOrderId] : []);
+    fillOrdenCheckboxes('ve', despachos, todayVueltas, existingIds, id);
     $('modal-vedit').classList.add('on');
     setTimeout(() => $('ve-dest')?.focus(), 100);
   } catch(e) { console.error(e); }
@@ -2218,22 +2374,23 @@ window.saveVueltaEdit = async () => {
   btn.disabled = true;
   btn.innerHTML = '<span class="spin"></span>Guardando…';
   try {
-    const editLinkedOrderId = $('ve-orden').value || null;
-    const editMotorista     = $('ve-motorista').value;
+    const editLinkedOrderIds = [...veOrdenSel];
+    const editMotorista      = $('ve-motorista').value;
     await fbMod.updateDoc(fbMod.doc(db, 'vueltas', editingVueltaId), {
-      destination:   dest.toUpperCase(),
-      description:   $('ve-desc').value.trim(),
-      assignedTo:    editMotorista,
-      urgency:       editingVueltaUrg,
-      linkedOrderId: editLinkedOrderId
+      destination:    dest.toUpperCase(),
+      description:    $('ve-desc').value.trim(),
+      assignedTo:     editMotorista,
+      urgency:        editingVueltaUrg,
+      linkedOrderIds: editLinkedOrderIds,
+      date:           $('ve-fecha').value
     });
 
-    if (editLinkedOrderId && editMotorista) {
-      try {
-        await fbMod.updateDoc(fbMod.doc(db, 'despachos', editLinkedOrderId), {
-          assignedTo: editMotorista
-        });
-      } catch(e) { console.warn('No se pudo actualizar assignedTo del despacho:', e.message); }
+    if (editLinkedOrderIds.length && editMotorista) {
+      for (const oid of editLinkedOrderIds) {
+        try {
+          await fbMod.updateDoc(fbMod.doc(db, 'despachos', oid), { assignedTo: editMotorista });
+        } catch(e) { console.warn('No se pudo actualizar assignedTo del despacho:', e.message); }
+      }
     }
 
     if (veFotoFile) {
@@ -2792,6 +2949,19 @@ function buildDomCard(d, STATUS_LABEL, prefix) {
           <div style="padding:4px 12px 10px;display:flex;flex-direction:column;gap:6px">
             ${gpsPin}
             ${photos ? `<div style="display:flex;gap:5px;flex-wrap:wrap">${photos}</div>` : ''}
+          </div>` : ''}
+        ${d.comentario ? `
+          <div style="
+            margin:0 12px 10px;padding:10px 12px;
+            border-left:3px solid var(--warn-bd);
+            background:var(--warn-bg);border-radius:0 var(--r) var(--r) 0;
+          ">
+            <div style="font-size:.55rem;font-weight:700;letter-spacing:.1em;
+                        color:var(--warn-tx);text-transform:uppercase;
+                        margin-bottom:4px">💬 Comentario</div>
+            <div style="font-size:.7rem;color:var(--text);
+                        line-height:1.6;white-space:pre-wrap"
+            >${escHtml(d.comentario)}</div>
           </div>` : ''}
         <div class="dcard-actions" style="padding:6px 12px 10px;border-top:1px solid var(--border2);background:var(--surface2)">
           <button class="btn btn-outline" style="font-size:.6rem;padding:4px 10px" onclick="openEditDomModal('${d.id}')">✎ Editar</button>
@@ -3878,13 +4048,14 @@ const REP_LBLS     = { M01:'M01 Merliot', S02:'S02 Sv', S03:'S03 S.Miguel',
                        S04:'S04 Soya.',   S06:'S06 Zoditech', S07:'S07 Usulután' };
 const REP_FNAMES   = { M01:'Merliot', S02:'SanSalvador', S03:'SanMiguel',
                        S04:'Soyapango', S06:'Zoditech', S07:'Usulutan' };
-const REP_PRIORITY = { M01:'high', S02:'high', S04:'medium',
-                       S03:'low',  S06:'low',  S07:'low' };
-const REP_THRESH   = {
-  high:   { min: 3, target: 5 },
-  medium: { min: 1, target: 2 },
-  low:    { min: 0, target: 1 },
-};
+const REP_PRIORITY_ORDER   = ['M01','S02','S04','S03','S07','S06'];
+const REP_MINIMUMS_DEFAULT = { M01:5, S02:5, S04:3, S03:2, S07:2, S06:2 };
+let   REP_MINIMUMS         = { ...REP_MINIMUMS_DEFAULT };
+const REP_MAXIMUMS_DEFAULT = { M01:10, S02:10, S04:6, S03:5, S07:4, S06:5 };
+let   REP_MAXIMUMS         = { ...REP_MAXIMUMS_DEFAULT };
+let   REP_B01_RESERVE      = 2;
+let   REP_DIST_PCT         = 85;
+let   REP_FILL_TO_MAX      = false;
 const REP_KNOWN_BRANDS = [
   'BLUE MICROPHONE','THONET & VANDER','WESTERN DIGITAL','FORMULA V LINE','NIPPON AMERICA',
   'COOLER MASTER','EAGLE WARRIOR','HARMAN KARDON','SILICON POWER','BIT DEFENDER',
@@ -3942,6 +4113,11 @@ function saveRepSession() {
       activeCat:   repActiveCat,
       activeBrand: repActiveBrand,
       sortBy:      repSortBy,
+      distPct:     REP_DIST_PCT,
+      b01Reserve:  REP_B01_RESERVE,
+      minimums:    REP_MINIMUMS,
+      maximums:    REP_MAXIMUMS,
+      fillToMax:   REP_FILL_TO_MAX,
     }));
   } catch(e) { console.warn('saveRepSession:', e); }
 }
@@ -3964,11 +4140,47 @@ function loadRepSession() {
     repActiveCat   = d.activeCat   || '';
     repActiveBrand = d.activeBrand || '';
     repSortBy      = d.sortBy      || 'suggested';
+    if (d.distPct    !== undefined) REP_DIST_PCT    = d.distPct;
+    if (d.b01Reserve !== undefined) REP_B01_RESERVE = d.b01Reserve;
+    if (d.minimums   !== undefined) REP_MINIMUMS    = { ...REP_MINIMUMS_DEFAULT, ...d.minimums };
+    if (d.maximums   !== undefined) REP_MAXIMUMS    = { ...REP_MAXIMUMS_DEFAULT, ...d.maximums };
+    if (d.fillToMax  !== undefined) REP_FILL_TO_MAX = d.fillToMax;
     repProductMap.clear();
     repProducts.forEach(p => repProductMap.set(p.code, p));
     return repProducts.length > 0;
   } catch(e) { console.warn('loadRepSession:', e); return false; }
 }
+
+window.repDragOver = e => {
+  e.preventDefault();
+  e.stopPropagation();
+  e.currentTarget.classList.add('drag-over');
+};
+
+window.repDragLeave = e => {
+  e.preventDefault();
+  e.stopPropagation();
+  e.currentTarget.classList.remove('drag-over');
+};
+
+window.repDrop = e => {
+  e.preventDefault();
+  e.stopPropagation();
+  e.currentTarget.classList.remove('drag-over');
+  const files = Array.from(e.dataTransfer.files)
+    .filter(f => /\.(xls|xlsx)$/i.test(f.name));
+  if (!files.length) return;
+  const dt = new DataTransfer();
+  files.forEach(f => dt.items.add(f));
+  const fakeInput = { files: dt.files, value: '' };
+  handleRepFiles(fakeInput);
+};
+
+window.toggleRepConfig = () => {
+  const p = document.getElementById('rep-config-panel');
+  if (!p) return;
+  p.style.display = p.style.display === 'none' ? '' : 'none';
+};
 
 window.goReposicion = () => {
   showScreen('s-reposicion');
@@ -3979,6 +4191,69 @@ window.goReposicion = () => {
 };
 
 window.goBackFromReposicion = () => { showScreen('s-home'); };
+
+// ── Módulo 7 — Trazabilidad ───────────────────────────────────────────────
+let trazRecords = [];
+
+async function loadTrazabilidad() {
+  if (!db) return;
+  $('traz-loading').style.display = 'block';
+  $('traz-list').innerHTML = '';
+  try {
+    const { collection, getDocs, query, orderBy, limit } = fbMod;
+    const q = query(collection(db, 'reposiciones'), orderBy('timestamp', 'desc'), limit(100));
+    const snap = await getDocs(q);
+    trazRecords = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderTrazabilidad();
+  } catch (e) {
+    $('traz-list').innerHTML = `<div class="empty-state">Error al cargar: ${e.message}</div>`;
+  } finally {
+    $('traz-loading').style.display = 'none';
+  }
+}
+
+function renderTrazabilidad() {
+  const wrap = $('traz-list');
+  if (!trazRecords.length) {
+    wrap.innerHTML = '<div class="empty-state">Sin registros aún.</div>';
+    return;
+  }
+  wrap.innerHTML = trazRecords.map(r => {
+    const dt = new Date(r.timestamp);
+    const hora = dt.toLocaleTimeString('es-SV', { hour: '2-digit', minute: '2-digit' });
+    return `
+    <div class="traz-card">
+      <div class="traz-card-hdr" onclick="toggleTrazDetail('${r.id}')">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <span class="traz-badge">${r.origen}</span>
+          <span style="font-size:.7rem;color:var(--muted)">→</span>
+          <span class="traz-badge traz-badge-dest">${r.destino}</span>
+          <span style="font-size:.7rem;color:var(--muted)">${r.fecha} ${hora}</span>
+        </div>
+        <div style="display:flex;gap:12px;align-items:center">
+          <span style="font-size:.7rem;color:var(--muted)">${r.totalUnidades} uds · ${r.productos.length} prods</span>
+          <span style="font-size:.75rem;color:var(--muted)">▾</span>
+        </div>
+      </div>
+      <div id="traz-detail-${r.id}" class="traz-detail" style="display:none">
+        ${r.productos.map(p => `
+        <div class="traz-prod-row">
+          <span class="traz-prod-code">${p.codigo}</span>
+          <span class="traz-prod-name">${p.nombre}</span>
+          <span class="traz-prod-qty">${p.cantidad}</span>
+        </div>`).join('')}
+        <div style="padding:8px 14px;font-size:.65rem;color:var(--muted)">
+          Generado por: ${r.generadoPor || '—'}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+window.toggleTrazDetail = (id) => {
+  const el = $(`traz-detail-${id}`);
+  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+};
 
 window.clearRepSession = () => {
   if (repLoadedFiles.length && !confirm('¿Limpiar todo y empezar de nuevo?')) return;
@@ -4135,35 +4410,102 @@ function computeRepSuggestions() {
     const touched = REP_DESTS.some(sid => (repSendData[sid][p.code] || 0) > 0);
     if (touched) return;
 
-    let avail = (p.stock.B01 || 0) + (p.stock.B02 || 0);
-    if (avail <= 0) return;
+    const totalB    = (p.stock.B01 || 0) + (p.stock.B02 || 0);
+    const byReserve = Math.max(0, (p.stock.B01 || 0) - REP_B01_RESERVE)
+                    + (p.stock.B02 || 0);
+    const byPct     = Math.floor(totalB * REP_DIST_PCT / 100);
+    let available   = Math.min(byReserve, byPct);
+    if (available <= 0) return;
 
-    for (const sid of ['M01','S02']) {
-      if (avail <= 0) break;
-      const cur = p.stock[sid] || 0;
-      if (cur < REP_THRESH.high.min) {
-        const send = Math.min(Math.max(0, REP_THRESH.high.target - cur), avail);
-        if (send > 0) { repSendData[sid][p.code] = send; avail -= send; }
+    const WEIGHTS = { M01:4, S02:4, S04:4, S03:3, S07:3, S06:2 };
+
+    // Fase 1: cubrir mínimos en orden de prioridad
+    let remaining = available;
+    for (const sid of REP_PRIORITY_ORDER) {
+      if (remaining <= 0) break;
+      const cur  = p.stock[sid] || 0;
+      const need = Math.max(0, (REP_MINIMUMS[sid] || 0) - cur);
+      if (need > 0) {
+        const send = Math.min(need, remaining);
+        repSendData[sid][p.code] = send;
+        remaining -= send;
       }
     }
-    for (const sid of ['S04']) {
-      if (avail <= 0) break;
-      const cur = p.stock[sid] || 0;
-      if (cur < REP_THRESH.medium.min) {
-        const send = Math.min(Math.max(0, REP_THRESH.medium.target - cur), avail);
-        if (send > 0) { repSendData[sid][p.code] = send; avail -= send; }
-      }
-    }
-    for (const sid of ['S03','S06','S07']) {
-      if (avail <= 0) break;
-      const cur = p.stock[sid] || 0;
-      if (cur <= REP_THRESH.low.min) {
-        const send = Math.min(1, avail);
-        if (send > 0) { repSendData[sid][p.code] = send; avail -= send; }
+
+    // Fase 2: distribuir excedente
+    if (remaining > 0) {
+      if (REP_FILL_TO_MAX) {
+        // Modo "completar al tope": cada sucursal recibe lo que le falta para llegar a su tope
+        REP_PRIORITY_ORDER.forEach(sid => {
+          if (remaining <= 0) return;
+          const alreadySending = repSendData[sid][p.code] || 0;
+          const currentStock   = p.stock[sid] || 0;
+          const maxAllowed     = REP_MAXIMUMS[sid] || 999;
+          const gap = Math.max(0, maxAllowed - currentStock - alreadySending);
+          if (gap > 0) {
+            const send = Math.min(gap, remaining);
+            repSendData[sid][p.code] = alreadySending + send;
+            remaining -= send;
+          }
+        });
+      } else {
+        // Modo proporcional (comportamiento original)
+        const totalW = Object.values(WEIGHTS).reduce((a,b) => a+b, 0);
+        let   given  = 0;
+        const extras = {};
+        REP_PRIORITY_ORDER.forEach(sid => {
+          const share = Math.floor(remaining * WEIGHTS[sid] / totalW);
+          extras[sid] = share;
+          given += share;
+        });
+        if (given < remaining) extras['M01'] = (extras['M01'] || 0) + (remaining - given);
+        REP_PRIORITY_ORDER.forEach(sid => {
+          if ((extras[sid] || 0) > 0) {
+            const currentStock = p.stock[sid] || 0;
+            const maxAllowed   = REP_MAXIMUMS[sid] || 999;
+            if (currentStock < maxAllowed) {
+              repSendData[sid][p.code] = (repSendData[sid][p.code] || 0) + extras[sid];
+            }
+          }
+        });
       }
     }
   });
 }
+
+window.applyRepConfig = () => {
+  REP_FILL_TO_MAX = $('cfg-fill-to-max').checked;
+  REP_B01_RESERVE = parseInt($('cfg-b01-reserve').value) || 2;
+  REP_DIST_PCT    = parseInt($('cfg-dist-pct').value)    || 85;
+  ['M01','S02','S04','S03','S07','S06'].forEach(sid => {
+    REP_MINIMUMS[sid] = parseInt($(`cfg-min-${sid}`).value) || 0;
+    REP_MAXIMUMS[sid] = parseInt($(`cfg-max-${sid}`).value) || 999;
+  });
+  REP_DESTS.forEach(sid => {
+    Object.keys(repSendData[sid] || {}).forEach(c => delete repSendData[sid][c]);
+  });
+  computeRepSuggestions();
+  renderRepTabs();
+  renderRepTable();
+  renderRepGlobalTotals();
+  saveRepSession();
+};
+
+window.resetRepConfig = () => {
+  REP_FILL_TO_MAX = false;
+  $('cfg-fill-to-max').checked = false;
+  REP_B01_RESERVE = 2;
+  REP_DIST_PCT    = 85;
+  REP_MINIMUMS    = { ...REP_MINIMUMS_DEFAULT };
+  REP_MAXIMUMS    = { ...REP_MAXIMUMS_DEFAULT };
+  $('cfg-b01-reserve').value = 2;
+  $('cfg-dist-pct').value    = 85;
+  ['M01','S02','S04','S03','S07','S06'].forEach(sid => {
+    $(`cfg-min-${sid}`).value = REP_MINIMUMS_DEFAULT[sid];
+    $(`cfg-max-${sid}`).value = REP_MAXIMUMS_DEFAULT[sid];
+  });
+  applyRepConfig();
+};
 
 function getTotalesGlobales() {
   return REP_DESTS.map(sid => {
@@ -4295,10 +4637,11 @@ function renderRepTable() {
   const totalSend = Object.values(send).reduce((s,v) => s+v, 0);
   const totalSendF= filtered.reduce((s,p) => s+(send[p.code]||0), 0);
   const filled    = Object.values(send).filter(v => v > 0).length;
-  const { min: _tMin, target: _tTgt } = REP_THRESH[REP_PRIORITY[sucId]];
+  const _minimum = REP_MINIMUMS[sucId] || 0;
   const totalSug  = filtered.reduce((s,p) => {
-    const sst = p.stock[sucId]||0, avail = (p.stock.B01||0)+(p.stock.B02||0);
-    return s + ((sst < _tMin && avail > 0) ? Math.min(Math.max(0, _tTgt - sst), avail) : 0);
+    const sst   = p.stock[sucId]||0;
+    const avail = Math.max(0,(p.stock.B01||0)-REP_B01_RESERVE)+(p.stock.B02||0);
+    return s + ((sst < _minimum && avail > 0) ? Math.min(_minimum - sst, avail) : 0);
   }, 0);
   $('rep-summary').innerHTML =
     `${filtered.length} productos · disponible B01+B02: <strong>${totalB}</strong> · ` +
@@ -4321,12 +4664,11 @@ function renderRepTable() {
   const sorted = [...filtered].sort((a, b) => {
     const sendA   = send[a.code] || 0;
     const sendB   = send[b.code] || 0;
-    const pri     = REP_PRIORITY[sucId];
-    const thresh  = REP_THRESH[pri];
-    const sugA    = ((a.stock[sucId]||0) < thresh.min &&
-                     (a.stock.B01||0)+(a.stock.B02||0) > 0) ? 1 : 0;
-    const sugB    = ((b.stock[sucId]||0) < thresh.min &&
-                     (b.stock.B01||0)+(b.stock.B02||0) > 0) ? 1 : 0;
+    const _min = REP_MINIMUMS[sucId] || 0;
+    const sugA = ((a.stock[sucId]||0) < _min &&
+                  Math.max(0,(a.stock.B01||0)-REP_B01_RESERVE)+(a.stock.B02||0) > 0) ? 1 : 0;
+    const sugB = ((b.stock[sucId]||0) < _min &&
+                  Math.max(0,(b.stock.B01||0)-REP_B01_RESERVE)+(b.stock.B02||0) > 0) ? 1 : 0;
     const bavailA = (a.stock.B01||0) + (a.stock.B02||0);
     const bavailB = (b.stock.B01||0) + (b.stock.B02||0);
 
@@ -4346,18 +4688,16 @@ function renderRepTable() {
       case 'col': {
         const valA = (() => {
           if (repSortCol==='sug') {
-            const pri=REP_PRIORITY[sucId],t=REP_THRESH[pri];
-            return ((a.stock[sucId]||0)<t.min&&(a.stock.B01||0)+(a.stock.B02||0)>0)
-              ? Math.min(t.target-(a.stock[sucId]||0),(a.stock.B01||0)+(a.stock.B02||0)) : 0;
+            const m=REP_MINIMUMS[sucId]||0, av=Math.max(0,(a.stock.B01||0)-REP_B01_RESERVE)+(a.stock.B02||0);
+            return ((a.stock[sucId]||0)<m&&av>0) ? Math.min(m-(a.stock[sucId]||0),av) : 0;
           }
           switch(repSortCol){case'b01':return a.stock.B01||0;case'b02':return a.stock.B02||0;case'suc':return a.stock[sucId]||0;}
           return 0;
         })();
         const valB = (() => {
           if (repSortCol==='sug') {
-            const pri=REP_PRIORITY[sucId],t=REP_THRESH[pri];
-            return ((b.stock[sucId]||0)<t.min&&(b.stock.B01||0)+(b.stock.B02||0)>0)
-              ? Math.min(t.target-(b.stock[sucId]||0),(b.stock.B01||0)+(b.stock.B02||0)) : 0;
+            const m=REP_MINIMUMS[sucId]||0, av=Math.max(0,(b.stock.B01||0)-REP_B01_RESERVE)+(b.stock.B02||0);
+            return ((b.stock[sucId]||0)<m&&av>0) ? Math.min(m-(b.stock[sucId]||0),av) : 0;
           }
           switch(repSortCol){case'b01':return b.stock.B01||0;case'b02':return b.stock.B02||0;case'suc':return b.stock[sucId]||0;}
           return 0;
@@ -4381,11 +4721,11 @@ function renderRepTable() {
     const b01   = p.stock.B01  || 0;
     const b02   = p.stock.B02  || 0;
     const sst   = p.stock[sucId] || 0;
-    const avail = b01 + b02;
-    const pri    = REP_PRIORITY[sucId];
-    const thresh = REP_THRESH[pri];
-    const sug    = (sst < thresh.min && avail > 0)
-      ? Math.min(Math.max(0, thresh.target - sst), avail) : 0;
+    const b01reserve = Math.max(0, b01 - REP_B01_RESERVE);
+    const avail      = b01reserve + b02;
+    const minimum    = REP_MINIMUMS[sucId] || 0;
+    const sug        = (sst < minimum && avail > 0)
+      ? Math.min(minimum - sst, avail) : 0;
 
     return `<tr>
       <td class="td-code">${escHtml(p.code)}</td>
@@ -4401,9 +4741,9 @@ function renderRepTable() {
               " title="${escAttr(p.brand)}">${escHtml(p.brand)}</span>`
           : '<span style="color:var(--border)">—</span>'}
       </td>` : ''}
-      <td class="td-stk ${stkCls(b01)}">${b01||'—'}</td>
-      <td class="td-stk ${stkCls(b02)}">${b02||'—'}</td>
-      <td class="td-stk ${stkCls(sst)}">${sst||'—'}</td>
+      <td class="td-stk ${stkCls(b01)}">${b01 > 0 ? b01 : '<span style="color:var(--border)">0</span>'}</td>
+      <td class="td-stk ${stkCls(b02)}">${b02 > 0 ? b02 : '<span style="color:var(--border)">0</span>'}</td>
+      <td class="td-stk ${stkCls(sst)}">${sst > 0 ? sst : '<span style="color:var(--border)">0</span>'}</td>
       <td class="td-sug">${sug>0?`<span class="sug-badge">▲${sug}</span>`:'—'}</td>
       <td class="td-send">
         <input type="number" min="0" step="1" value="${qty||''}"
@@ -4565,12 +4905,39 @@ function generateRepXLS(sucId) {
       XLSX.utils.book_append_sheet(wb, ws, 'Reposicion');
       const fecha = new Date().toISOString().slice(0, 10);
       XLSX.writeFile(wb,
-        `Reposicion_${REP_ORIGIN_NAMES[originId]}_${REP_FNAMES[sucId]}_${fecha}.xlsx`
+        `Reposicion_${REP_ORIGIN_NAMES[originId]}_${REP_FNAMES[sucId]}_${fecha}.xls`,
+        { bookType: 'biff8' }
       );
+      saveReposicionRecord(originId, sucId, sendMap, fecha);
     }, generated++ * 400);
   });
 
   if (!generated) alert(`Sin cantidades para ${REP_LBLS[sucId]}.`);
+}
+
+async function saveReposicionRecord(origen, destino, sendMap, fecha) {
+  if (!db) return;
+  try {
+    const { collection, addDoc } = fbMod;
+    const productos = Object.entries(sendMap)
+      .filter(([,qty]) => qty > 0)
+      .map(([codigo, cantidad]) => {
+        const p = repProductMap.get(codigo);
+        return { codigo, nombre: p ? p.name : codigo, cantidad };
+      });
+    if (!productos.length) return;
+    await addDoc(collection(db, 'reposiciones'), {
+      fecha,
+      timestamp: Date.now(),
+      origen,
+      destino,
+      productos,
+      totalUnidades: productos.reduce((s, p) => s + p.cantidad, 0),
+      generadoPor: currentUser || 'ops'
+    });
+  } catch (e) {
+    console.warn('saveReposicionRecord:', e);
+  }
 }
 
 window.analyzeWithAI = async () => {
@@ -4834,7 +5201,7 @@ document.addEventListener('DOMContentLoaded', init);
     </div>
     <div class="fld">
       <label>Reasignar motorista</label>
-      <select id="ed-motorista"><option value="">Sin asignar</option></select>
+      <select id="ed-motorista" style="color:var(--text);background:var(--surface)"><option value="">Sin asignar</option></select>
     </div>
     <div id="ed-err" style="display:none;font-size:.65rem;color:var(--err-tx);margin-bottom:.5rem"></div>
     <div class="modal-btns">
@@ -4849,6 +5216,8 @@ document.addEventListener('DOMContentLoaded', init);
   <div class="topbar">
     <div class="topbar-title">📊 Reposición</div>
     <div class="topbar-actions">
+      <button class="btn btn-ghost" style="font-size:.65rem"
+        onclick="showScreen('s-trazabilidad');loadTrazabilidad()">📋 Historial</button>
       <button class="btn btn-ghost" style="font-size:.65rem"
         onclick="goBackFromReposicion()">← Volver</button>
     </div>
@@ -4867,7 +5236,10 @@ document.addEventListener('DOMContentLoaded', init);
   <div id="rep-empty">
     <div class="rep-upload-zone">
       <div class="rep-dropzone"
-        onclick="document.getElementById('rep-xls-input').click()">
+        onclick="document.getElementById('rep-xls-input').click()"
+        ondragover="repDragOver(event)"
+        ondragleave="repDragLeave(event)"
+        ondrop="repDrop(event)">
         <div class="rep-drop-icon">📂</div>
         <div class="rep-drop-text">
           <strong>Subir reporte de inventario</strong><br/>
@@ -4883,6 +5255,58 @@ document.addEventListener('DOMContentLoaded', init);
 
   <div id="rep-data" style="display:none">
     <div id="rep-filelist" class="rep-filelist"></div>
+    <div id="rep-config-panel" style="display:none;padding:.5rem .875rem;border-bottom:1px solid var(--border2);background:var(--surface2)">
+      <div style="font-size:.6rem;font-weight:700;letter-spacing:.08em;color:var(--muted);margin-bottom:.5rem">PARÁMETROS DE REPOSICIÓN</div>
+      <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end">
+        <div>
+          <div style="font-size:.58rem;color:var(--muted);margin-bottom:3px">DISTRIBUCIÓN</div>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+            <div style="display:flex;gap:4px;align-items:center">
+              <span style="font-size:.6rem;color:var(--text2)">Reserva B01</span>
+              <input type="number" min="0" max="50" id="cfg-b01-reserve" class="rep-qty" style="width:48px" value="2"/>
+              <span style="font-size:.6rem;color:var(--text2)">uds</span>
+            </div>
+            <div style="display:flex;gap:4px;align-items:center">
+              <span style="font-size:.6rem;color:var(--text2)">Distribuir</span>
+              <input type="number" min="10" max="100" id="cfg-dist-pct" class="rep-qty" style="width:48px" value="85"/>
+              <span style="font-size:.6rem;color:var(--text2)">% del stock</span>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:.58rem;color:var(--muted);margin-bottom:3px">MÍNIMOS POR SUCURSAL</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <div style="text-align:center"><div style="font-size:.57rem;color:var(--text2);margin-bottom:2px">M01</div><input type="number" min="0" max="50" id="cfg-min-M01" class="rep-qty" style="width:44px" value="5"/></div>
+            <div style="text-align:center"><div style="font-size:.57rem;color:var(--text2);margin-bottom:2px">S02</div><input type="number" min="0" max="50" id="cfg-min-S02" class="rep-qty" style="width:44px" value="5"/></div>
+            <div style="text-align:center"><div style="font-size:.57rem;color:var(--text2);margin-bottom:2px">S04</div><input type="number" min="0" max="50" id="cfg-min-S04" class="rep-qty" style="width:44px" value="3"/></div>
+            <div style="text-align:center"><div style="font-size:.57rem;color:var(--text2);margin-bottom:2px">S03</div><input type="number" min="0" max="50" id="cfg-min-S03" class="rep-qty" style="width:44px" value="2"/></div>
+            <div style="text-align:center"><div style="font-size:.57rem;color:var(--text2);margin-bottom:2px">S07</div><input type="number" min="0" max="50" id="cfg-min-S07" class="rep-qty" style="width:44px" value="2"/></div>
+            <div style="text-align:center"><div style="font-size:.57rem;color:var(--text2);margin-bottom:2px">S06</div><input type="number" min="0" max="50" id="cfg-min-S06" class="rep-qty" style="width:44px" value="2"/></div>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:.58rem;color:var(--muted);margin-bottom:3px">TOPES (no enviar si stock ≥)</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <div style="text-align:center"><div style="font-size:.57rem;color:var(--text2);margin-bottom:2px">M01</div><input type="number" min="0" max="999" id="cfg-max-M01" class="rep-qty" style="width:44px" value="10"/></div>
+            <div style="text-align:center"><div style="font-size:.57rem;color:var(--text2);margin-bottom:2px">S02</div><input type="number" min="0" max="999" id="cfg-max-S02" class="rep-qty" style="width:44px" value="10"/></div>
+            <div style="text-align:center"><div style="font-size:.57rem;color:var(--text2);margin-bottom:2px">S04</div><input type="number" min="0" max="999" id="cfg-max-S04" class="rep-qty" style="width:44px" value="6"/></div>
+            <div style="text-align:center"><div style="font-size:.57rem;color:var(--text2);margin-bottom:2px">S03</div><input type="number" min="0" max="999" id="cfg-max-S03" class="rep-qty" style="width:44px" value="5"/></div>
+            <div style="text-align:center"><div style="font-size:.57rem;color:var(--text2);margin-bottom:2px">S07</div><input type="number" min="0" max="999" id="cfg-max-S07" class="rep-qty" style="width:44px" value="4"/></div>
+            <div style="text-align:center"><div style="font-size:.57rem;color:var(--text2);margin-bottom:2px">S06</div><input type="number" min="0" max="999" id="cfg-max-S06" class="rep-qty" style="width:44px" value="5"/></div>
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          <label style="display:flex;align-items:center;gap:5px;font-size:.62rem;color:var(--text2);cursor:pointer">
+            <input type="checkbox" id="cfg-fill-to-max"
+              onchange="REP_FILL_TO_MAX=this.checked"
+              style="accent-color:var(--accent);width:13px;height:13px"/>
+            Completar al tope
+          </label>
+          <button class="btn btn-dark" style="font-size:.62rem" onclick="applyRepConfig()">↺ Recalcular</button>
+          <button class="btn btn-ghost" style="font-size:.6rem" onclick="resetRepConfig()">Reset</button>
+        </div>
+      </div>
+    </div>
     <div id="rep-global-totals" style="
       display:none;
       padding:.4rem .875rem;
@@ -4895,6 +5319,10 @@ document.addEventListener('DOMContentLoaded', init);
       <button class="btn btn-outline" style="font-size:.6rem"
         onclick="document.getElementById('rep-xls-input').click()">
         + Agregar archivo
+      </button>
+      <button class="btn btn-outline" style="font-size:.6rem"
+        onclick="toggleRepConfig()">
+        ⚙ Parámetros
       </button>
       <button class="btn btn-outline" style="font-size:.6rem;color:var(--err-tx)"
         onclick="clearRepSession()">
@@ -4917,6 +5345,21 @@ document.addEventListener('DOMContentLoaded', init);
     </div>
     <div id="rep-table-wrap" class="rep-table-wrap"></div>
   </div>
+</div>
+
+<div id="s-trazabilidad" class="scr">
+  <div class="topbar">
+    <div class="topbar-title">📋 Historial de Reposiciones</div>
+    <div class="topbar-actions">
+      <button class="btn btn-ghost" style="font-size:.65rem"
+        onclick="showScreen('s-reposicion')">← Volver</button>
+    </div>
+  </div>
+  <div id="traz-loading" style="display:none;text-align:center;padding:3rem 1rem">
+    <span class="spin"></span>
+    <span style="font-size:.72rem;color:var(--muted);margin-left:8px">Cargando…</span>
+  </div>
+  <div id="traz-list" style="padding:.75rem .875rem 5rem"></div>
 </div>
 </body>
 </html>

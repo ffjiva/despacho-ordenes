@@ -1,0 +1,39 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "vueltas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "date",       "order": "ASCENDING" },
+        { "fieldPath": "assignedTo", "order": "ASCENDING" },
+        { "fieldPath": "order",      "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "vueltas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "date",  "order": "ASCENDING" },
+        { "fieldPath": "order", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "domicilios",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "date",       "order": "ASCENDING" },
+        { "fieldPath": "assignedTo", "order": "ASCENDING" },
+        { "fieldPath": "createdAt",  "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "domicilios",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "date",      "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}
