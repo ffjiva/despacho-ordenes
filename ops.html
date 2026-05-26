@@ -1921,6 +1921,7 @@ async function loadArrastre(fechaRef) {
       );
 
     console.log('loadArrastre: filtrados v=', arrVueltas.length, 'd=', arrDomicilios.length);
+    console.log('arrDomicilios IDs:', arrDomicilios.map(d => d.id + '|' + d.status + '|' + d.date));
 
     if (activeVueltasTab === 'todas') renderTodas();
 
@@ -2650,11 +2651,13 @@ window.switchVueltasTab = async tab => {
   }
 };
 
-window.reloadTodas = () => {
+window.reloadTodas = async () => {
   const date   = $('todas-date')?.value || getTodaySV();
   const driver = $('todas-driver-filter')?.value || '';
   $('v-date').value = date;
   $('d-date').value = date;
+  if (date === getTodaySV()) await loadArrastre(date);
+  else { arrVueltas = []; arrDomicilios = []; }
   loadVueltasParaTodas(date, driver);
   loadDomiciliosParaTodas(date, driver);
 };
