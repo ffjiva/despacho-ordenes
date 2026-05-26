@@ -1034,110 +1034,196 @@ function buildDomCard(d) {
   const isNoEnt = st === 'no_entregado';
   const cardCls = isEnt ? 'mc-done' : isCam ? 'mc-camino' : isNoEnt ? 'mc-noent' : '';
   const cirCls  = isEnt ? 'mc-done' : isCam ? 'mc-camino' : '';
-  const STATUS_LBL = { pendiente:'Pendiente', en_camino:'En camino', entregado:'Entregado', no_entregado:'No entregado' };
+  const STATUS_LBL = {
+    pendiente: 'Pendiente', en_camino: 'En camino',
+    entregado: 'Entregado', no_entregado: 'No entregado'
+  };
 
-  const photos   = d.photos || [];
-  const canPhoto = (isCam || isEnt) && photos.length < 3;
-  const thumbs   = photos.length
+  const photos     = d.photos || [];
+  const canPhoto   = (isCam || isEnt) && photos.length < 3;
+  const thumbs     = photos.length
     ? `<div class="photo-strip">${photos.map(u =>
-        `<img class="photo-thumb" src="${esc(u)}" onclick="window.open('${escAttr(u)}','_blank')" alt="foto"/>`
+        `<img class="photo-thumb" src="${esc(u)}"
+          onclick="window.open('${escAttr(u)}','_blank')" alt="foto"/>`
       ).join('')}</div>`
     : '';
 
   const comentario = d.comentario || '';
-  const btnLabel   = comentario
-    ? '💬 Comentario <span style="color:var(--warn-tx)">●</span>'
-    : '💬 Agregar comentario ▾';
-
-  const doneTime = d.completadoAt
-    ? new Date(d.completadoAt).toLocaleTimeString('es-SV', { hour:'2-digit', minute:'2-digit', hour12:false })
+  const doneTime   = d.completadoAt
+    ? new Date(d.completadoAt).toLocaleTimeString('es-SV',
+        { hour:'2-digit', minute:'2-digit', hour12:false })
+    : '';
+  const dirCorta   = d.direccion
+    ? (d.direccion.length > 55 ? d.direccion.slice(0, 55) + '…' : d.direccion)
     : '';
 
   const cid = 'mc-' + d.id;
 
-  const dirCorta = d.direccion
-    ? (d.direccion.length > 60 ? d.direccion.slice(0, 60) + '…' : d.direccion)
-    : '';
-
   return `
     <div class="mcard ${cardCls}" id="${cid}">
+
       ${d._carryover
-        ? `<div style="font-size:.58rem;font-weight:700;padding:3px 10px;background:var(--err-bg);color:var(--err-tx);border-bottom:1px solid var(--err-bd);border-radius:var(--r) var(--r) 0 0;text-align:center">⚠ Pendiente de día anterior · ${d.date || ''}</div>`
+        ? `<div style="font-size:.58rem;font-weight:700;padding:3px 10px;
+               background:var(--err-bg);color:var(--err-tx);
+               border-bottom:1px solid var(--err-bd);
+               border-radius:var(--r) var(--r) 0 0;text-align:center">
+             ⚠ Pendiente de día anterior · ${d.date || ''}</div>`
         : d._arrastre
-        ? `<div style="font-size:.58rem;font-weight:700;padding:3px 10px;background:var(--warn-bg);color:var(--warn-tx);border-bottom:1px solid var(--warn-bd);border-radius:var(--r) var(--r) 0 0;text-align:center">📅 Arrastre — ${d.date || ''}</div>`
+        ? `<div style="font-size:.58rem;font-weight:700;padding:3px 10px;
+               background:var(--warn-bg);color:var(--warn-tx);
+               border-bottom:1px solid var(--warn-bd);
+               border-radius:var(--r) var(--r) 0 0;text-align:center">
+             📅 Arrastre — ${d.date || ''}</div>`
         : ''}
 
-      <!-- CABECERA (siempre visible, clickeable para expandir) -->
+      <!-- CABECERA: siempre visible, click para expandir -->
       <div onclick="toggleCard('${cid}')" style="cursor:pointer">
         <div class="mcard-top">
           <div class="m-order-circle ${cirCls}" style="font-size:1.1rem">📦</div>
           <div class="mcard-info">
-            <div style="font-size:.52rem;font-weight:700;letter-spacing:.1em;color:var(--muted);text-transform:uppercase;margin-bottom:2px">Entrega</div>
+            <div style="font-size:.52rem;font-weight:700;letter-spacing:.1em;
+                        color:var(--muted);text-transform:uppercase;margin-bottom:2px">
+              Entrega
+            </div>
             <div class="mcard-dest">${esc((d.cliente || '').toUpperCase())}</div>
             <div style="margin-top:4px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
               <span class="dmbadge dmbadge-${st}">${STATUS_LBL[st] || st}</span>
-              ${d.assignedTo ? `<span style="font-size:.58rem;color:var(--muted)">👤 ${esc(d.assignedTo)}</span>` : ''}
+              ${d.assignedTo
+                ? `<span style="font-size:.58rem;color:var(--muted)">
+                     👤 ${esc(d.assignedTo)}</span>`
+                : ''}
             </div>
           </div>
-          <div class="vcard-chevron" id="ch-${cid}" style="align-self:flex-start;margin-top:6px">▾</div>
+          <div class="vcard-chevron" id="ch-${cid}"
+               style="align-self:flex-start;margin-top:6px">▾</div>
         </div>
 
         <!-- Info resumida siempre visible -->
         <div style="padding:0 14px 10px 62px">
-          ${dirCorta ? `<div style="font-size:.67rem;color:var(--text2)">📍 ${esc(dirCorta)}</div>` : ''}
-          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;align-items:center">
-            ${d.total     ? `<span style="font-size:.68rem;font-weight:700">$${Number(d.total).toFixed(2)}</span>` : ''}
-            ${d.formaPago ? `<span class="dstat-chip" style="padding:2px 7px;font-size:.58rem">💳 ${esc(d.formaPago)}</span>` : ''}
+          ${dirCorta
+            ? `<div style="font-size:.67rem;color:var(--text2)">
+                 📍 ${esc(dirCorta)}</div>`
+            : ''}
+          <div style="display:flex;gap:8px;flex-wrap:wrap;
+                      margin-top:4px;align-items:center">
+            ${d.total
+              ? `<span style="font-size:.68rem;font-weight:700">
+                   $${Number(d.total).toFixed(2)}</span>`
+              : ''}
+            ${d.formaPago
+              ? `<span class="dstat-chip"
+                       style="padding:2px 7px;font-size:.58rem">
+                   💳 ${esc(d.formaPago)}</span>`
+              : ''}
           </div>
-          ${isEnt && doneTime ? `<div style="font-size:.65rem;color:var(--done-tx);margin-top:4px">✓ Entregado a las ${doneTime}${d.soloLectura || isEnt ? ' — solo lectura' : ''}</div>` : ''}
-          ${isNoEnt && d.motivoNoEntrega ? `<div style="font-size:.62rem;color:var(--err-tx);margin-top:2px">✕ ${esc(d.motivoNoEntrega)}</div>` : ''}
+          ${isEnt && doneTime
+            ? `<div style="font-size:.65rem;color:var(--done-tx);margin-top:4px">
+                 ✓ Entregado a las ${doneTime} — solo lectura</div>`
+            : ''}
+          ${isNoEnt && d.motivoNoEntrega
+            ? `<div style="font-size:.62rem;color:var(--err-tx);margin-top:2px">
+                 ✕ ${esc(d.motivoNoEntrega)}</div>`
+            : ''}
         </div>
       </div>
 
-      <!-- DETALLE EXPANDIBLE (oculto por defecto) -->
+      <!-- DETALLE EXPANDIBLE: oculto por defecto -->
       <div id="cd-${cid}" style="display:none;border-top:1px solid var(--border2)">
         <div style="padding:10px 14px 6px">
-          ${d.direccion     ? `<div style="font-size:.67rem;color:var(--text2);margin-bottom:4px">📍 ${esc(d.direccion)}</div>` : ''}
-          ${d.puntoReferencia ? `<div style="font-size:.62rem;color:var(--muted);margin-bottom:4px">🔖 ${esc(d.puntoReferencia)}</div>` : ''}
-          ${d.telefono      ? `<div style="font-size:.63rem;color:var(--muted);margin-bottom:4px">📞 ${esc(d.telefono)}</div>` : ''}
-          ${d.gpsFin        ? `<div style="margin-bottom:6px"><a class="vloc-link" href="https://maps.google.com/?q=${d.gpsFin.lat},${d.gpsFin.lng}" target="_blank" rel="noopener">📍 Ver ubicación de entrega</a></div>` : ''}
-          ${comentario      ? `<div style="font-size:.67rem;color:var(--text2);font-style:italic;background:var(--surface2);padding:6px 10px;border-radius:var(--r);margin-bottom:6px">💬 ${esc(comentario)}</div>` : ''}
+          ${d.direccion
+            ? `<div style="font-size:.67rem;color:var(--text2);margin-bottom:4px">
+                 📍 ${esc(d.direccion)}</div>`
+            : ''}
+          ${d.puntoReferencia
+            ? `<div style="font-size:.62rem;color:var(--muted);margin-bottom:4px">
+                 🔖 ${esc(d.puntoReferencia)}</div>`
+            : ''}
+          ${d.telefono
+            ? `<div style="font-size:.63rem;color:var(--muted);margin-bottom:4px">
+                 📞 ${esc(d.telefono)}</div>`
+            : ''}
+          ${d.gpsFin
+            ? `<div style="margin-bottom:6px">
+                 <a class="vloc-link"
+                    href="https://maps.google.com/?q=${d.gpsFin.lat},${d.gpsFin.lng}"
+                    target="_blank" rel="noopener">📍 Ver ubicación de entrega</a>
+               </div>`
+            : ''}
+          ${comentario
+            ? `<div style="font-size:.67rem;color:var(--text2);font-style:italic;
+                           background:var(--surface2);padding:6px 10px;
+                           border-radius:var(--r);margin-bottom:6px">
+                 💬 ${esc(comentario)}</div>`
+            : ''}
         </div>
 
         ${thumbs}
 
         ${(isCam || isEnt) ? `
         <div style="display:flex;flex-direction:column;gap:6px;padding:0 12px 8px">
-          <button class="btn-foto" onclick="event.stopPropagation();iniciarCamaraMovil('${d.id}')" ${canPhoto ? '' : 'disabled'}>
+          <button class="btn-foto"
+            onclick="event.stopPropagation();iniciarCamaraMovil('${d.id}')"
+            ${canPhoto ? '' : 'disabled'}>
             📷 Cámara
           </button>
-          <button class="btn-foto" onclick="event.stopPropagation();elegirDeGaleria('${d.id}')" ${canPhoto ? '' : 'disabled'}>
+          <button class="btn-foto"
+            onclick="event.stopPropagation();elegirDeGaleria('${d.id}')"
+            ${canPhoto ? '' : 'disabled'}>
             🖼 Galería
           </button>
         </div>` : ''}
 
-        <div style="padding:0 12px 10px">
-          <button class="btn-foto" style="background:transparent;border-color:var(--border);color:var(--muted)"
+        <div style="padding:0 14px 10px">
+          <button
+            id="btn-dcm-${d.id}"
+            style="background:none;border:none;font-family:'IBM Plex Mono',monospace;
+                   font-size:.65rem;color:var(--muted);cursor:pointer;
+                   padding:4px 0;text-align:left;display:block;
+                   letter-spacing:.03em;text-transform:none"
             onclick="event.stopPropagation();toggleDomComentario('${d.id}')">
-            ${btnLabel}
+            ${comentario
+              ? '💬 Comentario <span style="color:var(--warn-tx)">●</span> ▾'
+              : '💬 Agregar comentario ▾'}
           </button>
-          <div id="dom-cm-${d.id}" style="display:none;margin-top:8px">
-            <textarea id="dom-txt-${d.id}" rows="2"
-              style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-family:var(--mono);font-size:.72rem;background:var(--surface);color:var(--text);resize:vertical"
-              placeholder="Agregar nota...">${esc(comentario)}</textarea>
-            <button class="btn btn-dark btn-full" style="margin-top:6px;font-size:.7rem"
-              onclick="event.stopPropagation();guardarDomComentario('${d.id}')">
+          <div id="dom-cm-${d.id}" style="display:none;margin-top:6px">
+            <textarea
+              id="dom-txt-${d.id}"
+              rows="2"
+              placeholder="Agregar nota…"
+              style="width:100%;padding:8px 10px;border:1px solid var(--border);
+                     border-radius:var(--r);font-family:'IBM Plex Mono',monospace;
+                     font-size:.68rem;background:var(--surface2);color:var(--text);
+                     resize:none;outline:none;line-height:1.5"
+              onclick="event.stopPropagation()">${esc(comentario)}</textarea>
+            <button
+              onclick="event.stopPropagation();guardarDomComentario('${d.id}')"
+              style="margin-top:6px;width:100%;padding:8px;border:none;
+                     border-radius:var(--r);background:var(--accent);color:#fff;
+                     font-family:'IBM Plex Mono',monospace;font-size:.65rem;
+                     font-weight:700;letter-spacing:.06em;cursor:pointer;
+                     min-height:40px;text-transform:none">
               Guardar comentario
             </button>
           </div>
         </div>
       </div>
 
-      <!-- ACCIONES (siempre visibles) -->
+      <!-- ACCIONES: siempre visibles -->
       ${!isEnt && !isNoEnt ? `
       <div class="mcard-actions" style="border-top:1px solid var(--border2)">
-        ${isPend ? `<button class="btn btn-warn" onclick="domEnCamino('${d.id}')">🚐 En camino</button>` : ''}
-        ${isCam  ? `<button class="btn btn-done-action" onclick="domEntregado('${d.id}')">✓ ACABÉ</button>` : ''}
+        ${isPend
+          ? `<button class="btn btn-warn"
+               onclick="salirDomicilio('${d.id}')">🚐 Salir</button>`
+          : ''}
+        ${isCam
+          ? `<button class="btn btn-done-action"
+               onclick="acabeDomicilio('${d.id}')">✓ ACABÉ</button>`
+          : ''}
+      </div>` : ''}
+      ${isNoEnt ? `
+      <div class="mcard-actions" style="border-top:1px solid var(--border2)">
+        <button class="btn btn-warn"
+          onclick="reintentarEntrega('${d.id}')">🔄 Reintentar</button>
       </div>` : ''}
     </div>`;
 }
@@ -1176,17 +1262,25 @@ window.toggleCard = id => {
 };
 
 window.toggleDomComentario = id => {
-  const el = document.getElementById('dom-cm-' + id);
-  if (el) el.style.display = el.style.display === 'none' ? '' : 'none';
+  const el  = document.getElementById('dom-cm-' + id);
+  const btn = document.getElementById('btn-dcm-' + id);
+  if (!el) return;
+  const open = el.style.display === 'none';
+  el.style.display = open ? '' : 'none';
+  if (btn) btn.innerHTML = btn.innerHTML.replace(/[▾▴]/, open ? '▴' : '▾');
 };
 
 window.guardarDomComentario = async id => {
-  const txt = document.getElementById('dom-txt-' + id);
-  if (!txt || !db) return;
+  const txt = document.getElementById('dom-txt-' + id)?.value?.trim() || '';
+  if (!db) return;
   try {
-    await fbMod.updateDoc(fbMod.doc(db, 'domicilios', id), { comentario: txt.value.trim() });
-    const el = document.getElementById('dom-cm-' + id);
-    if (el) el.style.display = 'none';
+    await fbMod.updateDoc(fbMod.doc(db, 'domicilios', id), { comentario: txt });
+    const btn = document.getElementById('btn-dcm-' + id);
+    if (btn) btn.innerHTML = txt
+      ? '💬 Comentario <span style="color:var(--warn-tx)">●</span> ▴'
+      : '💬 Agregar comentario ▴';
+    const box = document.getElementById('dom-cm-' + id);
+    if (box) box.style.display = 'none';
   } catch(e) { console.error('guardarDomComentario:', e); }
 };
 
