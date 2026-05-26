@@ -750,9 +750,14 @@ function startDomiciliosListener() {
 
   const merge = () => {
     const seen = new Set();
-    cachedDomicilios = [...carryoverItems, ...todayItems].filter(d => {
+    // todayItems primero: si un doc existe en ambos, gana la versión de hoy
+    cachedDomicilios = [...todayItems, ...carryoverItems].filter(d => {
       if (seen.has(d.id)) return false;
       seen.add(d.id);
+      return true;
+    }).filter(d => {
+      // Si viene del carryover pero ya fue resuelto hoy, ocultarlo
+      if (d._carryover && (d.status === 'entregado' || d.status === 'done')) return false;
       return true;
     });
     renderCombined();
