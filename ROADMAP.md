@@ -247,4 +247,58 @@ Al abrir una sesión de implementación:
 
 ---
 
+## Módulo 7 — Trazabilidad de Reposiciones [COMPLETADO — Mayo 2026]
+
+### Ubicación
+ops.html → pantalla s-trazabilidad (acceso desde botón 📋 Historial en s-reposicion)
+
+### Objetivo
+Registrar y consultar el historial de órdenes de reposición generadas con el módulo 6c.
+
+### Flujo
+1. Fernando genera XLS desde s-reposicion
+2. Al hacer clic en "Generar XLS" → se guarda automáticamente un registro en Firestore
+3. Desde botón "📋 Historial" accede a s-trazabilidad
+4. Consulta con filtros por origen, destino y fecha
+5. Toca una card para ver el detalle de productos enviados
+
+### Colección Firestore
+reposiciones/{id}
+fecha:         string    // "2026-05-24"
+timestamp:     number    // Date.now()
+origen:        string    // "B01" | "B02" | sucursal
+destino:       string    // "M01" | "S02" | "S03" | "S04" | "S06" | "S07"
+productos:     Array<{ codigo, nombre, cantidad }>
+totalUnidades: number
+generadoPor:   string
+
+### Funciones clave
+- `saveReposicionRecord()` — escribe en Firestore, fallo silencioso
+- `loadTrazabilidad()` — query últimos 100 registros desc
+- `renderTrazabilidad()` — filtra y renderiza cards expandibles
+- `goTrazabilidad()` / `goBackFromTrazabilidad()` — navegación
+
+---
+
+## Mejoras Mayo 2026 — ops.html
+
+- Campo fecha editable en modal Editar Vuelta (ve-fecha)
+- Botones Cámara / Galería en modales Nueva Vuelta y Editar Vuelta
+- Fix dark mode: selects motorista usan var(--text)/var(--surface)
+- Opción "Completar al tope" en módulo 6c: sugiere tope−stock en lugar de distribución proporcional
+
+---
+
+## Mejoras Mayo 2026 — moto.html
+
+- Cards expandibles con toggle ▼/▲ (header siempre visible, detalle colapsado)
+- Feedback visual en botones "En camino" y "ACABÉ" mientras espera GPS
+- Fix re-render arrastre: actualiza cachedList en memoria tras updateDoc
+- Campo comentario por vuelta dentro del detalle expandible
+- Botones Cámara / Galería para fotos de vueltas
+- Filtros: Todas / Vueltas / Entregas / ✓ Terminadas / ⏳ En cola
+- "En cola": muestra vueltas y domicilios pendientes de los últimos 30 días
+
+---
+
 *Última actualización: Mayo 2026*

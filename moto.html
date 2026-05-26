@@ -357,6 +357,8 @@ body:not(.dark) input[type="time"] {
     <button class="m-fbtn on" onclick="setMotoFilter('all',this)">Todas</button>
     <button class="m-fbtn"    onclick="setMotoFilter('vueltas',this)">Vueltas</button>
     <button class="m-fbtn"    onclick="setMotoFilter('entregas',this)">Entregas</button>
+    <button class="m-fbtn"    onclick="setMotoFilter('terminadas',this)">✓ Terminadas</button>
+    <button class="m-fbtn"    onclick="setMotoFilter('encola',this)">⏳ En cola</button>
   </div>
 
   <div class="m-list" id="m-list">
@@ -642,6 +644,41 @@ async function fetchArrastre() {
   } catch(e) { console.warn('fetchArrastre:', e.message); }
 }
 
+let cachedEnCola = [];
+
+async function fetchEnCola() {
+  if (!db) return;
+  const from = new Date();
+  from.setDate(from.getDate() - 30);
+  const fromDate = from.toLocaleDateString('en-CA', { timeZone: 'America/El_Salvador' });
+  try {
+    // Query solo por fecha — filtrar assignedTo en cliente (igual que fetchArrastre)
+    const vSnap = await fbMod.getDocs(fbMod.query(
+      fbMod.collection(db, COLLECTION),
+      fbMod.where('date', '>=', fromDate)
+    ));
+    const vueltas = vSnap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .filter(v => v.assignedTo === currentDriver && ['pending','en_camino'].includes(v.status));
+
+    const dSnap = await fbMod.getDocs(fbMod.query(
+      fbMod.collection(db, 'domicilios'),
+      fbMod.where('date', '>=', fromDate)
+    ));
+    const domicilios = dSnap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .filter(d => d.assignedTo === currentDriver && ['pendiente','en_camino'].includes(d.status));
+
+    cachedEnCola = [...vueltas, ...domicilios].sort((a, b) =>
+      (a.date || '').localeCompare(b.date || '') || (a.order || 0) - (b.order || 0)
+    );
+    if (motoFilter === 'encola') renderCards(cachedEnCola);
+  } catch(e) {
+    console.warn('fetchEnCola:', e.message);
+    if (motoFilter === 'encola') $('m-list').innerHTML = `<div class="empty-state" style="color:var(--err-tx)">Error al cargar: ${esc(e.message)}</div>`;
+  }
+}
+
 function goHome() {
   registerFCMToken(currentDriver);
   $('m-name-lbl').textContent = `🚐 ${currentDriver}`;
@@ -776,8 +813,10 @@ function renderCombined() {
 
 function applyMotoFilter() {
   let items;
-  if (motoFilter === 'vueltas')        items = cachedList;
-  else if (motoFilter === 'entregas')  items = cachedDomicilios;
+  if (motoFilter === 'vueltas')          items = cachedList.filter(v => v.status !== 'done');
+  else if (motoFilter === 'entregas')    items = cachedDomicilios.filter(d => d.status !== 'entregado');
+  else if (motoFilter === 'terminadas')  items = [...cachedList, ...cachedDomicilios].filter(v => v.status === 'done' || v.status === 'entregado');
+  else if (motoFilter === 'encola')      items = cachedEnCola;
   else items = [...cachedList, ...cachedDomicilios].sort((a, b) => {
     if (a.emergency && !b.emergency) return -1;
     if (!a.emergency && b.emergency) return 1;
@@ -790,7 +829,12 @@ window.setMotoFilter = (f, btn) => {
   motoFilter = f;
   document.querySelectorAll('.m-fbtn').forEach(b => b.classList.remove('on'));
   btn.classList.add('on');
-  renderCombined();
+  if (f === 'encola') {
+    $('m-list').innerHTML = '<div class="empty-state"><span class="spin"></span></div>';
+    fetchEnCola();
+  } else {
+    renderCombined();
+  }
 };
 
 function renderCards(list) {
@@ -828,8 +872,8 @@ function buildVueltaCard(v) {
   const doneTime  = v.completedAt
     ? new Date(v.completedAt).toLocaleTimeString('es-SV', { hour: '2-digit', minute: '2-digit', hour12: false })
     : '';
-  const photos    = v.photos || [];
-  const canPhoto  = (isCamino || isDone) && photos.length < 3;
+  const photos   = v.photos || [];
+  const canPhoto = (isCamino || isDone) && photos.length < 3;
   const thumbsHtml = photos.length
     ? `<div class="photo-strip">${photos.map(u => `<img class="photo-thumb" src="${esc(u)}" onclick="window.open('${escAttr(u)}','_blank')" alt="foto"/>`).join('')}</div>`
     : '';
@@ -848,11 +892,14 @@ function buildVueltaCard(v) {
       </div>`).join('')
     : '';
 
+  const hasDetail = ordenLink || photos.length || (isCamino || isDone);
+
   return `
     <div class="mcard ${cardCls} ${emgCls}" id="mc-${v.id}">
       ${v._arrastre ? `<div style="font-size:.58rem;font-weight:700;padding:3px 10px;background:var(--warn-bg);color:var(--warn-tx);border-bottom:1px solid var(--warn-bd);border-radius:var(--r) var(--r) 0 0;text-align:center">📅 Arrastre — ${v.date || ''}</div>` : ''}
       ${isEmerg ? `<div class="emergency-bar">🚨 ATENCIÓN — VUELTA DE EMERGENCIA</div>` : ''}
-      <div class="mcard-top">
+
+      <div class="mcard-top" ${hasDetail ? `onclick="toggleVueltaDetail('${v.id}')" style="cursor:pointer"` : ''}>
         <div class="m-order-circle ${circleCls}">${v.order}</div>
         <div class="mcard-info">
           <div class="mcard-dest">${esc(v.destination || '')}</div>
@@ -861,18 +908,66 @@ function buildVueltaCard(v) {
             <div class="mcard-done-time">✓ ${doneTime ? `Completada a las ${doneTime}` : 'Completada'}</div>
             <div style="font-size:.68rem;color:var(--done-tx);font-weight:600;margin-top:4px">✓ Entrega completada — solo lectura</div>` : ''}
         </div>
+        ${hasDetail ? `<div id="mc-chevron-${v.id}" style="font-size:.7rem;color:var(--muted);flex-shrink:0;align-self:center;padding-left:8px">▼</div>` : ''}
       </div>
+
       ${isCamino ? `<div class="mcard-yendo">🚐 Yendo a ${esc(v.destination || '')}…</div>` : ''}
-      ${ordenLink}
+
       ${!isDone ? `
       <div class="mcard-actions">
         ${isPending ? `<button class="btn btn-warn" onclick="irEnCamino('${v.id}','${escAttr(v.destination||'')}')">🚐 En camino</button>` : ''}
         ${isCamino ? `<button class="btn btn-done-action" onclick="completarVuelta('${v.id}')">✓ ACABÉ</button>` : ''}
       </div>` : ''}
-      ${thumbsHtml}
-      ${(isCamino || isDone) ? (canPhoto ? `<button class="btn-foto" onclick="tomarFoto('${v.id}')">📷 Cámara</button><button class="btn-foto" onclick="tomarFotoGaleria('${v.id}')">🖼 Galería</button>` : `<button class="btn-foto" disabled>📷 3/3 — máximo alcanzado</button>`) : ''}
+
+      <div id="mc-detail-${v.id}" style="display:none">
+        ${ordenLink}
+        ${thumbsHtml}
+        <div style="padding:0 14px 10px">
+          <button class="btn btn-ghost" style="width:100%;font-size:.68rem;text-align:left"
+            onclick="const el=document.getElementById('mc-comment-${v.id}');el.style.display=el.style.display==='none'?'block':'none'">
+            💬 ${v.comentario ? 'Ver comentario ▾' : 'Agregar comentario ▾'}</button>
+          <div id="mc-comment-${v.id}" style="display:none;margin-top:6px">
+            <textarea id="mc-comment-txt-${v.id}" rows="3"
+              style="width:100%;font-size:.72rem;padding:8px;border:1px solid var(--border);border-radius:var(--r);background:var(--surface);color:var(--text);resize:none;box-sizing:border-box"
+              placeholder="Escribe un comentario sobre esta vuelta…">${v.comentario || ''}</textarea>
+            <button class="btn btn-dark" style="width:100%;margin-top:6px;font-size:.7rem"
+              onclick="guardarComentarioVuelta('${v.id}')">Guardar comentario</button>
+          </div>
+        </div>
+        ${(isCamino || isDone) ? `
+          <div id="foto-actions-${v.id}" style="display:none;padding:0 14px 12px">
+            ${canPhoto
+              ? `<button class="btn-foto" onclick="tomarFoto('${v.id}')">📷 Cámara</button>
+                 <button class="btn-foto" onclick="tomarFotoGaleria('${v.id}')">🖼 Galería</button>`
+              : `<button class="btn-foto" disabled>📷 3/3 — máximo alcanzado</button>`}
+          </div>
+          <button class="btn-foto" style="margin:0 14px 12px;width:calc(100% - 28px)"
+            onclick="const el=document.getElementById('foto-actions-${v.id}');el.style.display=el.style.display==='none'?'block':'none'">
+            📷 Agregar foto</button>
+        ` : ''}
+      </div>
     </div>`;
 }
+
+window.toggleVueltaDetail = id => {
+  const detail  = document.getElementById(`mc-detail-${id}`);
+  const chevron = document.getElementById(`mc-chevron-${id}`);
+  if (!detail) return;
+  const open = detail.style.display === 'none';
+  detail.style.display  = open ? 'block' : 'none';
+  if (chevron) chevron.textContent = open ? '▲' : '▼';
+};
+
+window.guardarComentarioVuelta = async id => {
+  const txt = document.getElementById(`mc-comment-txt-${id}`)?.value?.trim() || '';
+  try {
+    await fbMod.updateDoc(fbMod.doc(db, COLLECTION, id), { comentario: txt });
+    const idx = cachedList.findIndex(v => v.id === id);
+    if (idx !== -1) cachedList[idx].comentario = txt;
+    const btn = document.querySelector(`#mc-${id} .btn.btn-ghost`);
+    if (btn) btn.textContent = txt ? 'Ver comentario ▾' : 'Agregar comentario ▾';
+  } catch(e) { alert('Error al guardar comentario.'); }
+};
 
 function buildDomCard(d) {
   const st      = d.status || 'pendiente';
@@ -1006,6 +1101,8 @@ window.toggleDark = () => {
    ACCIONES
 ═══════════════════════════════════ */
 window.irEnCamino = async (id, dest) => {
+  const btn = document.querySelector(`#mc-${id} .btn-warn`);
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Actualizando…'; }
   const gps = await getGPS();
   const update = {
     status:     'en_camino',
@@ -1015,10 +1112,17 @@ window.irEnCamino = async (id, dest) => {
   if (gps) update.location_start = gps;
   try {
     await fbMod.updateDoc(fbMod.doc(db, COLLECTION, id), update);
-  } catch(e) { console.error(e); }
+    const idx = cachedList.findIndex(v => v.id === id);
+    if (idx !== -1) { cachedList[idx] = { ...cachedList[idx], ...update }; renderCombined(); }
+  } catch(e) {
+    console.error(e);
+    if (btn) { btn.disabled = false; btn.textContent = '🚐 En camino'; }
+  }
 };
 
 window.completarVuelta = async id => {
+  const btn = document.querySelector(`#mc-${id} .btn-done-action`);
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Guardando…'; }
   const gps = await getGPS();
   const update = {
     status:      'done',
@@ -1030,7 +1134,12 @@ window.completarVuelta = async id => {
   if (gps) update.location_end = gps;
   try {
     await fbMod.updateDoc(fbMod.doc(db, COLLECTION, id), update);
-  } catch(e) { console.error(e); }
+    const idx = cachedList.findIndex(v => v.id === id);
+    if (idx !== -1) { cachedList[idx] = { ...cachedList[idx], ...update }; renderCombined(); }
+  } catch(e) {
+    console.error(e);
+    if (btn) { btn.disabled = false; btn.textContent = '✓ ACABÉ'; }
+  }
 };
 
 window.tomarFoto = id => {
