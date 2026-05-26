@@ -1305,15 +1305,16 @@ window.toggleDark = () => {
 window.irEnCamino = async (id, dest) => {
   const btn = document.querySelector(`#mc-${id} .btn-warn`);
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Actualizando…'; }
-  const gps = await getGPS();
   const update = {
     status:     'en_camino',
     enCaminoAt: Date.now(),
     paradero:   `En camino a ${dest} — ${nowTime()}`
   };
-  if (gps) update.location_start = gps;
   try {
     await fbMod.updateDoc(fbMod.doc(db, COLLECTION, id), update);
+    getGPS().then(gps => {
+      if (gps) fbMod.updateDoc(fbMod.doc(db, COLLECTION, id), { location_start: gps });
+    }).catch(() => {});
     const idx = cachedList.findIndex(v => v.id === id);
     if (idx !== -1) { cachedList[idx] = { ...cachedList[idx], ...update }; renderCombined(); }
   } catch(e) {
@@ -1325,7 +1326,6 @@ window.irEnCamino = async (id, dest) => {
 window.completarVuelta = async id => {
   const btn = document.querySelector(`#mc-${id} .btn-done-action`);
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Guardando…'; }
-  const gps = await getGPS();
   const update = {
     status:      'done',
     completedAt: Date.now(),
@@ -1333,9 +1333,11 @@ window.completarVuelta = async id => {
     paradero:    '',
     emergency:   false
   };
-  if (gps) update.location_end = gps;
   try {
     await fbMod.updateDoc(fbMod.doc(db, COLLECTION, id), update);
+    getGPS().then(gps => {
+      if (gps) fbMod.updateDoc(fbMod.doc(db, COLLECTION, id), { location_end: gps });
+    }).catch(() => {});
     const idx = cachedList.findIndex(v => v.id === id);
     if (idx !== -1) { cachedList[idx] = { ...cachedList[idx], ...update }; renderCombined(); }
   } catch(e) {
@@ -1392,29 +1394,46 @@ window.revertirVuelta = async id => {
    ACCIONES DOMICILIOS
 ═══════════════════════════════════ */
 window.salirDomicilio = async id => {
-  const gps = await getGPS();
-  const update = { status: 'en_camino', enCaminoAt: Date.now() };
-  if (gps) update.gpsInicio = gps;
-  try { await fbMod.updateDoc(fbMod.doc(db, 'domicilios', id), update); }
-  catch(e) { console.error(e); }
+  const btn = document.querySelector(`#mc-${id} .btn-warn`);
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Saliendo…'; }
+  try {
+    const update = { status: 'en_camino', enCaminoAt: Date.now() };
+    await fbMod.updateDoc(fbMod.doc(db, 'domicilios', id), update);
+    getGPS().then(gps => {
+      if (gps) fbMod.updateDoc(fbMod.doc(db, 'domicilios', id), { gpsInicio: gps });
+    }).catch(() => {});
+  } catch(e) {
+    console.error(e);
+    if (btn) { btn.disabled = false; btn.textContent = '🚐 Salir'; }
+  }
 };
 
 window.acabeDomicilio = async id => {
-  const gps = await getGPS();
-  const d   = cachedDomicilios.find(x => x.id === id);
-  const update = { status: 'entregado', completadoAt: Date.now(), date: today() };
-  if (gps) update.gpsFin = gps;
+  const btn = document.querySelector(`#mc-${id} .btn-done-action`);
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Guardando…'; }
+  const d = cachedDomicilios.find(x => x.id === id);
   try {
+    const update = { status: 'entregado', completadoAt: Date.now(), date: today() };
     await fbMod.updateDoc(fbMod.doc(db, 'domicilios', id), update);
+    getGPS().then(gps => {
+      if (gps) fbMod.updateDoc(fbMod.doc(db, 'domicilios', id), { gpsFin: gps });
+    }).catch(() => {});
     notify('📦 Entrega completada', `${currentDriver} entregó a ${d?.cliente || ''}`);
     if (d && WHATSAPP_GROUP) {
-      const hora = new Date().toLocaleTimeString('es-SV', { hour: '2-digit', minute: '2-digit', hour12: false });
-      const msg  = encodeURIComponent(
-        `✅ Entrega completada\nCliente: ${d.cliente || '—'}\nTel: ${d.telefono || '—'}\nDirección: ${d.direccion || '—'}\nMonto: $${d.total || '0'} · ${d.formaPago || '—'}\nMotorista: ${currentDriver}\n🕐 ${hora}`
+      const hora = new Date().toLocaleTimeString('es-SV',
+        { hour:'2-digit', minute:'2-digit', hour12:false });
+      const msg = encodeURIComponent(
+        `✅ Entrega completada\nCliente: ${d.cliente || '—'}\n` +
+        `Tel: ${d.telefono || '—'}\nDirección: ${d.direccion || '—'}\n` +
+        `Monto: $${d.total || '0'} · ${d.formaPago || '—'}\n` +
+        `Motorista: ${currentDriver}\n🕐 ${hora}`
       );
       window.open(`https://wa.me/${WHATSAPP_GROUP}?text=${msg}`, '_blank');
     }
-  } catch(e) { console.error(e); }
+  } catch(e) {
+    console.error(e);
+    if (btn) { btn.disabled = false; btn.textContent = '✓ ACABÉ'; }
+  }
 };
 
 window.reintentarEntrega = async id => {
@@ -1480,14 +1499,28 @@ window.closeNoEntregaModal = (e) => {
 
 window.tomarFotoDom = id => {
   fotoDomId = id;
-  const inp = $('foto-dom-input');
+  const inp = $('foto-dom-cam-input');
   inp.value = '';
   inp.click();
 };
 
 window.tomarFotoDomGaleria = id => {
   fotoDomId = id;
-  const inp = $('foto-dom-input-galeria');
+  const inp = $('foto-dom-gal-input');
+  inp.value = '';
+  inp.click();
+};
+
+window.iniciarCamaraMovil = id => {
+  fotoDomId = id;
+  const inp = $('foto-dom-cam-input');
+  inp.value = '';
+  inp.click();
+};
+
+window.elegirDeGaleria = id => {
+  fotoDomId = id;
+  const inp = $('foto-dom-gal-input');
   inp.value = '';
   inp.click();
 };
@@ -1528,8 +1561,8 @@ document.addEventListener('DOMContentLoaded', init);
 </script>
 <input type="file" id="foto-input"        accept="image/*" capture="environment" style="display:none" onchange="uploadFoto(this)"/>
 <input type="file" id="foto-input-galeria" accept="image/*"                      style="display:none" onchange="uploadFoto(this)"/>
-<input type="file" id="foto-dom-input"        accept="image/*" capture="environment" style="display:none" onchange="uploadFotoDom(this)"/>
-<input type="file" id="foto-dom-input-galeria" accept="image/*"                      style="display:none" onchange="uploadFotoDom(this)"/>
+<input type="file" id="foto-dom-cam-input" accept="image/*" capture="environment" style="display:none" onchange="uploadFotoDom(this)"/>
+<input type="file" id="foto-dom-gal-input" accept="image/*"                   style="display:none" onchange="uploadFotoDom(this)"/>
 
 <!-- ══════════════ MODAL NO ENTREGA ══════════════ -->
 <div id="modal-noentrega" style="display:none;position:fixed;inset:0;z-index:500;background:rgba(0,0,0,.52)" onclick="closeNoEntregaModal(event)">
