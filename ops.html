@@ -2701,18 +2701,23 @@ function renderTodas() {
   if (activeVueltasTab !== 'todas') return;
   console.log('renderTodas: cached=', cachedVueltas.length, cachedDomiciliosSup.length,
     'arrV=', arrVueltas.length, 'arrD=', arrDomicilios.length);
-  const todayVIds = new Set(cachedVueltas.map(v => v.id));
-  const todayDIds = new Set(cachedDomiciliosSup.map(d => d.id));
-  const extraV = arrVueltas.filter(v => !todayVIds.has(v.id))
+  // Los arrastres reemplazan la versión de cachedDomiciliosSup
+  // para que muestren el banner "_arrastre: true"
+  const arrVIds = new Set(arrVueltas.map(v => v.id));
+  const arrDIds = new Set(arrDomicilios.map(d => d.id));
+
+  const extraV = arrVueltas.map(v => ({ ...v, _tipo: 'vuelta' }));
+  const extraD = arrDomicilios.map(d => ({ ...d, _tipo: 'entrega' }));
+
+  // Excluir de cached los que ya vienen como arrastre
+  const baseV = cachedVueltas
+    .filter(v => !arrVIds.has(v.id))
     .map(v => ({ ...v, _tipo: 'vuelta' }));
-  const extraD = arrDomicilios.filter(d => !todayDIds.has(d.id))
+  const baseD = cachedDomiciliosSup
+    .filter(d => !arrDIds.has(d.id))
     .map(d => ({ ...d, _tipo: 'entrega' }));
-  let items = [
-    ...extraV,
-    ...extraD,
-    ...cachedVueltas.map(v => ({ ...v, _tipo: 'vuelta' })),
-    ...cachedDomiciliosSup.map(d => ({ ...d, _tipo: 'entrega' }))
-  ];
+
+  let items = [...extraV, ...extraD, ...baseV, ...baseD];
   if (todasTipoFilter === 'vueltas')  items = items.filter(i => i._tipo === 'vuelta');
   if (todasTipoFilter === 'entregas') items = items.filter(i => i._tipo === 'entrega');
   if (filtroEstadoTodas !== 'all') {
