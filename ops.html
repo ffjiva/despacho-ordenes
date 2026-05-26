@@ -1907,7 +1907,7 @@ async function loadArrastre(fechaRef) {
       .filter(v => ['pending','en_camino'].includes(v.status) && (!driver || v.assignedTo === driver));
     arrDomicilios = dSnap.docs
       .map(d => ({ id: d.id, ...d.data(), _arrastre: true }))
-      .filter(d => ['pendiente','en_camino'].includes(d.status) && (!driver || d.assignedTo === driver));
+      .filter(d => ['pendiente','en_camino','no_entregado'].includes(d.status) && (!driver || d.assignedTo === driver));
   } catch(e) {
     console.warn('loadArrastre:', e.message);
     arrVueltas = []; arrDomicilios = [];
@@ -2682,7 +2682,18 @@ window.toggleTodasSort = btn => {
 
 function renderTodas() {
   if (activeVueltasTab !== 'todas') return;
-  let items = [...cachedVueltas, ...cachedDomiciliosSup];
+  const todayVIds = new Set(cachedVueltas.map(v => v.id));
+  const todayDIds = new Set(cachedDomiciliosSup.map(d => d.id));
+  const extraV = arrVueltas.filter(v => !todayVIds.has(v.id))
+    .map(v => ({ ...v, _tipo: 'vuelta' }));
+  const extraD = arrDomicilios.filter(d => !todayDIds.has(d.id))
+    .map(d => ({ ...d, _tipo: 'entrega' }));
+  let items = [
+    ...extraV,
+    ...extraD,
+    ...cachedVueltas.map(v => ({ ...v, _tipo: 'vuelta' })),
+    ...cachedDomiciliosSup.map(d => ({ ...d, _tipo: 'entrega' }))
+  ];
   if (todasTipoFilter === 'vueltas')  items = items.filter(i => i._tipo === 'vuelta');
   if (todasTipoFilter === 'entregas') items = items.filter(i => i._tipo === 'entrega');
   if (filtroEstadoTodas !== 'all') {
