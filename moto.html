@@ -357,8 +357,8 @@ body:not(.dark) input[type="time"] {
     <button class="m-fbtn on" onclick="setMotoFilter('all',this)">Todas</button>
     <button class="m-fbtn"    onclick="setMotoFilter('vueltas',this)">Vueltas</button>
     <button class="m-fbtn"    onclick="setMotoFilter('entregas',this)">Entregas</button>
-    <button class="m-fbtn"    onclick="setMotoFilter('terminadas',this)">✓ Terminadas</button>
-    <button class="m-fbtn"    onclick="setMotoFilter('encola',this)">⏳ En cola</button>
+    <button class="m-fbtn"    onclick="setMotoFilter('terminadas',this)">Terminadas</button>
+    <button class="m-fbtn"    onclick="setMotoFilter('encola',this)">En cola</button>
   </div>
 
   <div class="m-list" id="m-list">
@@ -394,6 +394,7 @@ let currentDriver = '';
 let homeUnsub       = null;
 let domUnsub        = null;
 let cachedList      = [];
+let cachedArrastre  = [];
 let cachedDomicilios = [];
 let motoFilter      = 'all';
 let storageMod      = null;
@@ -637,10 +638,8 @@ async function fetchArrastre() {
       .map(d => ({ id: d.id, ...d.data() }))
       .filter(v => v.assignedTo === currentDriver && ['pending','en_camino'].includes(v.status))
       .map(v => ({ ...v, _arrastre: true }));
-    if (vPrev.length) {
-      cachedList = [...vPrev, ...cachedList];
-      renderCombined();
-    }
+    cachedArrastre = vPrev;
+    if (vPrev.length) renderCombined();
   } catch(e) { console.warn('fetchArrastre:', e.message); }
 }
 
@@ -652,10 +651,12 @@ async function fetchEnCola() {
   from.setDate(from.getDate() - 30);
   const fromDate = from.toLocaleDateString('en-CA', { timeZone: 'America/El_Salvador' });
   try {
-    // Query solo por fecha — filtrar assignedTo en cliente (igual que fetchArrastre)
+    // Query por rango de fecha — filtrar assignedTo y status en cliente
+    const todaySV = today();
     const vSnap = await fbMod.getDocs(fbMod.query(
       fbMod.collection(db, COLLECTION),
-      fbMod.where('date', '>=', fromDate)
+      fbMod.where('date', '>=', fromDate),
+      fbMod.where('date', '<=', todaySV)
     ));
     const vueltas = vSnap.docs
       .map(d => ({ id: d.id, ...d.data() }))
@@ -663,7 +664,8 @@ async function fetchEnCola() {
 
     const dSnap = await fbMod.getDocs(fbMod.query(
       fbMod.collection(db, 'domicilios'),
-      fbMod.where('date', '>=', fromDate)
+      fbMod.where('date', '>=', fromDate),
+      fbMod.where('date', '<=', todaySV)
     ));
     const domicilios = dSnap.docs
       .map(d => ({ id: d.id, ...d.data() }))
@@ -672,7 +674,7 @@ async function fetchEnCola() {
     cachedEnCola = [...vueltas, ...domicilios].sort((a, b) =>
       (a.date || '').localeCompare(b.date || '') || (a.order || 0) - (b.order || 0)
     );
-    if (motoFilter === 'encola') renderCards(cachedEnCola);
+    applyMotoFilter();
   } catch(e) {
     console.warn('fetchEnCola:', e.message);
     if (motoFilter === 'encola') $('m-list').innerHTML = `<div class="empty-state" style="color:var(--err-tx)">Error al cargar: ${esc(e.message)}</div>`;
@@ -763,7 +765,7 @@ function startDomiciliosListener() {
     fbMod.orderBy('createdAt', 'asc')
   );
   domUnsub = fbMod.onSnapshot(qToday,
-    snap => { todayItems = snap.docs.map(d => ({ id: d.id, ...d.data() })); merge(); },
+    snap => { todayItems = snap.docs.map(d => ({ id: d.id, type: 'domicilio', ...d.data() })); merge(); },
     err => console.warn('domicilios listener:', err.code)
   );
 
@@ -775,7 +777,7 @@ function startDomiciliosListener() {
     fbMod.where('date', '<', today())
   );
   fbMod.getDocs(qPast).then(snap => {
-    carryoverItems = snap.docs.map(d => ({ id: d.id, ...d.data(), _carryover: true }));
+    carryoverItems = snap.docs.map(d => ({ id: d.id, type: 'domicilio', ...d.data(), _carryover: true }));
     merge();
   }).catch(e => console.warn('domicilios carryover:', e.message));
 }
@@ -789,9 +791,15 @@ function renderList(list) {
 }
 
 function renderCombined() {
-  const src = motoFilter === 'vueltas'  ? cachedList
-            : motoFilter === 'entregas' ? cachedDomicilios
-            : [...cachedList, ...cachedDomicilios];
+  const arrIds     = new Set(cachedList.map(v => v.id));
+  const arrExtras  = cachedArrastre.filter(v => !arrIds.has(v.id));
+  const allVueltas = [...arrExtras, ...cachedList];
+  const all = [...allVueltas, ...cachedDomicilios];
+  const src = motoFilter === 'vueltas'     ? allVueltas
+            : motoFilter === 'entregas'    ? cachedDomicilios
+            : motoFilter === 'terminadas'  ? all.filter(v => v.status === 'done' || v.status === 'entregado')
+            : motoFilter === 'encola'      ? (cachedEnCola || [])
+            : all;
 
   const total = src.length;
   const done  = src.filter(v => v.status === 'done' || v.status === 'entregado').length;
@@ -813,15 +821,25 @@ function renderCombined() {
 
 function applyMotoFilter() {
   let items;
-  if (motoFilter === 'vueltas')          items = cachedList.filter(v => v.status !== 'done');
-  else if (motoFilter === 'entregas')    items = cachedDomicilios.filter(d => d.status !== 'entregado');
-  else if (motoFilter === 'terminadas')  items = [...cachedList, ...cachedDomicilios].filter(v => v.status === 'done' || v.status === 'entregado');
-  else if (motoFilter === 'encola')      items = cachedEnCola;
-  else items = [...cachedList, ...cachedDomicilios].sort((a, b) => {
-    if (a.emergency && !b.emergency) return -1;
-    if (!a.emergency && b.emergency) return 1;
-    return (a.order || 0) - (b.order || 0) || (a.createdAt || 0) - (b.createdAt || 0);
-  });
+  const arrIds     = new Set(cachedList.map(v => v.id));
+  const arrExtras  = cachedArrastre.filter(v => !arrIds.has(v.id));
+  const allVueltas = [...arrExtras, ...cachedList];
+  const all = [...allVueltas, ...cachedDomicilios];
+  if (motoFilter === 'vueltas') {
+    items = allVueltas;
+  } else if (motoFilter === 'entregas') {
+    items = cachedDomicilios;
+  } else if (motoFilter === 'terminadas') {
+    items = all.filter(v => v.status === 'done' || v.status === 'entregado');
+  } else if (motoFilter === 'encola') {
+    items = cachedEnCola || [];
+  } else {
+    items = all.sort((a, b) => {
+      if (a.emergency && !b.emergency) return -1;
+      if (!a.emergency && b.emergency) return 1;
+      return (a.order || 0) - (b.order || 0) || (a.createdAt || 0) - (b.createdAt || 0);
+    });
+  }
   renderCards(items);
 }
 
@@ -830,7 +848,6 @@ window.setMotoFilter = (f, btn) => {
   document.querySelectorAll('.m-fbtn').forEach(b => b.classList.remove('on'));
   btn.classList.add('on');
   if (f === 'encola') {
-    $('m-list').innerHTML = '<div class="empty-state"><span class="spin"></span></div>';
     fetchEnCola();
   } else {
     renderCombined();
@@ -894,6 +911,11 @@ function buildVueltaCard(v) {
 
   const hasDetail = ordenLink || photos.length || (isCamino || isDone);
 
+  const vComentario = v.comentario || '';
+  const vBtnLabel   = vComentario
+    ? '💬 Comentario <span style="color:var(--warn-tx)">●</span>'
+    : '💬 Agregar comentario';
+
   return `
     <div class="mcard ${cardCls} ${emgCls}" id="mc-${v.id}">
       ${v._arrastre ? `<div style="font-size:.58rem;font-weight:700;padding:3px 10px;background:var(--warn-bg);color:var(--warn-tx);border-bottom:1px solid var(--warn-bd);border-radius:var(--r) var(--r) 0 0;text-align:center">📅 Arrastre — ${v.date || ''}</div>` : ''}
@@ -922,16 +944,37 @@ function buildVueltaCard(v) {
       <div id="mc-detail-${v.id}" style="display:none">
         ${ordenLink}
         ${thumbsHtml}
-        <div style="padding:0 14px 10px">
-          <button class="btn btn-ghost" style="width:100%;font-size:.68rem;text-align:left"
-            onclick="const el=document.getElementById('mc-comment-${v.id}');el.style.display=el.style.display==='none'?'block':'none'">
-            💬 ${v.comentario ? 'Ver comentario ▾' : 'Agregar comentario ▾'}</button>
-          <div id="mc-comment-${v.id}" style="display:none;margin-top:6px">
-            <textarea id="mc-comment-txt-${v.id}" rows="3"
-              style="width:100%;font-size:.72rem;padding:8px;border:1px solid var(--border);border-radius:var(--r);background:var(--surface);color:var(--text);resize:none;box-sizing:border-box"
-              placeholder="Escribe un comentario sobre esta vuelta…">${v.comentario || ''}</textarea>
-            <button class="btn btn-dark" style="width:100%;margin-top:6px;font-size:.7rem"
-              onclick="guardarComentarioVuelta('${v.id}')">Guardar comentario</button>
+        <div style="padding:4px 14px 10px">
+          <button
+            id="btn-vcm-${v.id}"
+            style="background:none;border:none;font-family:'IBM Plex Mono',monospace;
+                   font-size:.65rem;color:var(--muted);cursor:pointer;
+                   padding:4px 0;text-align:left;display:block;
+                   letter-spacing:.03em;text-transform:none !important"
+            onclick="event.stopPropagation();toggleVComentario('${v.id}')">
+            ${vComentario
+              ? '💬 Comentario <span style="color:var(--warn-tx)">●</span> ▾'
+              : '💬 Agregar comentario ▾'}
+          </button>
+          <div id="vcm-box-${v.id}" style="display:none;margin-top:6px">
+            <textarea
+              id="vcm-txt-${v.id}"
+              rows="2"
+              placeholder="Agregar nota…"
+              style="width:100%;padding:8px 10px;border:1px solid var(--border);
+                     border-radius:var(--r);font-family:'IBM Plex Mono',monospace;
+                     font-size:.68rem;background:var(--surface2);color:var(--text);
+                     resize:none;outline:none;line-height:1.5"
+              onclick="event.stopPropagation()">${vComentario}</textarea>
+            <button
+              onclick="event.stopPropagation();guardarVComentario('${v.id}')"
+              style="margin-top:6px;width:100%;padding:8px;border:none;
+                     border-radius:var(--r);background:var(--accent);color:#fff;
+                     font-family:'IBM Plex Mono',monospace;font-size:.65rem;
+                     font-weight:700;letter-spacing:.06em;cursor:pointer;
+                     min-height:40px;text-transform:none !important">
+              Guardar comentario
+            </button>
           </div>
         </div>
         ${(isCamino || isDone) ? `
@@ -958,15 +1001,29 @@ window.toggleVueltaDetail = id => {
   if (chevron) chevron.textContent = open ? '▲' : '▼';
 };
 
-window.guardarComentarioVuelta = async id => {
-  const txt = document.getElementById(`mc-comment-txt-${id}`)?.value?.trim() || '';
+window.toggleVComentario = id => {
+  const box = $('vcm-box-' + id);
+  const btn = $('btn-vcm-' + id);
+  if (!box) return;
+  const open = box.style.display === 'none';
+  box.style.display = open ? '' : 'none';
+  if (btn) btn.innerHTML = btn.innerHTML.replace(/[▾▴]/, open ? '▴' : '▾');
+};
+
+window.guardarVComentario = async id => {
+  const txt = $('vcm-txt-' + id)?.value?.trim() || '';
   try {
     await fbMod.updateDoc(fbMod.doc(db, COLLECTION, id), { comentario: txt });
-    const idx = cachedList.findIndex(v => v.id === id);
-    if (idx !== -1) cachedList[idx].comentario = txt;
-    const btn = document.querySelector(`#mc-${id} .btn.btn-ghost`);
-    if (btn) btn.textContent = txt ? 'Ver comentario ▾' : 'Agregar comentario ▾';
-  } catch(e) { alert('Error al guardar comentario.'); }
+    const btn = $('btn-vcm-' + id);
+    if (btn) btn.innerHTML = txt
+      ? '💬 Comentario <span style="color:var(--warn-tx)">●</span> ▴'
+      : '💬 Agregar comentario ▴';
+    const box = $('vcm-box-' + id);
+    if (box) box.style.display = 'none';
+  } catch(e) {
+    alert('Error al guardar comentario.');
+    console.error(e);
+  }
 };
 
 function buildDomCard(d) {
@@ -978,83 +1035,110 @@ function buildDomCard(d) {
   const cardCls = isEnt ? 'mc-done' : isCam ? 'mc-camino' : isNoEnt ? 'mc-noent' : '';
   const cirCls  = isEnt ? 'mc-done' : isCam ? 'mc-camino' : '';
   const STATUS_LBL = { pendiente:'Pendiente', en_camino:'En camino', entregado:'Entregado', no_entregado:'No entregado' };
-  const dirFull    = d.direccion || '';
-  const expandable = dirFull.length > 55;
-  const photos = d.photos || [];
+
+  const photos   = d.photos || [];
   const canPhoto = (isCam || isEnt) && photos.length < 3;
-  const thumbs = photos.length
-    ? `<div class="photo-strip">${photos.map(u => `<img class="photo-thumb" src="${esc(u)}" onclick="window.open('${escAttr(u)}','_blank')" alt="foto"/>`).join('')}</div>`
+  const thumbs   = photos.length
+    ? `<div class="photo-strip">${photos.map(u =>
+        `<img class="photo-thumb" src="${esc(u)}" onclick="window.open('${escAttr(u)}','_blank')" alt="foto"/>`
+      ).join('')}</div>`
     : '';
+
   const comentario = d.comentario || '';
   const btnLabel   = comentario
     ? '💬 Comentario <span style="color:var(--warn-tx)">●</span>'
-    : '💬 Agregar comentario';
+    : '💬 Agregar comentario ▾';
+
   const doneTime = d.completadoAt
     ? new Date(d.completadoAt).toLocaleTimeString('es-SV', { hour:'2-digit', minute:'2-digit', hour12:false })
     : '';
 
+  const cid = 'mc-' + d.id;
+
+  const dirCorta = d.direccion
+    ? (d.direccion.length > 60 ? d.direccion.slice(0, 60) + '…' : d.direccion)
+    : '';
+
   return `
-    <div class="mcard ${cardCls}" id="mc-${d.id}">
-      ${d._carryover ? `<div style="font-size:.58rem;font-weight:700;padding:3px 10px;background:var(--err-bg);color:var(--err-tx);border-bottom:1px solid var(--err-bd);border-radius:var(--r) var(--r) 0 0;text-align:center">⚠ Pendiente de día anterior · ${d.date || ''}</div>` : d._arrastre ? `<div style="font-size:.58rem;font-weight:700;padding:3px 10px;background:var(--warn-bg);color:var(--warn-tx);border-bottom:1px solid var(--warn-bd);border-radius:var(--r) var(--r) 0 0;text-align:center">📅 Arrastre — ${d.date || ''}</div>` : ''}
-      <div class="mcard-top">
-        <div class="m-order-circle ${cirCls}" style="font-size:1.1rem">📦</div>
-        <div class="mcard-info">
-          <div style="font-size:.52rem;font-weight:700;letter-spacing:.1em;color:var(--muted);text-transform:uppercase;margin-bottom:2px">Entrega</div>
-          <div class="mcard-dest">${esc((d.cliente || '').toUpperCase())}</div>
-          <div style="margin-top:4px">
-            <span class="dmbadge dmbadge-${st}">${STATUS_LBL[st] || st}</span>
-            ${d.assignedTo ? ` <span style="font-size:.6rem;color:var(--text2)">👤 ${esc(d.assignedTo)}</span>` : ''}
+    <div class="mcard ${cardCls}" id="${cid}">
+      ${d._carryover
+        ? `<div style="font-size:.58rem;font-weight:700;padding:3px 10px;background:var(--err-bg);color:var(--err-tx);border-bottom:1px solid var(--err-bd);border-radius:var(--r) var(--r) 0 0;text-align:center">⚠ Pendiente de día anterior · ${d.date || ''}</div>`
+        : d._arrastre
+        ? `<div style="font-size:.58rem;font-weight:700;padding:3px 10px;background:var(--warn-bg);color:var(--warn-tx);border-bottom:1px solid var(--warn-bd);border-radius:var(--r) var(--r) 0 0;text-align:center">📅 Arrastre — ${d.date || ''}</div>`
+        : ''}
+
+      <!-- CABECERA (siempre visible, clickeable para expandir) -->
+      <div onclick="toggleCard('${cid}')" style="cursor:pointer">
+        <div class="mcard-top">
+          <div class="m-order-circle ${cirCls}" style="font-size:1.1rem">📦</div>
+          <div class="mcard-info">
+            <div style="font-size:.52rem;font-weight:700;letter-spacing:.1em;color:var(--muted);text-transform:uppercase;margin-bottom:2px">Entrega</div>
+            <div class="mcard-dest">${esc((d.cliente || '').toUpperCase())}</div>
+            <div style="margin-top:4px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+              <span class="dmbadge dmbadge-${st}">${STATUS_LBL[st] || st}</span>
+              ${d.assignedTo ? `<span style="font-size:.58rem;color:var(--muted)">👤 ${esc(d.assignedTo)}</span>` : ''}
+            </div>
+          </div>
+          <div class="vcard-chevron" id="ch-${cid}" style="align-self:flex-start;margin-top:6px">▾</div>
+        </div>
+
+        <!-- Info resumida siempre visible -->
+        <div style="padding:0 14px 10px 62px">
+          ${dirCorta ? `<div style="font-size:.67rem;color:var(--text2)">📍 ${esc(dirCorta)}</div>` : ''}
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;align-items:center">
+            ${d.total     ? `<span style="font-size:.68rem;font-weight:700">$${Number(d.total).toFixed(2)}</span>` : ''}
+            ${d.formaPago ? `<span class="dstat-chip" style="padding:2px 7px;font-size:.58rem">💳 ${esc(d.formaPago)}</span>` : ''}
+          </div>
+          ${isEnt && doneTime ? `<div style="font-size:.65rem;color:var(--done-tx);margin-top:4px">✓ Entregado a las ${doneTime}${d.soloLectura || isEnt ? ' — solo lectura' : ''}</div>` : ''}
+          ${isNoEnt && d.motivoNoEntrega ? `<div style="font-size:.62rem;color:var(--err-tx);margin-top:2px">✕ ${esc(d.motivoNoEntrega)}</div>` : ''}
+        </div>
+      </div>
+
+      <!-- DETALLE EXPANDIBLE (oculto por defecto) -->
+      <div id="cd-${cid}" style="display:none;border-top:1px solid var(--border2)">
+        <div style="padding:10px 14px 6px">
+          ${d.direccion     ? `<div style="font-size:.67rem;color:var(--text2);margin-bottom:4px">📍 ${esc(d.direccion)}</div>` : ''}
+          ${d.puntoReferencia ? `<div style="font-size:.62rem;color:var(--muted);margin-bottom:4px">🔖 ${esc(d.puntoReferencia)}</div>` : ''}
+          ${d.telefono      ? `<div style="font-size:.63rem;color:var(--muted);margin-bottom:4px">📞 ${esc(d.telefono)}</div>` : ''}
+          ${d.gpsFin        ? `<div style="margin-bottom:6px"><a class="vloc-link" href="https://maps.google.com/?q=${d.gpsFin.lat},${d.gpsFin.lng}" target="_blank" rel="noopener">📍 Ver ubicación de entrega</a></div>` : ''}
+          ${comentario      ? `<div style="font-size:.67rem;color:var(--text2);font-style:italic;background:var(--surface2);padding:6px 10px;border-radius:var(--r);margin-bottom:6px">💬 ${esc(comentario)}</div>` : ''}
+        </div>
+
+        ${thumbs}
+
+        ${(isCam || isEnt) ? `
+        <div style="display:flex;flex-direction:column;gap:6px;padding:0 12px 8px">
+          <button class="btn-foto" onclick="event.stopPropagation();iniciarCamaraMovil('${d.id}')" ${canPhoto ? '' : 'disabled'}>
+            📷 Cámara
+          </button>
+          <button class="btn-foto" onclick="event.stopPropagation();elegirDeGaleria('${d.id}')" ${canPhoto ? '' : 'disabled'}>
+            🖼 Galería
+          </button>
+        </div>` : ''}
+
+        <div style="padding:0 12px 10px">
+          <button class="btn-foto" style="background:transparent;border-color:var(--border);color:var(--muted)"
+            onclick="event.stopPropagation();toggleDomComentario('${d.id}')">
+            ${btnLabel}
+          </button>
+          <div id="dom-cm-${d.id}" style="display:none;margin-top:8px">
+            <textarea id="dom-txt-${d.id}" rows="2"
+              style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-family:var(--mono);font-size:.72rem;background:var(--surface);color:var(--text);resize:vertical"
+              placeholder="Agregar nota...">${esc(comentario)}</textarea>
+            <button class="btn btn-dark btn-full" style="margin-top:6px;font-size:.7rem"
+              onclick="event.stopPropagation();guardarDomComentario('${d.id}')">
+              Guardar comentario
+            </button>
           </div>
         </div>
       </div>
-      <div style="padding:2px 14px 10px;display:flex;flex-direction:column;gap:4px">
-        ${dirFull ? `<div class="dir-line${expandable ? ' dir-exp' : ''}" ${expandable ? 'onclick="toggleDir(this)"' : ''} style="font-size:.72rem;color:var(--text2)">📍 ${esc(dirFull)}</div>` : ''}
-        ${d.puntoReferencia ? `<div style="font-size:.67rem;color:var(--muted)">🔖 ${esc(d.puntoReferencia)}</div>` : ''}
-        ${d.telefono      ? `<div style="font-size:.68rem;color:var(--text2)">📞 ${esc(d.telefono)}</div>` : ''}
-        ${d.total         ? `<div style="font-size:.7rem;font-weight:700">💳 $${Number(d.total).toFixed(2)}${d.formaPago ? ` · ${esc(d.formaPago)}` : ''}</div>` : ''}
-      </div>
-      ${isEnt  ? `<div style="padding:0 14px 10px;font-size:.7rem;color:var(--done-tx);font-weight:600">✓ Entregado${doneTime ? ` a las ${doneTime}` : ''} — solo lectura</div>` : ''}
-      ${isNoEnt ? `<div style="padding:0 14px 10px;font-size:.7rem;color:var(--err-tx);font-weight:600">✗ ${esc(d.motivoNoEntrega||'No entregado')}${d.fechaReagenda ? ` · Reagenda: ${d.fechaReagenda}` : ''}</div>` : ''}
-      ${thumbs}
-      ${isPend ? `<div class="mcard-actions"><button class="btn btn-warn" onclick="salirDomicilio('${d.id}')">🏠 SALIR →</button></div>` : ''}
-      ${isCam  ? `<div class="mcard-actions">
-        <button class="btn btn-done-action" onclick="acabeDomicilio('${d.id}')">✓ ACABÉ</button>
-        <button class="btn" style="background:var(--err-bg);color:var(--err-tx);border:1px solid var(--err-bd);width:100%;font-size:.82rem;min-height:48px" onclick="noPudeEntregar('${d.id}')">✗ No pude entregar</button>
+
+      <!-- ACCIONES (siempre visibles) -->
+      ${!isEnt && !isNoEnt ? `
+      <div class="mcard-actions" style="border-top:1px solid var(--border2)">
+        ${isPend ? `<button class="btn btn-warn" onclick="domEnCamino('${d.id}')">🚐 En camino</button>` : ''}
+        ${isCam  ? `<button class="btn btn-done-action" onclick="domEntregado('${d.id}')">✓ ACABÉ</button>` : ''}
       </div>` : ''}
-      ${isNoEnt ? `<div class="mcard-actions">
-        <button class="btn btn-done-action" onclick="reintentarEntrega('${d.id}')">🔄 Reintentar entrega</button>
-      </div>` : ''}
-      ${(isCam || isEnt) ? (canPhoto ? `<button class="btn-foto" onclick="tomarFotoDom('${d.id}')">📷 Cámara</button><button class="btn-foto" onclick="tomarFotoDomGaleria('${d.id}')">🖼 Galería</button>` : `<button class="btn-foto" disabled>📷 3/3 — máximo alcanzado</button>`) : ''}
-      <div style="padding:0 14px 10px">
-        <button
-          id="btn-com-${d.id}"
-          style="background:none;border:none;font-family:var(--mono);
-                 font-size:.65rem;color:var(--text2);cursor:pointer;
-                 padding:4px 0;text-align:left"
-          onclick="toggleComentario('${d.id}')">
-          ${btnLabel} ▾
-        </button>
-        <div id="com-box-${d.id}" style="display:none;margin-top:6px">
-          <textarea
-            id="com-txt-${d.id}"
-            rows="3"
-            placeholder="Escribe un comentario sobre esta entrega…"
-            style="width:100%;padding:8px 10px;border:1px solid var(--border);
-                   border-radius:var(--r);font-family:var(--mono);font-size:.68rem;
-                   background:var(--surface2);color:var(--text);resize:none;
-                   outline:none;line-height:1.5"
-            >${escHtml(comentario)}</textarea>
-          <button
-            onclick="guardarComentario('${d.id}')"
-            style="margin-top:6px;width:100%;padding:8px;border:none;
-                   border-radius:var(--r);background:var(--accent);
-                   color:#fff;font-family:var(--mono);font-size:.65rem;
-                   font-weight:700;letter-spacing:.06em;cursor:pointer;
-                   min-height:40px">
-            Guardar comentario
-          </button>
-        </div>
-      </div>
     </div>`;
 }
 
@@ -1080,6 +1164,30 @@ window.guardarComentario = async id => {
     alert('Error al guardar comentario.');
     console.error(e);
   }
+};
+
+window.toggleCard = id => {
+  const detail  = document.getElementById('cd-' + id);
+  const chevron = document.getElementById('ch-' + id);
+  if (!detail) return;
+  const isOpen = detail.style.display !== 'none';
+  detail.style.display = isOpen ? 'none' : '';
+  if (chevron) chevron.style.transform = isOpen ? '' : 'rotate(180deg)';
+};
+
+window.toggleDomComentario = id => {
+  const el = document.getElementById('dom-cm-' + id);
+  if (el) el.style.display = el.style.display === 'none' ? '' : 'none';
+};
+
+window.guardarDomComentario = async id => {
+  const txt = document.getElementById('dom-txt-' + id);
+  if (!txt || !db) return;
+  try {
+    await fbMod.updateDoc(fbMod.doc(db, 'domicilios', id), { comentario: txt.value.trim() });
+    const el = document.getElementById('dom-cm-' + id);
+    if (el) el.style.display = 'none';
+  } catch(e) { console.error('guardarDomComentario:', e); }
 };
 
 /* ═══════════════════════════════════
