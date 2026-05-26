@@ -1880,29 +1880,33 @@ window.initVueltasScreen = async () => {
     });
   });
 
+  await loadArrastre(getTodaySV());
   reloadTodas();
 };
 
 async function loadArrastre(fechaRef) {
-  if (!db) return;
-  const driver   = $('v-driver-filter')?.value || '';
-  const fromDate = new Date();
-  fromDate.setDate(fromDate.getDate() - 30);
-  const fromStr  = fromDate.toLocaleDateString('en-CA',
-    { timeZone: 'America/El_Salvador' });
+  if (!db) { console.log('loadArrastre: no db'); return; }
   try {
+    console.log('loadArrastre: iniciando query para', fechaRef);
+    const driver = $('v-driver-filter')?.value || '';
+
     const [vSnap, dSnap] = await Promise.all([
-      fbMod.getDocs(fbMod.query(
-        fbMod.collection(db, 'vueltas'),
-        fbMod.where('date', '>=', fromStr),
-        fbMod.where('date', '<', fechaRef)
-      )),
-      fbMod.getDocs(fbMod.query(
-        fbMod.collection(db, 'domicilios'),
-        fbMod.where('date', '>=', fromStr),
-        fbMod.where('date', '<', fechaRef)
-      ))
+      fbMod.getDocs(
+        fbMod.query(
+          fbMod.collection(db, 'vueltas'),
+          fbMod.where('date', '<', fechaRef)
+        )
+      ),
+      fbMod.getDocs(
+        fbMod.query(
+          fbMod.collection(db, 'domicilios'),
+          fbMod.where('date', '<', fechaRef)
+        )
+      )
     ]);
+
+    console.log('loadArrastre: raw docs v=', vSnap.size, 'd=', dSnap.size);
+
     arrVueltas = vSnap.docs
       .map(d => ({ id: d.id, ...d.data(), _arrastre: true }))
       .filter(v =>
@@ -1915,11 +1919,13 @@ async function loadArrastre(fechaRef) {
         ['pendiente','en_camino','no_entregado'].includes(d.status) &&
         (!driver || d.assignedTo === driver)
       );
-    console.log('loadArrastre result:',
-      arrVueltas.length, 'vueltas,',
-      arrDomicilios.length, 'domicilios');
+
+    console.log('loadArrastre: filtrados v=', arrVueltas.length, 'd=', arrDomicilios.length);
+
+    if (activeVueltasTab === 'todas') renderTodas();
+
   } catch(e) {
-    console.warn('loadArrastre:', e.message);
+    console.error('loadArrastre ERROR:', e.code, e.message);
     arrVueltas = []; arrDomicilios = [];
   }
 }
