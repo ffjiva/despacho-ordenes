@@ -770,14 +770,17 @@ function startDomiciliosListener() {
   );
 
   // One-shot — días anteriores pendientes
+  // Query simplificada: solo assignedTo + date < hoy (sin índice compuesto)
+  // El filtro de status se hace en JS
   const qPast = fbMod.query(
     fbMod.collection(db, 'domicilios'),
     fbMod.where('assignedTo', '==', currentDriver),
-    fbMod.where('status', 'in', ['pendiente', 'en_camino']),
     fbMod.where('date', '<', today())
   );
   fbMod.getDocs(qPast).then(snap => {
-    carryoverItems = snap.docs.map(d => ({ id: d.id, type: 'domicilio', ...d.data(), _carryover: true }));
+    carryoverItems = snap.docs
+      .map(d => ({ id: d.id, type: 'domicilio', ...d.data(), _carryover: true }))
+      .filter(d => ['pendiente', 'en_camino', 'no_entregado'].includes(d.status));
     merge();
   }).catch(e => console.warn('domicilios carryover:', e.message));
 }
