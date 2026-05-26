@@ -1885,15 +1885,21 @@ window.initVueltasScreen = async () => {
 
 async function loadArrastre(fechaRef) {
   if (!db) return;
-  const driver = $('v-driver-filter')?.value || '';
+  const driver   = $('v-driver-filter')?.value || '';
+  const fromDate = new Date();
+  fromDate.setDate(fromDate.getDate() - 30);
+  const fromStr  = fromDate.toLocaleDateString('en-CA',
+    { timeZone: 'America/El_Salvador' });
   try {
     const [vSnap, dSnap] = await Promise.all([
       fbMod.getDocs(fbMod.query(
         fbMod.collection(db, 'vueltas'),
+        fbMod.where('date', '>=', fromStr),
         fbMod.where('date', '<', fechaRef)
       )),
       fbMod.getDocs(fbMod.query(
         fbMod.collection(db, 'domicilios'),
+        fbMod.where('date', '>=', fromStr),
         fbMod.where('date', '<', fechaRef)
       ))
     ]);
@@ -1909,6 +1915,9 @@ async function loadArrastre(fechaRef) {
         ['pendiente','en_camino','no_entregado'].includes(d.status) &&
         (!driver || d.assignedTo === driver)
       );
+    console.log('loadArrastre result:',
+      arrVueltas.length, 'vueltas,',
+      arrDomicilios.length, 'domicilios');
   } catch(e) {
     console.warn('loadArrastre:', e.message);
     arrVueltas = []; arrDomicilios = [];
@@ -2684,6 +2693,8 @@ window.toggleTodasSort = btn => {
 
 function renderTodas() {
   if (activeVueltasTab !== 'todas') return;
+  console.log('renderTodas: cached=', cachedVueltas.length, cachedDomiciliosSup.length,
+    'arrV=', arrVueltas.length, 'arrD=', arrDomicilios.length);
   const todayVIds = new Set(cachedVueltas.map(v => v.id));
   const todayDIds = new Set(cachedDomiciliosSup.map(d => d.id));
   const extraV = arrVueltas.filter(v => !todayVIds.has(v.id))
