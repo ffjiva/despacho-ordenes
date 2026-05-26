@@ -68,6 +68,7 @@ body.dark .btn-light { background: #3a3a3a; color: var(--text); }
 body.dark .fld input, body.dark .fld textarea, body.dark .fld select { background: #222; }
 body.dark .modal { background: #252525; }
 body.dark .name-card { background: #252525; }
+body.dark select option { background: #1e1e1e; color: #e8e8e8; }
 
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 html, body {
@@ -4192,11 +4193,19 @@ window.goReposicion = () => {
 
 window.goBackFromReposicion = () => { showScreen('s-home'); };
 
+window.goTrazabilidad = () => {
+  showScreen('s-trazabilidad');
+  loadTrazabilidad();
+};
+
+window.goBackFromTrazabilidad = () => { showScreen('s-reposicion'); };
+
 // ── Módulo 7 — Trazabilidad ───────────────────────────────────────────────
 let trazRecords = [];
 
 async function loadTrazabilidad() {
-  if (!db) return;
+  console.log('[Trazabilidad] db:', db, 'fbMod:', typeof fbMod);
+  if (!db) { console.warn('[Trazabilidad] db no inicializado'); return; }
   $('traz-loading').style.display = 'block';
   $('traz-list').innerHTML = '';
   try {
@@ -4212,13 +4221,20 @@ async function loadTrazabilidad() {
   }
 }
 
-function renderTrazabilidad() {
+window.renderTrazabilidad = function() {
+  const filOrigen = $('traz-fil-origen').value;
+  const filDest   = $('traz-fil-destino').value;
+  const filFecha  = $('traz-fil-fecha').value;
+  let list = trazRecords;
+  if (filOrigen) list = list.filter(r => r.origen  === filOrigen);
+  if (filDest)   list = list.filter(r => r.destino === filDest);
+  if (filFecha)  list = list.filter(r => r.fecha   === filFecha);
   const wrap = $('traz-list');
-  if (!trazRecords.length) {
+  if (!list.length) {
     wrap.innerHTML = '<div class="empty-state">Sin registros aún.</div>';
     return;
   }
-  wrap.innerHTML = trazRecords.map(r => {
+  wrap.innerHTML = list.map(r => {
     const dt = new Date(r.timestamp);
     const hora = dt.toLocaleTimeString('es-SV', { hour: '2-digit', minute: '2-digit' });
     return `
@@ -5217,7 +5233,7 @@ document.addEventListener('DOMContentLoaded', init);
     <div class="topbar-title">📊 Reposición</div>
     <div class="topbar-actions">
       <button class="btn btn-ghost" style="font-size:.65rem"
-        onclick="showScreen('s-trazabilidad');loadTrazabilidad()">📋 Historial</button>
+        onclick="goTrazabilidad()">📋 Historial</button>
       <button class="btn btn-ghost" style="font-size:.65rem"
         onclick="goBackFromReposicion()">← Volver</button>
     </div>
@@ -5352,12 +5368,38 @@ document.addEventListener('DOMContentLoaded', init);
     <div class="topbar-title">📋 Historial de Reposiciones</div>
     <div class="topbar-actions">
       <button class="btn btn-ghost" style="font-size:.65rem"
-        onclick="showScreen('s-reposicion')">← Volver</button>
+        onclick="goBackFromTrazabilidad()">← Volver</button>
     </div>
   </div>
   <div id="traz-loading" style="display:none;text-align:center;padding:3rem 1rem">
     <span class="spin"></span>
     <span style="font-size:.72rem;color:var(--muted);margin-left:8px">Cargando…</span>
+  </div>
+  <div style="padding:.75rem 1rem .25rem;display:flex;gap:8px;flex-wrap:wrap;border-bottom:1px solid var(--border2)">
+    <select id="traz-fil-origen" onchange="renderTrazabilidad()"
+      style="font-size:.68rem;padding:4px 8px;border:1px solid var(--border);border-radius:var(--r);background:var(--surface);color:var(--text)">
+      <option value="">Todos los orígenes</option>
+      <option value="B01">B01 Hangar</option>
+      <option value="B02">B02 Zdt</option>
+      <option value="M01">M01 Merliot</option>
+      <option value="S02">S02 San Salvador</option>
+      <option value="S04">S04 Soyapango</option>
+      <option value="S03">S03 San Miguel</option>
+      <option value="S07">S07 Usulután</option>
+      <option value="S06">S06 Zoditech</option>
+    </select>
+    <select id="traz-fil-destino" onchange="renderTrazabilidad()"
+      style="font-size:.68rem;padding:4px 8px;border:1px solid var(--border);border-radius:var(--r);background:var(--surface);color:var(--text)">
+      <option value="">Todos los destinos</option>
+      <option value="M01">M01 Merliot</option>
+      <option value="S02">S02 San Salvador</option>
+      <option value="S04">S04 Soyapango</option>
+      <option value="S03">S03 San Miguel</option>
+      <option value="S07">S07 Usulután</option>
+      <option value="S06">S06 Zoditech</option>
+    </select>
+    <input id="traz-fil-fecha" type="date" onchange="renderTrazabilidad()"
+      style="font-size:.68rem;padding:4px 8px;border:1px solid var(--border);border-radius:var(--r);background:var(--surface);color:var(--text)"/>
   </div>
   <div id="traz-list" style="padding:.75rem .875rem 5rem"></div>
 </div>
