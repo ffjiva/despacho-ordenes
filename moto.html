@@ -944,6 +944,17 @@ function buildVueltaCard(v) {
       <div id="mc-detail-${v.id}" style="display:none">
         ${ordenLink}
         ${thumbsHtml}
+        ${(isCamino || isDone) ? `
+          <div id="foto-actions-${v.id}" style="display:none;padding:0 14px 12px">
+            ${canPhoto
+              ? `<button class="btn-foto" onclick="tomarFoto('${v.id}')">📷 Cámara</button>
+                 <button class="btn-foto" onclick="tomarFotoGaleria('${v.id}')">🖼 Galería</button>`
+              : `<button class="btn-foto" disabled>📷 3/3 — máximo alcanzado</button>`}
+          </div>
+          <button class="btn-foto" style="margin:0 14px 12px;width:calc(100% - 28px)"
+            onclick="const el=document.getElementById('foto-actions-${v.id}');el.style.display=el.style.display==='none'?'block':'none'">
+            📷 Agregar foto</button>
+        ` : ''}
         <div style="padding:4px 14px 10px">
           <button
             id="btn-vcm-${v.id}"
@@ -977,17 +988,6 @@ function buildVueltaCard(v) {
             </button>
           </div>
         </div>
-        ${(isCamino || isDone) ? `
-          <div id="foto-actions-${v.id}" style="display:none;padding:0 14px 12px">
-            ${canPhoto
-              ? `<button class="btn-foto" onclick="tomarFoto('${v.id}')">📷 Cámara</button>
-                 <button class="btn-foto" onclick="tomarFotoGaleria('${v.id}')">🖼 Galería</button>`
-              : `<button class="btn-foto" disabled>📷 3/3 — máximo alcanzado</button>`}
-          </div>
-          <button class="btn-foto" style="margin:0 14px 12px;width:calc(100% - 28px)"
-            onclick="const el=document.getElementById('foto-actions-${v.id}');el.style.display=el.style.display==='none'?'block':'none'">
-            📷 Agregar foto</button>
-        ` : ''}
       </div>
     </div>`;
 }

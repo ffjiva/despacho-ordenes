@@ -301,4 +301,19 @@ generadoPor:   string
 
 ---
 
+## Mejoras de diseño pendientes (moto.html)
+
+### Rediseño visual de fichas (vueltas y entregas)
+- Revisar jerarquía tipográfica: tamaños, pesos y colores de fuente
+  para mejorar legibilidad en móvil
+- Revisar paleta de colores de los estados (pendiente, en camino,
+  completado, no entregado) en modo oscuro
+- Mejorar separación visual entre la cabecera colapsada y el
+  detalle expandido
+- Considerar micro-animación suave en el toggle expand/collapse
+- Revisar consistencia entre estilos de cards de vueltas vs entregas
+  (actualmente tienen estructuras CSS distintas)
+
+---
+
 *Última actualización: Mayo 2026*
