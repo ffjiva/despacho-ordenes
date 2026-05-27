@@ -239,6 +239,62 @@ Parámetros configurables (panel ⚙):
 
 ---
 
+## Módulo 7 — Trazabilidad [COMPLETADO — Mayo 2026]
+- Registro Firestore de cada vuelta/entrega con timestamps
+- Pantalla historial en ops.html con filtros origen/destino/fecha
+- Campo fecha en modal Editar Vuelta
+- Botones Cámara/Galería en modales Nueva/Editar Vuelta (ops.html)
+
+---
+
+## Sesión Mayo 26 2026 — Fixes y mejoras moto.html + ops.html
+
+### moto.html — completado
+- Filtros Vueltas/Entregas/Terminadas/En cola funcionando
+- escHtml → esc reemplazo global
+- Cards de entrega (domicilios) colapsables con toggle ▾/▲
+- Botón comentario sin uppercase ni spinner en vueltas y entregas
+- Orden correcto: ACABÉ → foto → comentario
+- cachedArrastre independiente del listener (arrastres visibles en "Todas")
+- Carryover domicilios: query simplificada sin índice compuesto
+- iniciarCamaraMovil / elegirDeGaleria separados para domicilios
+- Botones Salir/ACABÉ con feedback inmediato (GPS fire-and-forget)
+- merge() prioriza todayItems sobre carryoverItems
+
+### ops.html — completado
+- loadArrastre sin índice compuesto (date >= + date < mismo campo)
+- switchVueltasTab deduplicado (eliminada versión sync duplicada)
+- renderTodas incluye arrVueltas y arrDomicilios deduplicados
+- renderEntregasFiltradas muestra sección de arrastres
+- Badge "VENCIDA" oculto en vueltas con status done
+
+---
+
+## Rediseño visual moto.html [PRÓXIMA SESIÓN]
+
+### Objetivo
+Mejorar la calidad visual y legibilidad de las fichas de vueltas
+y entregas en moto.html para usuarios móviles (motoristas).
+
+### Alcance definido
+- Revisión de jerarquía tipográfica: tamaños, pesos y colores
+- Paleta de colores de estados (pendiente, en camino, completado,
+  no entregado) en modo oscuro
+- Consistencia visual entre cards de vueltas y cards de entregas
+- Separación visual entre cabecera colapsada y detalle expandido
+- Micro-animación suave en toggle expand/collapse
+- Usabilidad móvil: touch targets, espaciado, legibilidad
+
+### Skill requerida
+Leer /mnt/skills/public/frontend-design/SKILL.md antes de proponer
+cualquier cambio visual.
+
+### Archivos a modificar
+- moto.html (CSS variables en :root + clases de cards)
+- No tocar lógica JS, solo CSS y estructura HTML de las cards
+
+---
+
 ## Cómo usar este archivo con Claude Code
 
 Al abrir una sesión de implementación:
