@@ -2265,7 +2265,7 @@ function buildVueltaCard(v, prefix) {
   const urgCls = v.urgency === 'high' ? 'urg-high' : v.urgency === 'low' ? 'urg-low' : 'urg-normal';
   const emgCls = v.emergency ? 'emergency' : '';
   const slabel = v.status === 'done' ? 'Completada' : v.status === 'en_camino' ? 'En camino' : 'Pendiente';
-  const dateBadge = formatVueltaDateBadge(v.date);
+  const dateBadge = v.status === 'done' ? null : formatVueltaDateBadge(v.date);
   const dateBadgeHtml = dateBadge
     ? `<span style="display:inline-block;padding:1px 7px;border-radius:3px;font-size:.6rem;font-weight:700;letter-spacing:.06em;background:${dateBadge.bg};color:${dateBadge.color};border:1px solid currentColor;opacity:.9">${dateBadge.label}</span>`
     : '';
