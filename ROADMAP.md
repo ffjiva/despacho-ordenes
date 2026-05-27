@@ -270,28 +270,49 @@ Parámetros configurables (panel ⚙):
 
 ---
 
-## Rediseño visual moto.html [PRÓXIMA SESIÓN]
+## Rediseño visual — Design System unificado [PRÓXIMA SESIÓN]
 
 ### Objetivo
-Mejorar la calidad visual y legibilidad de las fichas de vueltas
-y entregas en moto.html para usuarios móviles (motoristas).
+Aplicar un design system con identidad propia a los 3 archivos
+del proyecto: moto.html, ops.html e index.html.
+El objetivo es diferenciarse del "AI app aesthetic" genérico
+(fondo negro puro + verde neón + mono font + borde brillante)
+sin romper la funcionalidad actual.
 
-### Alcance definido
-- Revisión de jerarquía tipográfica: tamaños, pesos y colores
-- Paleta de colores de estados (pendiente, en camino, completado,
-  no entregado) en modo oscuro
-- Consistencia visual entre cards de vueltas y cards de entregas
-- Separación visual entre cabecera colapsada y detalle expandido
-- Micro-animación suave en toggle expand/collapse
-- Usabilidad móvil: touch targets, espaciado, legibilidad
+### Dirección elegida: Opción A — Industrial/Logística
+Inspirado en interfaces de almacén y transporte real.
+- Fondo: no negro puro sino dark slate/charcoal (ej. #1a1c1e, #22252a)
+- Acento: ámbar/naranja quemado en lugar de verde genérico
+  (ej. #c87941, #d4894a) — evoca etiquetas, advertencias, carga
+- Tipografía: mantener mono font pero con pesos más marcados
+  y jerarquía más clara (title/body/meta bien diferenciados)
+- Cards: bordes sutiles sin glow, sombras suaves con color
+- Sensación general: herramienta de trabajo seria y funcional,
+  no dashboard de startup
+
+### Opciones documentadas (descartadas por ahora)
+
+**Opción B — Dark UI con personalidad propia**
+- Mantener dark mode pero con acento único no genérico:
+  teal oscuro (#2a9d8f), naranja quemado o azul índigo (#3d5a80)
+- Cards con bordes más sutiles y sombras en lugar de glow
+- Más respiro entre elementos, menos densidad visual
+
+**Opción C — Refinamiento del sistema actual**
+- No cambiar paleta base, solo afinar proporciones:
+  mejores tamaños tipográficos, espaciado más consistente,
+  jerarquía más clara entre título/subtítulo/metadata
+- El cambio se nota en calidad de ejecución, no en estilo
+
+### Alcance
+- Definir nuevas variables CSS :root compartidas (design tokens)
+- Aplicar a los 3 archivos: moto.html, ops.html, index.html
+- Priorizar moto.html (más usado por el equipo en campo)
+- No tocar lógica JS, solo CSS y estructura HTML de las cards
 
 ### Skill requerida
-Leer /mnt/skills/public/frontend-design/SKILL.md antes de proponer
-cualquier cambio visual.
-
-### Archivos a modificar
-- moto.html (CSS variables en :root + clases de cards)
-- No tocar lógica JS, solo CSS y estructura HTML de las cards
+Leer /mnt/skills/public/frontend-design/SKILL.md antes de
+proponer cualquier cambio visual.
 
 ---
 
