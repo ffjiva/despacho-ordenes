@@ -7,22 +7,23 @@
 <style>
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap');
 :root {
-  --bg: #1a1a14;
-  --surface: #242418;
-  --surface2: #2c2c22;
-  --border: #3a3a2e;
-  --border2: #323228;
-  --text: #f0ede6;
-  --text2: #b0ad9f;
-  --muted: #6a6a5e;
-  --accent: #2a2a1e;
-  --accent2: #7bc44a;
-  --done-bg: #1e3012;
-  --done-bd: #4a8a1e;
-  --done-tx: #7bc44a;
-  --warn-bg: #2a1f08;
-  --warn-bd: #8a6a1a;
-  --warn-tx: #f0cc7a;
+  --bg: #161410;
+  --surface: #1f1c18;
+  --surface2: #272320;
+  --border: #2e2a24;
+  --border2: #26231f;
+  --text: #e8e2d8;
+  --text2: #a09890;
+  --muted: #7a7266;
+  --accent: #1f1c18;
+  --accent2: #4caf7d;
+  --brand: #c8922a;
+  --done-bg: #0f2a1a;
+  --done-bd: #1e5c38;
+  --done-tx: #4caf7d;
+  --warn-bg: #2e2210;
+  --warn-bd: #5c400e;
+  --warn-tx: #c8922a;
   --err-bg: #2a0f0c;
   --err-bd: #8a2a22;
   --err-tx: #f5a0a0;
@@ -35,22 +36,23 @@
   --r2: 10px;
 }
 body.light {
-  --bg: #f2f0eb;
+  --bg: #f5f2ec;
   --surface: #ffffff;
-  --surface2: #faf9f7;
-  --border: #dddbd2;
-  --border2: #e8e6df;
-  --text: #18180f;
-  --text2: #5a5a4f;
-  --muted: #8a8a7e;
-  --accent: #18180f;
-  --accent2: #2d5a1b;
-  --done-bg: #edf5e1;
-  --done-bd: #bad48a;
-  --done-tx: #2d5a1b;
-  --warn-bg: #fdf4e3;
-  --warn-bd: #f0cc7a;
-  --warn-tx: #7a4f0a;
+  --surface2: #faf8f4;
+  --border: #e0dbd0;
+  --border2: #ebe6de;
+  --text: #1a1610;
+  --text2: #5a5248;
+  --muted: #8a8070;
+  --accent: #1a1610;
+  --accent2: #2d7a52;
+  --brand: #9a6e1a;
+  --done-bg: #e8f5ee;
+  --done-bd: #a0d4b8;
+  --done-tx: #2d7a52;
+  --warn-bg: #faf0e0;
+  --warn-bd: #d4a84a;
+  --warn-tx: #7a5010;
   --err-bg: #fdecea;
   --err-bd: #f5b8b2;
   --err-tx: #9b2a20;
@@ -97,11 +99,11 @@ html, body {
 /* ── BUTTONS ── */
 .btn {
   display: inline-flex; align-items: center; gap: 5px;
-  padding: 7px 14px; border-radius: var(--r);
+  padding: 9px 14px; border-radius: var(--r);
   font-family: var(--mono); font-size: .7rem; font-weight: 700;
   letter-spacing: .07em; text-transform: uppercase;
   cursor: pointer; border: none; transition: all .15s;
-  white-space: nowrap;
+  white-space: nowrap; min-height: 36px;
 }
 .btn:active { transform: scale(.97); }
 .btn-light { background: #3a3a2e; color: var(--text); }
@@ -237,15 +239,16 @@ html, body {
 
 /* ── PICKING SCREEN ── */
 .pick-header {
-  background: var(--accent); color: var(--text);
+  background: #131110; color: var(--text);
   padding: .85rem 1rem 0;
   position: sticky; top: 0; z-index: 200;
+  border-bottom: 2px solid var(--brand);
 }
 .pick-top { display: flex; justify-content: space-between; align-items: flex-start; gap: .75rem; margin-bottom: .75rem; }
 .pick-title-wrap .pick-name { font-size: .82rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; line-height: 1.3; }
 .pick-title-wrap .pick-date { font-size: .58rem; opacity: .5; margin-top: 3px; letter-spacing: .05em; }
 .pick-title-wrap .pick-assign { font-size: .6rem; opacity: .7; margin-top: 2px; }
-.pick-acts { display: flex; gap: 6px; flex-shrink: 0; }
+.pick-acts { display: flex; gap: 6px; flex-shrink: 0; align-items: center; }
 .prog-wrap { padding-bottom: .8rem; }
 .prog-labels { display: flex; justify-content: space-between; font-size: .62rem; opacity: .65; margin-bottom: 5px; letter-spacing: .03em; }
 .prog-track { background: rgba(255,255,255,.18); border-radius: 2px; height: 4px; overflow: hidden; }
@@ -264,11 +267,11 @@ html, body {
   cursor: pointer; white-space: nowrap; color: var(--muted);
   letter-spacing: .04em; transition: all .15s;
 }
-.fbtn.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.fbtn.on { background: var(--brand); color: #1a1000; border-color: var(--brand); }
 .sort-divider { width: 1px; height: 16px; background: var(--border); flex-shrink: 0; margin: 0 2px; }
 .pick-list { padding: .6rem .8rem; max-width: 900px; margin: 0 auto; }
 .group-hd {
-  font-size: .57rem; font-weight: 700; letter-spacing: .14em;
+  font-size: .65rem; font-weight: 700; letter-spacing: .14em;
   text-transform: uppercase; color: var(--muted);
   padding: .85rem .15rem .3rem; border-bottom: 1px solid var(--border2);
   margin-bottom: .45rem;
@@ -280,15 +283,15 @@ html, body {
 }
 .ic.done { background: var(--done-bg); border-color: var(--done-bd); }
 .ic.has-nota { border-left: 3px solid var(--warn-bd); }
-.ic-main { display: flex; align-items: flex-start; gap: 10px; padding: 11px 10px 8px; cursor: pointer; }
+.ic-main { display: flex; align-items: flex-start; gap: 10px; padding: 14px 10px 12px; cursor: pointer; }
 .chk {
-  width: 19px; height: 19px; flex-shrink: 0; margin-top: 1px;
-  border: 2px solid var(--border); border-radius: 4px;
+  width: 26px; height: 26px; flex-shrink: 0; margin-top: 0;
+  border: 2px solid var(--border); border-radius: 5px;
   display: flex; align-items: center; justify-content: center;
   background: #fff; transition: all .15s;
 }
 .ic.done .chk { background: var(--done-tx); border-color: var(--done-tx); }
-.chkm { display: none; color: #fff; font-size: 10px; font-weight: 700; }
+.chkm { display: none; color: #fff; font-size: 13px; font-weight: 700; }
 .ic.done .chkm { display: block; }
 .ic-content { flex: 1; min-width: 0; }
 .ic-name {
@@ -317,7 +320,7 @@ html, body {
 .ic-qty-wrap { flex-shrink: 0; text-align: right; }
 .ic-qty { font-size: 1rem; font-weight: 700; color: var(--muted); line-height: 1; }
 .ic.done .ic-qty { color: var(--done-tx); }
-.ic-qty-lbl { font-size: .48rem; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
+.ic-qty-lbl { font-size: .58rem; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
 .ic-footer { padding: 0 10px 8px 39px; }
 .done-time { font-size: .6rem; color: var(--done-tx); margin-bottom: 4px; }
 .note-row { display: flex; align-items: center; gap: 5px; }
@@ -459,7 +462,7 @@ html, body {
   margin-bottom: 8px; transition: all .15s; display: block;
 }
 .pin-user-btn:hover { border-color: var(--accent); }
-.pin-user-btn.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.pin-user-btn.on { background: var(--brand); color: #1a1000; border-color: var(--brand); }
 
 /* ── DATE / TIME INPUT DARK FIX ── */
 input[type="date"],
