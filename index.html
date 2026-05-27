@@ -1588,10 +1588,16 @@ function renderDash(list) {
 
   let html = '';
   if (!activas.length) {
-    html += `<div class="empty-state">
-      <div class="empty-icon">📋</div>
-      <div class="empty-text">Sin despachos activos.</div>
-    </div>`;
+    const noAssigned = currentRole !== 'super' && list.length === 0;
+    html += noAssigned
+      ? `<div class="empty-state">
+          <div class="empty-icon">📦</div>
+          <div class="empty-text">Esperando que me den</div>
+        </div>`
+      : `<div class="empty-state">
+          <div class="empty-icon">📋</div>
+          <div class="empty-text">Sin despachos activos.</div>
+        </div>`;
   } else {
     html += activas.map(d => cardHtml(d, false)).join('');
   }
