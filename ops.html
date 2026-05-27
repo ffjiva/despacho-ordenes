@@ -2477,7 +2477,10 @@ function equipoMsg(txt, isErr) {
 }
 
 async function renderTeamTable() {
-  const members = await getAllMembers();
+  const raw = await getAllMembers();
+  const members = raw.map(m => typeof m === 'string'
+    ? { id: null, name: m, role: 'bodeguero', active: true, pin: null, lastAccess: null }
+    : m);
   const el = $('equipo-list');
   if (!members.length) {
     el.innerHTML = '<div style="text-align:center;color:var(--muted);padding:1rem;font-size:.72rem">Sin usuarios.</div>';
