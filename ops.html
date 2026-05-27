@@ -1301,6 +1301,10 @@ let repSearch      = '';
 let repSortBy      = 'suggested';
 let repSortDir     = 'desc';
 let repSortCol     = '';
+let repMode           = 'stock';
+let repCompraProducts = [];
+let repCompraData     = {};
+let repCompraFiles    = [];
 
 const $ = id => document.getElementById(id);
 
@@ -4157,7 +4161,11 @@ function saveRepSession() {
       b01Reserve:  REP_B01_RESERVE,
       minimums:    REP_MINIMUMS,
       maximums:    REP_MAXIMUMS,
-      fillToMax:   REP_FILL_TO_MAX,
+      fillToMax:      REP_FILL_TO_MAX,
+      repMode:        repMode,
+      compraProducts: repCompraProducts,
+      compraData:     repCompraData,
+      compraFiles:    repCompraFiles,
     }));
   } catch(e) { console.warn('saveRepSession:', e); }
 }
@@ -4185,6 +4193,10 @@ function loadRepSession() {
     if (d.minimums   !== undefined) REP_MINIMUMS    = { ...REP_MINIMUMS_DEFAULT, ...d.minimums };
     if (d.maximums   !== undefined) REP_MAXIMUMS    = { ...REP_MAXIMUMS_DEFAULT, ...d.maximums };
     if (d.fillToMax  !== undefined) REP_FILL_TO_MAX = d.fillToMax;
+    repMode           = d.repMode          || 'stock';
+    repCompraProducts = d.compraProducts   || [];
+    repCompraData     = d.compraData       || {};
+    repCompraFiles    = d.compraFiles      || [];
     repProductMap.clear();
     repProducts.forEach(p => repProductMap.set(p.code, p));
     return repProducts.length > 0;
@@ -4226,7 +4238,11 @@ window.goReposicion = () => {
   showScreen('s-reposicion');
   if (!repProducts.length && loadRepSession()) {
     showRepState('data');
-    renderRepFull();
+    if (repMode === 'compra') {
+      enterCompraMode();
+    } else {
+      renderRepFull();
+    }
   }
 };
 
@@ -4314,12 +4330,20 @@ window.clearRepSession = () => {
   if (repLoadedFiles.length && !confirm('¿Limpiar todo y empezar de nuevo?')) return;
   sessionStorage.removeItem(REP_STORAGE_KEY);
   repProductMap.clear();
-  repProducts    = [];
-  repSendData    = {};
-  repLoadedFiles = [];
-  repActiveCat   = '';
-  repActiveBrand = '';
-  repSearch      = '';
+  repProducts       = [];
+  repSendData       = {};
+  repLoadedFiles    = [];
+  repActiveCat      = '';
+  repActiveBrand    = '';
+  repSearch         = '';
+  repMode           = 'stock';
+  repCompraProducts = [];
+  repCompraData     = {};
+  repCompraFiles    = [];
+  const compraPanel = $('rep-compra-panel');
+  if (compraPanel) compraPanel.style.display = 'none';
+  const btnCompra = $('btn-compra-mode');
+  if (btnCompra) btnCompra.style.display = '';
   showRepState('empty');
   $('rep-err').style.display = 'none';
 };
@@ -4540,6 +4564,12 @@ window.applyRepConfig = () => {
     Object.keys(repSendData[sid] || {}).forEach(c => delete repSendData[sid][c]);
   });
   computeRepSuggestions();
+  if (repCompraProducts.length) {
+    REP_DESTS.forEach(sid => {
+      Object.keys(repCompraData[sid] || {}).forEach(c => delete repCompraData[sid][c]);
+    });
+    computeComprasSuggestions();
+  }
   renderRepTabs();
   renderRepTable();
   renderRepGlobalTotals();
@@ -4580,7 +4610,17 @@ function renderRepFull() {
 }
 
 function renderRepGlobalTotals() {
-  const totales = getTotalesGlobales();
+  if (repMode === 'compra') {
+    $('rep-global-totals').style.display = 'none';
+    return;
+  }
+  const _src = repMode === 'compra' ? repCompraData : repSendData;
+  const totales = REP_DESTS.map(sid => {
+    const send  = _src[sid] || {};
+    const total = Object.values(send).reduce((s,v) => s+v, 0);
+    const lines = Object.values(send).filter(v => v > 0).length;
+    return { sid, total, lines };
+  });
   const grandTotal = totales.reduce((s,t) => s + t.total, 0);
   if (!grandTotal) { $('rep-global-totals').style.display = 'none'; return; }
 
@@ -4619,8 +4659,9 @@ function renderRepFileList() {
 }
 
 function renderRepTabs() {
+  const _tabSrc = repMode === 'compra' ? repCompraData : repSendData;
   $('rep-tabs').innerHTML = REP_DESTS.map(id => {
-    const n     = Object.values(repSendData[id] || {}).filter(v => v > 0).length;
+    const n     = Object.values(_tabSrc[id] || {}).filter(v => v > 0).length;
     const badge = n ? `<span class="rtab-badge">${n}</span>` : '';
     return `<button class="rtab${id === repActiveTab ? ' on' : ''}" id="rtab-${id}"
       onclick="switchRepTab('${id}')">${REP_LBLS[id]}${badge}</button>`;
@@ -4628,6 +4669,12 @@ function renderRepTabs() {
 }
 
 function renderRepFilters() {
+  if (repMode === 'compra') {
+    $('rep-filters').innerHTML = `
+      <input type="search" class="rep-search" placeholder="Buscar código o producto…"
+        value="${escHtml(repSearch)}" oninput="onRepSearch(this.value)"/>`;
+    return;
+  }
   const cats = [...new Set(
     repProducts.map(p => (p.cat || '').trim()).filter(Boolean)
   )].sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
@@ -4666,6 +4713,7 @@ function renderRepFilters() {
 }
 
 function renderRepTable() {
+  if (repMode === 'compra') { renderCompraTable(); return; }
   const sucId    = repActiveTab;
   const send     = repSendData[sucId] || {};
   const hasBrand = repProducts.some(p => p.brand);
@@ -4838,10 +4886,11 @@ function renderRepTable() {
 
 window.switchRepTab = id => {
   repActiveTab = id;
+  const _stSrc = repMode === 'compra' ? repCompraData : repSendData;
   REP_DESTS.forEach(sid => {
     const btn = $(`rtab-${sid}`);
     if (!btn) return;
-    const n     = Object.values(repSendData[sid]||{}).filter(v=>v>0).length;
+    const n     = Object.values(_stSrc[sid]||{}).filter(v=>v>0).length;
     const badge = n ? `<span class="rtab-badge">${n}</span>` : '';
     btn.className = `rtab${sid===id?' on':''}`;
     btn.innerHTML = `${REP_LBLS[sid]}${badge}`;
@@ -4870,15 +4919,17 @@ window.onRepSearch = val => {
 };
 
 window.onRepQtyInput = inp => {
-  const v    = parseInt(inp.value, 10);
-  const code = inp.dataset.code;
-  const suc  = inp.dataset.suc;
-  if (!repSendData[suc]) repSendData[suc] = {};
-  if (v > 0) { repSendData[suc][code] = v; inp.classList.add('has-qty'); }
-  else        { delete repSendData[suc][code]; inp.classList.remove('has-qty'); }
+  const v        = parseInt(inp.value, 10);
+  const code     = inp.dataset.code;
+  const suc      = inp.dataset.suc;
+  const isCompra = inp.dataset.mode === 'compra';
+  const _target  = isCompra ? repCompraData : repSendData;
+  if (!_target[suc]) _target[suc] = {};
+  if (v > 0) { _target[suc][code] = v; inp.classList.add('has-qty'); }
+  else        { delete _target[suc][code]; inp.classList.remove('has-qty'); }
   const btn = $(`rtab-${suc}`);
   if (btn) {
-    const n     = Object.values(repSendData[suc]).filter(x=>x>0).length;
+    const n     = Object.values(_target[suc]).filter(x=>x>0).length;
     const badge = n ? `<span class="rtab-badge">${n}</span>` : '';
     btn.innerHTML = `${REP_LBLS[suc]}${badge}`;
   }
@@ -4886,9 +4937,21 @@ window.onRepQtyInput = inp => {
   saveRepSessionDebounced();
 };
 
-window.generateActiveRepXLS = () => generateRepXLS(repActiveTab);
+window.generateActiveRepXLS = () => {
+  if (repMode === 'compra') { generateCompraRepXLS(repActiveTab); return; }
+  generateRepXLS(repActiveTab);
+};
 
 window.generateAllRepXLS = () => {
+  if (repMode === 'compra') {
+    const activos = REP_DESTS.filter(id =>
+      Object.values(repCompraData[id] || {}).some(v => v > 0)
+    );
+    if (!activos.length) { alert('Sin cantidades asignadas en ninguna sucursal.'); return; }
+    let delay = 0;
+    activos.forEach(sucId => { setTimeout(() => generateCompraRepXLS(sucId), delay); delay += 450; });
+    return;
+  }
   const activos = REP_DESTS.filter(id =>
     Object.values(repSendData[id] || {}).some(v => v > 0)
   );
@@ -4993,6 +5056,267 @@ async function saveReposicionRecord(origen, destino, sendMap, fecha) {
   } catch (e) {
     console.warn('saveReposicionRecord:', e);
   }
+}
+
+// ── MODO COMPRA ──────────────────────────────────────────────────────────────
+
+function parseCompraXLS(workbook) {
+  const seen = new Map();
+  workbook.SheetNames.forEach(sheetName => {
+    const sheet = workbook.Sheets[sheetName];
+    const rows  = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+    let inData  = false;
+    for (const row of rows) {
+      const col = row.map(v => String(v == null ? '' : v));
+      if (!inData) {
+        if (col[1] && col[1].trim() === 'Unidades' && col[3] && col[3].trim() === 'Código') {
+          inData = true;
+        }
+        continue;
+      }
+      const rawCode = (col[3] || '').trim();
+      const rawQty  = (col[2] || '').trim();
+      const name    = (col[4] || '').trim();
+      if (!/^\d+$/.test(rawCode)) continue;
+      const qty = parseFloat(rawQty);
+      if (!qty || qty <= 0) continue;
+      if (seen.has(rawCode)) {
+        seen.get(rawCode).qty += Math.round(qty);
+      } else {
+        seen.set(rawCode, { code: rawCode, name: name || rawCode, qty: Math.round(qty) });
+      }
+    }
+  });
+  return Array.from(seen.values());
+}
+
+function computeComprasSuggestions() {
+  REP_DESTS.forEach(sid => { if (!repCompraData[sid]) repCompraData[sid] = {}; });
+  const WEIGHTS = { M01:4, S02:4, S04:4, S03:3, S07:3, S06:2 };
+  repCompraProducts.forEach(p => {
+    const touched = REP_DESTS.some(sid => (repCompraData[sid][p.code] || 0) > 0);
+    if (touched) return;
+    const available = Math.max(0, p.qty - REP_B01_RESERVE);
+    if (available <= 0) return;
+    const stockMap = repProductMap.get(p.code);
+    const getStock = sid => stockMap ? (stockMap.stock[sid] || 0) : 0;
+    let remaining = available;
+    for (const sid of REP_PRIORITY_ORDER) {
+      if (remaining <= 0) break;
+      const cur  = getStock(sid);
+      const need = Math.max(0, (REP_MINIMUMS[sid] || 0) - cur);
+      if (need > 0) {
+        const send = Math.min(need, remaining);
+        repCompraData[sid][p.code] = send;
+        remaining -= send;
+      }
+    }
+    if (remaining > 0) {
+      if (REP_FILL_TO_MAX) {
+        REP_PRIORITY_ORDER.forEach(sid => {
+          if (remaining <= 0) return;
+          const already    = repCompraData[sid][p.code] || 0;
+          const maxAllowed = REP_MAXIMUMS[sid] || 999;
+          const gap = Math.max(0, maxAllowed - getStock(sid) - already);
+          if (gap > 0) {
+            const send = Math.min(gap, remaining);
+            repCompraData[sid][p.code] = already + send;
+            remaining -= send;
+          }
+        });
+      } else {
+        const totalW = Object.values(WEIGHTS).reduce((a,b) => a+b, 0);
+        let given = 0;
+        const extras = {};
+        REP_PRIORITY_ORDER.forEach(sid => {
+          const share = Math.floor(remaining * WEIGHTS[sid] / totalW);
+          extras[sid] = share;
+          given += share;
+        });
+        if (given < remaining) extras['M01'] = (extras['M01'] || 0) + (remaining - given);
+        REP_PRIORITY_ORDER.forEach(sid => {
+          if ((extras[sid] || 0) > 0 && getStock(sid) < (REP_MAXIMUMS[sid] || 999)) {
+            repCompraData[sid][p.code] = (repCompraData[sid][p.code] || 0) + extras[sid];
+          }
+        });
+      }
+    }
+  });
+}
+
+function renderCompraPanelFiles() {
+  const uploadEl   = $('rep-compra-upload');
+  const filelistEl = $('rep-compra-filelist');
+  if (!uploadEl || !filelistEl) return;
+  if (repCompraFiles.length) {
+    uploadEl.style.display   = 'none';
+    filelistEl.style.display = '';
+    filelistEl.innerHTML = repCompraFiles.map(f => `
+      <div class="rep-file-item">
+        <span class="rep-file-icon">✓</span>
+        <span class="rep-file-name" title="${escHtml(f.name)}">${escHtml(f.name)}</span>
+        <span class="rep-file-count">${repCompraProducts.length} productos</span>
+      </div>`).join('') +
+      `<button class="btn btn-outline" style="font-size:.58rem;margin-left:4px"
+        onclick="document.getElementById('rep-compra-input').click()">Cambiar archivo</button>`;
+  } else {
+    uploadEl.style.display   = '';
+    filelistEl.style.display = 'none';
+  }
+}
+
+function renderCompraTable() {
+  const sucId = repActiveTab;
+  const send  = repCompraData[sucId] || {};
+
+  const normSearch = s => String(s).toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]/g, '');
+
+  const filtered = repCompraProducts.filter(p => {
+    if (!repSearch) return true;
+    const terms    = repSearch.trim().split(/\s+/).filter(Boolean).map(normSearch);
+    const nameNorm = normSearch(p.name);
+    const codeNorm = normSearch(p.code);
+    return terms.every(t => nameNorm.includes(t) || codeNorm.includes(t));
+  });
+
+  const totalAvail = repCompraProducts.reduce((s,p) => s + Math.max(0, p.qty - REP_B01_RESERVE), 0);
+  const totalSend  = Object.values(send).reduce((s,v) => s+v, 0);
+  $('rep-summary').innerHTML =
+    `${repCompraProducts.length} productos en compra · disponible a distribuir: <strong>${totalAvail}</strong> · asignado: <strong>${totalSend}</strong>`;
+
+  if (!filtered.length) {
+    $('rep-table-wrap').innerHTML = `<div class="empty-state">
+      <div class="empty-icon">🔍</div>
+      <div class="empty-text">Sin productos para este filtro.</div></div>`;
+    return;
+  }
+
+  function stkCls(v) {
+    if (!v || v <= 0) return 'stk-zero';
+    if (v < 3)        return 'stk-low';
+    return 'stk-ok';
+  }
+
+  const totalCompra = filtered.reduce((s,p) => s + p.qty, 0);
+  const totalSuc    = filtered.reduce((s,p) => s + (repProductMap.get(p.code)?.stock[sucId] ?? 0), 0);
+  const totalSendF  = filtered.reduce((s,p) => s + (send[p.code] || 0), 0);
+
+  const rows = filtered.map(p => {
+    const qty  = send[p.code] || 0;
+    const sst  = repProductMap.get(p.code)?.stock[sucId] ?? 0;
+    const avail = Math.max(0, p.qty - REP_B01_RESERVE);
+    const min   = REP_MINIMUMS[sucId] || 0;
+    const sug   = (sst < min && avail > 0) ? Math.min(min - sst, avail) : 0;
+    return `<tr>
+      <td class="td-code">${escHtml(p.code)}</td>
+      <td class="td-name">${escHtml(p.name)}</td>
+      <td class="td-stk">${p.qty}</td>
+      <td class="td-stk ${stkCls(sst)}">${sst > 0 ? sst : '<span style="color:var(--border)">0</span>'}</td>
+      <td class="td-sug">${sug > 0 ? `<span class="sug-badge">▲${sug}</span>` : '—'}</td>
+      <td class="td-send">
+        <input type="number" min="0" step="1" value="${qty||''}"
+          class="rep-qty${qty>0?' has-qty':''}"
+          data-code="${escAttr(p.code)}" data-suc="${sucId}" data-mode="compra"
+          placeholder="0" oninput="onRepQtyInput(this)"/>
+      </td>
+    </tr>`;
+  }).join('');
+
+  $('rep-table-wrap').innerHTML = `
+    <table class="rep-table">
+      <thead><tr>
+        <th>Código</th><th>Producto</th>
+        <th title="Cantidad en factura de compra">Compra</th>
+        <th title="Stock ${escHtml(REP_LBLS[sucId])}">Suc.</th>
+        <th title="Sugerido">Sug.</th>
+        <th>Enviar</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+      <tfoot><tr class="rep-total-row">
+        <td colspan="2" class="rep-total-label">TOTAL</td>
+        <td class="td-stk">${totalCompra.toLocaleString()}</td>
+        <td class="td-stk">${totalSuc.toLocaleString()}</td>
+        <td class="td-sug">—</td>
+        <td class="td-send">${totalSendF > 0 ? totalSendF.toLocaleString() : '—'}</td>
+      </tr></tfoot>
+    </table>`;
+}
+
+window.enterCompraMode = () => {
+  repMode = 'compra';
+  $('rep-compra-panel').style.display = '';
+  $('rep-global-totals').style.display = 'none';
+  const btnCompra = $('btn-compra-mode');
+  if (btnCompra) btnCompra.style.display = 'none';
+  renderCompraPanelFiles();
+  if (repCompraProducts.length) renderRepFull();
+};
+
+window.exitCompraMode = () => {
+  repMode = 'stock';
+  $('rep-compra-panel').style.display = 'none';
+  const btnCompra = $('btn-compra-mode');
+  if (btnCompra) btnCompra.style.display = '';
+  renderRepFull();
+  renderRepGlobalTotals();
+};
+
+window.compraDragOver  = e => { e.preventDefault(); e.stopPropagation(); e.currentTarget.classList.add('drag-over'); };
+window.compraDragLeave = e => { e.preventDefault(); e.stopPropagation(); e.currentTarget.classList.remove('drag-over'); };
+window.compraDrop = e => {
+  e.preventDefault(); e.stopPropagation();
+  e.currentTarget.classList.remove('drag-over');
+  const files = Array.from(e.dataTransfer.files).filter(f => /\.(xls|xlsx)$/i.test(f.name));
+  if (!files.length) return;
+  const dt = new DataTransfer();
+  files.forEach(f => dt.items.add(f));
+  handleCompraFile({ files: dt.files, value: '' });
+};
+
+window.handleCompraFile = async inputEl => {
+  if (typeof XLSX === 'undefined') { alert('SheetJS no cargado. Recargá la página.'); return; }
+  const files = Array.from(inputEl.files);
+  inputEl.value = '';
+  if (!files.length) return;
+  try {
+    const file     = files[0];
+    const buf      = await file.arrayBuffer();
+    const wb       = XLSX.read(buf, { type: 'array' });
+    const products = parseCompraXLS(wb);
+    if (!products.length) {
+      alert('No se encontraron productos en el archivo. Verificar formato.');
+      return;
+    }
+    repCompraFiles    = [{ name: file.name, added: new Date().toISOString() }];
+    repCompraProducts = products;
+    repCompraData     = {};
+    computeComprasSuggestions();
+    renderCompraPanelFiles();
+    renderRepFull();
+    saveRepSession();
+  } catch(e) {
+    alert('Error al procesar archivo: ' + e.message);
+    console.error('handleCompraFile:', e);
+  }
+};
+
+function generateCompraRepXLS(sucId) {
+  if (typeof XLSX === 'undefined') return;
+  const send = repCompraData[sucId] || {};
+  const rows = Object.entries(send).filter(([,v]) => v > 0).map(([code, qty]) => [code, qty]);
+  if (!rows.length) { alert(`Sin cantidades para ${REP_LBLS[sucId]}.`); return; }
+  const ws = XLSX.utils.aoa_to_sheet([['Código', 'Cantidad'], ...rows]);
+  ws['!cols'] = [{ wch: 22 }, { wch: 10 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Reposicion');
+  const fecha = new Date().toISOString().slice(0, 10);
+  XLSX.writeFile(wb,
+    `Compra_${REP_ORIGIN_NAMES['B01']}_${REP_FNAMES[sucId]}_${fecha}.xls`,
+    { bookType: 'biff8' }
+  );
+  saveReposicionRecord('B01', sucId, send, fecha);
 }
 
 window.analyzeWithAI = async () => {
@@ -5280,6 +5604,8 @@ document.addEventListener('DOMContentLoaded', init);
 
   <input type="file" id="rep-xls-input" accept=".xls,.xlsx" multiple
     style="display:none" onchange="handleRepFiles(this)"/>
+  <input type="file" id="rep-compra-input" accept=".xls,.xlsx"
+    style="display:none" onchange="handleCompraFile(this)"/>
 
   <div id="rep-loading" style="display:none;text-align:center;padding:3rem 1rem">
     <span class="spin"></span>
@@ -5379,10 +5705,36 @@ document.addEventListener('DOMContentLoaded', init);
         onclick="toggleRepConfig()">
         ⚙ Parámetros
       </button>
+      <button class="btn btn-outline" id="btn-compra-mode" style="font-size:.6rem"
+        onclick="enterCompraMode()">
+        📦 Dist. Compra
+      </button>
       <button class="btn btn-outline" style="font-size:.6rem;color:var(--err-tx)"
         onclick="clearRepSession()">
         ⊘ Limpiar todo
       </button>
+    </div>
+    <div id="rep-compra-panel" style="display:none;border-bottom:1px solid var(--border2)">
+      <div style="margin:.6rem .875rem;padding:.55rem .875rem;border-radius:var(--r);
+        background:var(--warn-bg);border:1px solid var(--warn-bd);color:var(--warn-tx);
+        font-size:.67rem;line-height:1.6;display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+        <span>📦 <strong>MODO DISTRIBUCIÓN POR COMPRA</strong> — Solo productos de la factura subida.
+          El stock de sucursales viene del Gerencial cargado.</span>
+        <button class="btn btn-outline" style="font-size:.58rem;color:var(--warn-tx);border-color:var(--warn-bd);margin-left:auto"
+          onclick="exitCompraMode()">← Volver a reposición normal</button>
+      </div>
+      <div id="rep-compra-upload" style="max-width:400px;margin:.25rem auto .75rem;padding:0 1.25rem">
+        <div class="rep-dropzone" style="padding:1.5rem 1rem"
+          onclick="document.getElementById('rep-compra-input').click()"
+          ondragover="compraDragOver(event)" ondragleave="compraDragLeave(event)" ondrop="compraDrop(event)">
+          <div class="rep-drop-icon" style="font-size:1.5rem">📦</div>
+          <div class="rep-drop-text">
+            <strong>Subir factura de compra</strong><br/>
+            <span style="font-size:.6rem;color:var(--muted)">CompraXXX.xls</span>
+          </div>
+        </div>
+      </div>
+      <div id="rep-compra-filelist" class="rep-filelist" style="display:none"></div>
     </div>
     <div class="rep-tabs" id="rep-tabs"></div>
     <div class="rep-filters" id="rep-filters"></div>

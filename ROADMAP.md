@@ -394,3 +394,24 @@ generadoPor:   string
 ---
 
 *Última actualización: Mayo 2026*
+
+---
+
+## Módulo 7 — Design System Unificado [COMPLETADO — Mayo 2026]
+
+### Cambios aplicados
+- Paleta cálida oscura unificada en index.html, ops.html y moto.html
+- Nueva variable --brand: #c8922a (ámbar) como acento principal
+- --accent2: #4caf7d (verde) reservado exclusivamente para estados completados
+- Tapzones mínimos 44px en s-pick (checkbox 26px, padding aumentado)
+- Contraste mejorado en pick-header con border-bottom: 2px solid var(--brand)
+- Font sizes mínimos corregidos (.48rem → .58rem, .57rem → .65rem)
+- Transición suave entre pantallas (scrFadeIn .18s)
+- body.dark de moto.html sincronizado con paleta nueva
+- CLAUDE.md creado con design system y principios de diseño documentados
+
+### Principios establecidos
+- Industrial/utilitario: claridad operativa sobre estética decorativa
+- Verde exclusivo para "completado", ámbar para "en proceso/activo"
+- IBM Plex Mono como tipografía principal — identidad técnica
+- Base: dark theme café-oscuro (#161410), no negro genérico
