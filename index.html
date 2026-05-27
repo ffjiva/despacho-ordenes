@@ -34,6 +34,7 @@
   --sans: 'IBM Plex Sans', sans-serif;
   --r: 6px;
   --r2: 10px;
+  color-scheme: dark;
 }
 body.light {
   --bg: #f5f2ec;
@@ -59,6 +60,7 @@ body.light {
   --info-bg: #e8f0fb;
   --info-bd: #a8c4f0;
   --info-tx: #1c4fa0;
+  color-scheme: light;
 }
 body.light .topbar,
 body.light .pick-header { color: #fff; }
@@ -136,12 +138,14 @@ html, body {
   width: 100%; padding: 10px 12px;
   border: 1px solid var(--border); border-radius: var(--r);
   font-family: var(--mono); font-size: .73rem;
-  background: var(--surface); color: var(--text);
+  background: var(--surface2); color: var(--text);
   transition: border-color .15s;
   outline: none;
+  color-scheme: dark;
 }
 .fld input:focus, .fld textarea:focus, .fld select:focus { border-color: var(--accent); }
-.fld select option { color: #18180f; background: #ffffff; }
+.fld input::placeholder, .fld textarea::placeholder { color: var(--muted); }
+.fld select option { background: var(--surface2); color: var(--text); }
 .fld textarea { min-height: 140px; resize: vertical; }
 .setup-divider { text-align: center; color: var(--muted); font-size: .65rem; letter-spacing: .08em; text-transform: uppercase; margin: 1rem 0; position: relative; }
 .setup-divider::before, .setup-divider::after { content:''; position:absolute; top:50%; width: calc(50% - 24px); height:1px; background:var(--border); }
@@ -1061,7 +1065,7 @@ window.showUsersModal = async () => {
     `<div id="users-list-wrap">${rows}</div>
      <div style="display:flex;gap:8px;margin-top:.85rem">
        <input id="new-user-inp" type="text" placeholder="Nombre del usuario"
-         style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-family:var(--mono);font-size:.73rem;outline:none"
+         style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-family:var(--mono);font-size:.73rem;outline:none;background:var(--surface2);color:var(--text)"
          onkeydown="if(event.key==='Enter')window._addUser()"/>
        <button class="btn btn-dark" onclick="window._addUser()" style="flex-shrink:0">+ Agregar</button>
      </div>

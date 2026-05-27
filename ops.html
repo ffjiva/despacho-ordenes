@@ -1336,12 +1336,19 @@ async function init() {
 
   authMod.onAuthStateChanged(auth, async user => {
     if (user) {
-      const members = await getAllMembers();
-      const isSuper = members.some(m => m.role === 'super' && m.active !== false);
-      if (!isSuper) {
+      try {
+        const snap = await fbMod.getDoc(fbMod.doc(db, 'config', 'team'));
+        const superEmail = snap.exists() ? (snap.data().superEmail || '') : '';
+        if (!superEmail || user.email.toLowerCase() !== superEmail.toLowerCase()) {
+          await authMod.signOut(auth);
+          showScreen('s-login');
+          showLoginErr('No tienes acceso a esta sección.');
+          return;
+        }
+      } catch(e) {
         await authMod.signOut(auth);
         showScreen('s-login');
-        showLoginErr('No tienes acceso a esta sección.');
+        showLoginErr('Error al verificar acceso. Intenta de nuevo.');
         return;
       }
       goHome();
