@@ -200,6 +200,7 @@ html, body {
 .badge-me { background: var(--info-bg); color: var(--info-tx); border-color: var(--info-bd); }
 .badge-archived { background: var(--surface2); color: var(--muted); border-color: var(--border); }
 .badge-err { background: var(--err-bg); color: var(--err-tx); border-color: var(--err-bd); }
+.badge-dispatched { background: var(--info-bg); color: var(--info-tx); border-color: var(--info-bd); }
 .dcard-meta { display: flex; gap: 12px; margin-top: 7px; font-size: .65rem; color: var(--muted); flex-wrap: wrap; align-items: center; }
 .dcard-assign { color: var(--text2); font-weight: 600; }
 .dcard-pbar { height: 3px; background: var(--border2); margin-top: 9px; border-radius: 2px; overflow: hidden; }
@@ -468,6 +469,13 @@ html, body {
 .pin-user-btn:hover { border-color: var(--accent); }
 .pin-user-btn.on { background: var(--brand); color: #1a1000; border-color: var(--brand); }
 
+/* ── EMAIL LOGIN ── */
+.login-wrap { max-width: 400px; margin: 0 auto; padding: 3rem 1.25rem; display: flex; flex-direction: column; align-items: center; }
+.login-logo { width: 52px; height: 52px; background: var(--brand); color: #1a1000; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; margin-bottom: 1.25rem; }
+.login-h   { font-size: 1.05rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; margin-bottom: .3rem; text-align: center; }
+.login-sub { font-size: .72rem; color: var(--text2); text-align: center; margin-bottom: 1.75rem; line-height: 1.7; }
+.login-form { width: 100%; }
+
 /* ── DATE / TIME INPUT DARK FIX ── */
 input[type="date"],
 input[type="time"] {
@@ -584,6 +592,32 @@ body:not(.dark) input[type="time"] {
   </div>
 </div>
 
+<!-- ══════════════ LOGIN ══════════════ -->
+<div id="s-login" class="scr">
+  <div class="topbar">
+    <div class="topbar-title">📦 Despacho Manager</div>
+  </div>
+  <div class="login-wrap">
+    <div class="login-logo">📦</div>
+    <div class="login-h">Inicia sesión</div>
+    <div class="login-sub">Ingresa tus credenciales para acceder al sistema.</div>
+    <div class="login-form">
+      <div class="fld">
+        <label>Correo electrónico</label>
+        <input id="login-email" type="email" placeholder="correo@empresa.com"
+          autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pw').focus()"/>
+      </div>
+      <div class="fld">
+        <label>Contraseña</label>
+        <input id="login-pw" type="password" placeholder="••••••••"
+          autocomplete="current-password" onkeydown="if(event.key==='Enter')doEmailLogin()"/>
+      </div>
+      <div id="login-err" class="box box-err" style="display:none;margin-bottom:.75rem"></div>
+      <button class="btn btn-dark btn-full" id="btn-login" onclick="doEmailLogin()">Entrar →</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══════════════ HOME ══════════════ -->
 <div id="s-home" class="scr">
   <div class="topbar">
@@ -592,7 +626,7 @@ body:not(.dark) input[type="time"] {
       <button id="btn-equipo" class="btn btn-ghost" style="font-size:.65rem" onclick="showUsersModal()">👥 Equipo</button>
       <button id="btn-ops" class="btn btn-ghost" style="font-size:.65rem" onclick="window.open('https://despacho-ordenes.web.app/ops.html','_blank')">⚙️ Ops</button>
       <button id="theme-btn" class="btn btn-ghost" style="font-size:.75rem;padding:5px 8px" onclick="toggleTheme()" title="Cambiar tema">☀️</button>
-      <button class="btn btn-ghost" style="font-size:.65rem" onclick="doPinLogout()">Salir</button>
+      <button class="btn btn-ghost" style="font-size:.65rem" onclick="logout()">Salir</button>
     </div>
   </div>
   <div class="home-header">
@@ -774,7 +808,7 @@ const UBICACIONES = [
 /* ═══════════════════════════════════════
    STATE
 ═══════════════════════════════════════ */
-let db = null, fbMod = null, fbApp = null, storageMod = null, storage = null;
+let db = null, fbMod = null, fbApp = null, storageMod = null, storage = null, authMod = null, auth = null;
 let isLocal = false;
 let curId = null, curData = null;
 let unsub = null, homeUnsub = null;
@@ -786,8 +820,8 @@ let lastDashList = null;
 let pickSort = 'alpha';
 let lockSet = false;
 let isReadOnly = false;
-let currentUser = '';
-let currentRole  = '';
+let currentUser = null;  // { uid, email, name, role }
+let currentRole  = '';  // convenience copy of currentUser.role
 
 const LOCAL_KEY   = 'dspmgr_v1';
 const CFG_KEY     = 'dspmgr_cfg_v1';
@@ -873,16 +907,17 @@ function updRvCount() {
 async function initFirebase(cfg) {
   try {
     const { initializeApp, getApps } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
-    [fbMod, storageMod] = await Promise.all([
+    [fbMod, storageMod, authMod] = await Promise.all([
       import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'),
       import('https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js'),
+      import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js'),
     ]);
     const APP_NAME = 'despacho-main';
     const existing = getApps().find(a => a.name === APP_NAME);
     fbApp = existing || initializeApp(cfg, APP_NAME);
     db = fbMod.getFirestore(fbApp);
     storage = storageMod.getStorage(fbApp);
-    await fbMod.getDocs(fbMod.query(fbMod.collection(db,'despachos'), fbMod.limit(1)));
+    auth = authMod.getAuth(fbApp);
     return true;
   } catch(e) {
     console.error('Firebase init error:', e);
@@ -911,8 +946,7 @@ window.connectFirebase = async () => {
   const ok = await initFirebase(cfg);
   if (ok) {
     try { localStorage.setItem(CFG_KEY, JSON.stringify(cfg)); } catch{}
-    await loadPinScreen();
-    showScreen('s-pin');
+    setupAuthListener();
   } else {
     $('cfg-err').innerHTML = 'No se pudo conectar. Verifica:<br>· Que el <strong>projectId</strong> sea correcto<br>· Que <strong>Firestore</strong> esté habilitado en Firebase Console<br>· Las reglas de Firestore permitan lectura/escritura';
     $('cfg-err').style.display = 'block';
@@ -922,7 +956,7 @@ window.connectFirebase = async () => {
 
 window.useLocalMode = () => {
   isLocal = true;
-  currentUser = 'Local';
+  currentUser = { uid: 'local', email: '', name: 'Local', role: 'super' };
   currentRole  = 'super';
   goHome();
 };
@@ -1030,13 +1064,11 @@ async function loadUsers() {
     try { return JSON.parse(localStorage.getItem(USERS_KEY) || '[]'); } catch { return []; }
   }
   try {
-    const snap = await fbMod.getDoc(fbMod.doc(db, 'config', 'team'));
-    if (!snap.exists()) return [];
-    const members = snap.data().members || [];
-    // Soporta array de strings (formato legacy) y array de maps (formato Ops)
-    return members
-      .filter(m => m && (typeof m === 'string' ? m : m.name))
-      .map(m => typeof m === 'string' ? m : m.name);
+    const snap = await fbMod.getDocs(fbMod.collection(db, 'users'));
+    return snap.docs
+      .map(d => ({ uid: d.id, ...d.data() }))
+      .filter(u => u.active !== false)
+      .map(u => u.name);
   } catch { return []; }
 }
 
@@ -1049,77 +1081,105 @@ async function saveUsersRemote(members) {
 }
 
 window.showUsersModal = async () => {
-  const members = await loadUsers();
-  const rows = members.length
-    ? members.map((m, i) => `
+  let users = [];
+  if (!isLocal) {
+    try {
+      const snap = await fbMod.getDocs(fbMod.collection(db, 'users'));
+      users = snap.docs.map(d => ({ uid: d.id, ...d.data() })).filter(u => u.active !== false);
+    } catch(e) { users = []; }
+  }
+
+  const isSuper = currentUser?.role === 'super';
+  const rows = users.length
+    ? users.map(u => `
         <div class="user-row">
-          <span class="user-name">${m}</span>
-          ${m === currentUser ? '<span class="user-me">Tú</span>' : ''}
-          <button class="btn btn-danger" style="font-size:.6rem;padding:3px 8px" onclick="window._removeUser(${i})">✕</button>
+          <div style="flex:1;min-width:0">
+            <div class="user-name">${u.name}</div>
+            <div style="font-size:.6rem;color:var(--muted)">${u.email || ''}</div>
+          </div>
+          ${u.uid === currentUser?.uid ? '<span class="user-me">Tú</span>' : ''}
+          <span class="badge ${u.role === 'super' ? 'badge-me' : 'badge-archived'}" style="flex-shrink:0">${u.role}</span>
+          ${isSuper && u.uid !== currentUser?.uid
+            ? `<button class="btn btn-danger" style="font-size:.6rem;padding:3px 8px;flex-shrink:0" onclick="window._deactivateUser('${u.uid}')">✕</button>`
+            : ''}
         </div>`).join('')
-    : '<div style="color:var(--muted);font-size:.7rem;padding:.5rem 0">Sin usuarios aún. Agrega el primero.</div>';
+    : '<div style="color:var(--muted);font-size:.7rem;padding:.5rem 0">Sin usuarios registrados.</div>';
+
+  const addForm = isSuper ? `
+    <div style="margin-top:1rem;border-top:1px solid var(--border2);padding-top:1rem">
+      <div style="font-size:.6rem;font-weight:700;letter-spacing:.1em;color:var(--muted);text-transform:uppercase;margin-bottom:.75rem">Agregar usuario</div>
+      <div class="fld"><label>Nombre</label><input id="nu-name" type="text" placeholder="Juan Pérez" autocomplete="off"/></div>
+      <div class="fld"><label>Email</label><input id="nu-email" type="email" placeholder="juan@empresa.com"/></div>
+      <div class="fld"><label>Contraseña temporal</label><input id="nu-pw" type="password" placeholder="mínimo 6 caracteres"/></div>
+      <div class="fld"><label>Rol</label>
+        <select id="nu-role">
+          <option value="collaborator">Colaborador</option>
+          <option value="super">Supervisor</option>
+        </select>
+      </div>
+      <div id="nu-msg" style="display:none;font-size:.68rem;margin-bottom:.5rem;padding:6px 10px;border-radius:var(--r);border:1px solid"></div>
+      <button class="btn btn-dark btn-full" id="btn-create-user" onclick="window._createUser()">+ Crear usuario</button>
+    </div>` : '';
 
   openModal(
     '👥 Equipo',
-    'Gestiona los usuarios que pueden ser asignados a órdenes.',
-    `<div id="users-list-wrap">${rows}</div>
-     <div style="display:flex;gap:8px;margin-top:.85rem">
-       <input id="new-user-inp" type="text" placeholder="Nombre del usuario"
-         style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-family:var(--mono);font-size:.73rem;outline:none;background:var(--surface2);color:var(--text)"
-         onkeydown="if(event.key==='Enter')window._addUser()"/>
-       <button class="btn btn-dark" onclick="window._addUser()" style="flex-shrink:0">+ Agregar</button>
-     </div>
-     <div id="user-msg" style="display:none;font-size:.68rem;margin-top:.5rem;padding:6px 10px;border-radius:var(--r);border:1px solid"></div>`,
+    'Usuarios con acceso al sistema.',
+    `<div id="users-list-wrap">${rows}</div>${addForm}`,
     [{ label: 'Cerrar', cls: 'btn-outline', fn: 'closeModal(event)' }]
   );
 
-  function showUserMsg(text, type) {
-    const el = $('user-msg');
-    if (!el) return;
-    el.textContent = text;
-    el.style.display = 'block';
-    if (type === 'ok') {
-      el.style.background = 'var(--done-bg)';
-      el.style.color = 'var(--done-tx)';
-      el.style.borderColor = 'var(--done-bd)';
-    } else {
-      el.style.background = 'var(--err-bg)';
-      el.style.color = 'var(--err-tx)';
-      el.style.borderColor = 'var(--err-bd)';
-    }
-    setTimeout(() => { if (el) el.style.display = 'none'; }, 3000);
-  }
-
-  window._addUser = async () => {
-    const name = $('new-user-inp')?.value.trim();
-    if (!name) return;
-    const ms = await loadUsers();
-    if (ms.includes(name)) {
-      showUserMsg(`"${name}" ya existe en el equipo.`, 'err');
-      return;
-    }
-    ms.push(name);
-    await saveUsersRemote(ms);
-    $('new-user-inp').value = '';
-    // Refresh user list in modal without closing
-    const wrap = $('users-list-wrap');
-    if (wrap) {
-      wrap.innerHTML = ms.map((m, i) => `
-        <div class="user-row">
-          <span class="user-name">${m}</span>
-          ${m === currentUser ? '<span class="user-me">Tú</span>' : ''}
-          <button class="btn btn-danger" style="font-size:.6rem;padding:3px 8px" onclick="window._removeUser(${i})">✕</button>
-        </div>`).join('');
-    }
-    showUserMsg(`✓ "${name}" agregado al equipo.`, 'ok');
+  window._deactivateUser = async (uid) => {
+    try {
+      await fbMod.updateDoc(fbMod.doc(db, 'users', uid), { active: false });
+      closeModal();
+      showUsersModal();
+    } catch(e) { console.error('Error desactivando usuario:', e); }
   };
 
-  window._removeUser = async (idx) => {
-    const ms = await loadUsers();
-    ms.splice(idx, 1);
-    await saveUsersRemote(ms);
-    closeModal();
-    showUsersModal();
+  window._createUser = async () => {
+    const name  = $('nu-name')?.value.trim();
+    const email = $('nu-email')?.value.trim();
+    const pw    = $('nu-pw')?.value;
+    const role  = $('nu-role')?.value;
+    const msgEl = $('nu-msg');
+    const btn   = $('btn-create-user');
+
+    if (!name || !email || !pw) {
+      msgEl.textContent = 'Completa todos los campos.';
+      msgEl.style.cssText = 'display:block;background:var(--err-bg);color:var(--err-tx);border-color:var(--err-bd)';
+      return;
+    }
+    if (pw.length < 6) {
+      msgEl.textContent = 'La contraseña debe tener al menos 6 caracteres.';
+      msgEl.style.cssText = 'display:block;background:var(--err-bg);color:var(--err-tx);border-color:var(--err-bd)';
+      return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spin"></span>Creando...';
+
+    try {
+      // Secondary app to no perder sesión del super
+      const { initializeApp: initApp2, deleteApp } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
+      const app2 = initApp2(fbApp.options, 'dsp-secondary-' + Date.now());
+      const auth2 = authMod.getAuth(app2);
+      const cred = await authMod.createUserWithEmailAndPassword(auth2, email, pw);
+      await fbMod.setDoc(fbMod.doc(db, 'users', cred.user.uid), { name, email, role, createdAt: Date.now(), active: true });
+      await deleteApp(app2);
+
+      msgEl.textContent = `✓ Usuario "${name}" creado correctamente.`;
+      msgEl.style.cssText = 'display:block;background:var(--done-bg);color:var(--done-tx);border-color:var(--done-bd)';
+      setTimeout(() => { closeModal(); showUsersModal(); }, 1400);
+    } catch(e) {
+      let msg = 'Error al crear usuario.';
+      if (e.code === 'auth/email-already-in-use') msg = 'Este email ya está registrado.';
+      else if (e.code === 'auth/invalid-email') msg = 'Email inválido.';
+      else if (e.code === 'auth/weak-password') msg = 'Contraseña muy débil (mínimo 6 caracteres).';
+      msgEl.textContent = msg;
+      msgEl.style.cssText = 'display:block;background:var(--err-bg);color:var(--err-tx);border-color:var(--err-bd)';
+      btn.disabled = false;
+      btn.textContent = '+ Crear usuario';
+    }
   };
 };
 
@@ -1210,7 +1270,7 @@ async function requestNotificationPermission() {
     const snap = await fbMod.getDoc(fbMod.doc(db, 'config', 'team'));
     if (!snap.exists()) return;
     const members = snap.data().members || [];
-    const idx = members.findIndex(m => m.name === currentUser);
+    const idx = members.findIndex(m => m.name === currentUser?.name);
     if (idx === -1) return;
     const tokens = members[idx].fcmTokens || [];
     if (!tokens.includes(token)) {
@@ -1427,16 +1487,15 @@ window.goHome = async () => {
   $('home-date').textContent = new Date().toLocaleDateString('es-SV', {
     weekday:'long', day:'2-digit', month:'long', year:'numeric'
   }).toUpperCase();
-  const session = getSession();
-  const isSuper    = session?.role === 'super';
-  const canManage  = ['super', 'encargado'].includes(currentRole);
-  $('home-user').innerHTML = currentUser
-    ? `👤 ${currentUser}${isSuper ? ' <span style="font-size:.55rem;background:var(--warn-bg);color:var(--warn-tx);border:1px solid var(--warn-bd);padding:1px 5px;border-radius:3px;font-weight:700;letter-spacing:.07em">SUPER</span>' : ''}`
+  const isSuper    = currentUser?.role === 'super';
+  const canManage  = ['super', 'encargado'].includes(currentUser?.role ?? '');
+  $('home-user').innerHTML = currentUser?.name
+    ? `👤 ${currentUser.name}${isSuper ? ' <span style="font-size:.55rem;background:var(--warn-bg);color:var(--warn-tx);border:1px solid var(--warn-bd);padding:1px 5px;border-radius:3px;font-weight:700;letter-spacing:.07em">SUPER</span>' : ''}`
     : '';
   if ($('btn-equipo')) $('btn-equipo').style.display = canManage ? '' : 'none';
   if ($('btn-ops'))    $('btn-ops').style.display    = canManage ? '' : 'none';
   const fab = $('fab-new');
-  if (fab) fab.style.display = currentRole === 'super' ? 'flex' : 'none';
+  if (fab) fab.style.display = isSuper ? 'flex' : 'none';
   updateThemeBtn();
 
   startHomeListener();
@@ -1454,10 +1513,9 @@ function startHomeListener() {
   if (homeUnsub) { homeUnsub(); homeUnsub = null; }
 
   try {
-    const session = getSession();
-    const isBodeguero = session?.role === 'bodeguero';
-    const q = isBodeguero
-      ? fbMod.query(fbMod.collection(db,'despachos'), fbMod.where('assignedTo','==',currentUser), fbMod.orderBy('createdAt','desc'))
+    const isCollaborator = currentUser?.role === 'collaborator';
+    const q = isCollaborator
+      ? fbMod.query(fbMod.collection(db,'despachos'), fbMod.where('assignedTo','==',currentUser?.name ?? ''), fbMod.orderBy('createdAt','desc'))
       : fbMod.query(fbMod.collection(db,'despachos'), fbMod.orderBy('createdAt','desc'));
     homeUnsub = fbMod.onSnapshot(q,
       snap => {
@@ -1501,8 +1559,8 @@ function cardHtml(d, archived = false) {
 
   const lockAge = Date.now() - (d.lockedAt || 0);
   const isLocked = d.lockedBy && lockAge < LOCK_TTL_MS;
-  const lockedByOther = !archived && isLocked && d.lockedBy !== currentUser;
-  const lockedByMe    = !archived && isLocked && d.lockedBy === currentUser;
+  const lockedByOther = !archived && isLocked && d.lockedBy !== currentUser?.name;
+  const lockedByMe    = !archived && isLocked && d.lockedBy === currentUser?.name;
 
   const lockBadge = lockedByOther
     ? `<span class="badge badge-lock">🔒 ${d.lockedBy}</span>`
@@ -1517,9 +1575,10 @@ function cardHtml(d, archived = false) {
   const assignStr = d.assignedTo ? `<span class="dcard-assign">👤 ${d.assignedTo}</span>` : '';
 
   const badgeMap = {
-    pending: { cls: 'badge-err',    label: 'Pendiente' },
-    active:  { cls: 'badge-active', label: 'En proceso' },
-    done:    { cls: 'badge-done',   label: '✓ Listo' }
+    pending:    { cls: 'badge-err',        label: 'Pendiente' },
+    active:     { cls: 'badge-active',     label: 'En proceso' },
+    done:       { cls: 'badge-done',       label: '✓ Listo' },
+    dispatched: { cls: 'badge-dispatched', label: '🚚 Despachada' }
   };
   const statusKey = inferStatus(d);
   const badgeDef  = badgeMap[statusKey] || badgeMap.pending;
@@ -1527,13 +1586,15 @@ function cardHtml(d, archived = false) {
     ? `<span class="badge badge-archived">Archivada</span>`
     : `<span class="badge ${badgeDef.cls}">${badgeDef.label}</span>`;
 
-  const onclick = archived ? '' : `onclick="openDespacho('${d.id}')"`;
-  const cursor  = archived ? 'cursor:default' : '';
+  const onclick = `onclick="openDespacho('${d.id}')"`;
+  const cursor  = '';
+  const _isSuper = currentUser?.role === 'super';
   const actions = archived
-    ? (currentRole === 'super' ? `<div class="dcard-actions" onclick="event.stopPropagation()"><button class="btn btn-danger" style="font-size:.6rem;padding:5px 10px" onclick="confirmDelete('${d.id}','${(d.name||'').replace(/'/g,"\\'")}')">✕ Eliminar</button></div>` : '')
+    ? (_isSuper ? `<div class="dcard-actions" onclick="event.stopPropagation()"><button class="btn btn-danger" style="font-size:.6rem;padding:5px 10px" onclick="confirmDelete('${d.id}','${(d.name||'').replace(/'/g,"\\'")}')">✕ Eliminar</button></div>` : '')
     : `<div class="dcard-actions" onclick="event.stopPropagation()">
-        ${currentRole === 'super' ? `<button class="btn btn-outline" style="font-size:.6rem;padding:5px 10px" onclick="assignDespacho('${d.id}','${(d.assignedTo||'').replace(/'/g,"\\'")}')"> ${d.assignedTo ? '🔄 Reasignar' : '👤 Asignar'}</button>` : ''}
-        ${currentRole === 'super' ? `<button class="btn btn-danger" style="font-size:.6rem;padding:5px 10px" onclick="confirmDelete('${d.id}','${(d.name||'').replace(/'/g,"\\'")}')">✕ Eliminar</button>` : ''}
+        ${_isSuper ? `<button class="btn btn-outline" style="font-size:.6rem;padding:5px 10px" onclick="assignDespacho('${d.id}','${(d.assignedTo||'').replace(/'/g,"\\'")}')"> ${d.assignedTo ? '🔄 Reasignar' : '👤 Asignar'}</button>` : ''}
+        ${statusKey === 'done' && (_isSuper || d.assignedTo === currentUser?.name) ? `<button class="btn btn-outline" style="font-size:.6rem;padding:5px 10px;border-color:var(--info-bd);color:var(--info-tx)" onclick="confirmDispatch('${d.id}','${(d.name||d.orderNumber||'').replace(/'/g,"\\'")}')">🚚 Despachar</button>` : ''}
+        ${_isSuper ? `<button class="btn btn-danger" style="font-size:.6rem;padding:5px 10px" onclick="confirmDelete('${d.id}','${(d.name||'').replace(/'/g,"\\'")}')">✕ Eliminar</button>` : ''}
       </div>`;
 
   return `<div class="dcard${!archived&&fin?' fin':''}${lockedByOther?' locked-other':''}" ${onclick} style="${cursor}${archived?';opacity:.7':''}">
@@ -1564,15 +1625,21 @@ function renderDash(list) {
       const prods = d.products || [];
       const done = Object.values(d.checked||{}).filter(c=>c.done).length;
       const completa = prods.length > 0 && done === prods.length;
-      if (completa && d.completedAt && !d.archived) {
-        const completadoEn = new Date(d.completedAt); completadoEn.setHours(0,0,0,0);
-        if (completadoEn < hoy) dbUpdate(d.id, { archived: true }).catch(() => {});
+      if (!d.archived) {
+        if (completa && d.completedAt) {
+          const completadoEn = new Date(d.completedAt); completadoEn.setHours(0,0,0,0);
+          if (completadoEn < hoy) dbUpdate(d.id, { archived: true }).catch(() => {});
+        }
+        if (d.status === 'dispatched' && d.dispatchedAt) {
+          const despachado = new Date(d.dispatchedAt); despachado.setHours(0,0,0,0);
+          if (despachado < hoy) dbUpdate(d.id, { archived: true }).catch(() => {});
+        }
       }
     });
   }
 
-  if (currentRole !== 'super') {
-    list = list.filter(d => d.assignedTo === currentUser);
+  if (currentUser?.role !== 'super') {
+    list = list.filter(d => d.assignedTo === currentUser?.name);
   }
 
   const archivadas = list.filter(d => d.archived);
@@ -1588,7 +1655,7 @@ function renderDash(list) {
 
   let html = '';
   if (!activas.length) {
-    const noAssigned = currentRole !== 'super' && list.length === 0;
+    const noAssigned = currentUser?.role !== 'super' && list.length === 0;
     html += noAssigned
       ? `<div class="empty-state">
           <div class="empty-icon">📦</div>
@@ -1652,7 +1719,7 @@ window.goNew = async () => {
     const opt = document.createElement('option');
     opt.value = m;
     opt.textContent = m;
-    if (m === currentUser) opt.selected = true;
+    if (m === currentUser?.name) opt.selected = true;
     sel.appendChild(opt);
   });
 
@@ -1943,7 +2010,7 @@ window.saveDespacho = async () => {
     const id = await dbSave({
       name,
       assignedTo,
-      createdBy: currentUser,
+      createdBy: currentUser?.name ?? '',
       orderNumber: header.orderNumber || '',
       orderDate: header.orderDate || '',
       origin:      $('dsp-origin').value      || '',
@@ -1997,8 +2064,8 @@ window.openDespacho = async id => {
         }
         const lockAge = Date.now() - (d.lockedAt || 0);
         const valid = d.lockedBy && lockAge < LOCK_TTL_MS;
-        if (valid && d.lockedBy !== currentUser) {
-          if (currentRole === 'super') {
+        if (valid && d.lockedBy !== currentUser?.name) {
+          if (currentUser?.role === 'super') {
             await doOpenDespacho(id, true, d.lockedBy);
             return;
           }
@@ -2085,7 +2152,7 @@ async function doOpenDespacho(id, readOnly = false, lockedBy = '') {
       // Set lock (no crítico — timeout de 5s)
       try {
         await Promise.race([
-          dbUpdate(id, { lockedBy: currentUser, lockedAt: Date.now() }),
+          dbUpdate(id, { lockedBy: currentUser?.name, lockedAt: Date.now() }),
           new Promise((_, rej) => setTimeout(() => rej(new Error('lock timeout')), 5000))
         ]);
         lockSet = true;
@@ -2106,7 +2173,7 @@ async function doOpenDespacho(id, readOnly = false, lockedBy = '') {
     unsub = dbListen(id, data => {
       clearTimeout(listenTimeout);
       curData = data;
-      isReadOnly = readOnly || !!(data.assignedTo && data.assignedTo !== currentUser && data.createdBy !== currentUser);
+      isReadOnly = readOnly || !!(data.assignedTo && data.assignedTo !== currentUser?.name && data.createdBy !== currentUser?.name);
       const banner = $('readonly-banner');
       if (isReadOnly && banner) {
         banner.innerHTML = readOnly && lockedBy
@@ -2118,8 +2185,8 @@ async function doOpenDespacho(id, readOnly = false, lockedBy = '') {
       }
       if (firstLoad) {
         firstLoad = false;
-        if (!isReadOnly && data.assignedTo === currentUser && data.status === 'pending') {
-          dbUpdate(id, { status: 'active' }).catch(() => {});
+        if (!isReadOnly && data.assignedTo === currentUser?.name && data.status === 'pending') {
+          dbUpdate(id, { status: 'active', startedAt: Date.now() }).catch(() => {});
         }
       }
       renderPick();
@@ -2245,7 +2312,7 @@ function showCelebrationModal() {
   const prods = curData.products || [];
   const tot   = prods.length;
   const totU  = prods.reduce((s, p) => s + (Number(p.qty) || 0), 0);
-  const ms    = Date.now() - (curData.createdAt || Date.now());
+  const ms    = Date.now() - (curData.startedAt || curData.createdAt || Date.now());
   const h = Math.floor(ms / 3600000);
   const m = Math.floor((ms % 3600000) / 60000);
   const elapsed = h > 0 ? `${h}h ${m}m` : `${m}m`;
@@ -2404,7 +2471,7 @@ window.duplicateDespacho = async id => {
   await dbSave({
     name: `${src.name} (copia)`,
     assignedTo: src.assignedTo || '',
-    createdBy: currentUser,
+    createdBy: currentUser?.name ?? '',
     products: src.products || [],
     checked: {},
     createdAt: Date.now()
@@ -2442,6 +2509,23 @@ window.assignDespacho = async (id, currentAssign) => {
     await dbUpdate(oid, { assignedTo: val });
     if (isLocal) startHomeListener();
   };
+};
+
+window.confirmDispatch = (id, name) => {
+  openModal(
+    'Confirmar despacho',
+    `¿Marcar "${name}" como despachada? Esto indica que la orden ya salió de bodega hacia su destino.`,
+    '',
+    [
+      { label: 'Cancelar',      cls: 'btn-outline', fn: 'closeModal(event)' },
+      { label: '🚚 Despachar',  cls: 'btn-dark',    fn: `doDispatch('${id}')` }
+    ]
+  );
+};
+
+window.doDispatch = async id => {
+  closeModal();
+  await dbUpdate(id, { status: 'dispatched', dispatchedAt: Date.now() });
 };
 
 window.confirmDelete = (id, name) => {
@@ -2482,6 +2566,91 @@ window.closeModal = e => {
 };
 
 /* ═══════════════════════════════════════
+   FIREBASE AUTH
+═══════════════════════════════════════ */
+window.doEmailLogin = async () => {
+  const email = $('login-email').value.trim();
+  const pw    = $('login-pw').value;
+  const errEl = $('login-err');
+  const btn   = $('btn-login');
+
+  errEl.style.display = 'none';
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span>Entrando...';
+
+  try {
+    await authMod.signInWithEmailAndPassword(auth, email, pw);
+    // onAuthStateChanged maneja la navegación
+  } catch(e) {
+    let msg = 'Error al iniciar sesión.';
+    if (['auth/user-not-found','auth/wrong-password','auth/invalid-credential'].includes(e.code)) msg = 'Correo o contraseña incorrectos.';
+    else if (e.code === 'auth/too-many-requests') msg = 'Demasiados intentos. Intenta más tarde.';
+    else if (e.code === 'auth/invalid-email') msg = 'Correo electrónico inválido.';
+    errEl.textContent = msg;
+    errEl.style.display = 'block';
+    btn.disabled = false;
+    btn.textContent = 'Entrar →';
+  }
+};
+
+window.logout = async () => {
+  if (homeUnsub) { homeUnsub(); homeUnsub = null; }
+  if (unsub) { unsub(); unsub = null; }
+  currentUser = null;
+  currentRole  = '';
+  if (authMod && auth) await authMod.signOut(auth);
+  // onAuthStateChanged muestra s-login automáticamente
+};
+
+async function loadUserProfile(uid) {
+  try {
+    const snap = await fbMod.getDoc(fbMod.doc(db, 'users', uid));
+    return snap.exists() ? snap.data() : null;
+  } catch { return null; }
+}
+
+async function getOrCreateUserProfile(firebaseUser) {
+  const { uid, email, displayName } = firebaseUser;
+  let profile = await loadUserProfile(uid);
+  if (profile) return profile;
+
+  // Primer login: determinar rol
+  let role = 'collaborator';
+  try {
+    const q = fbMod.query(fbMod.collection(db, 'users'), fbMod.limit(1));
+    const snap = await fbMod.getDocs(q);
+    if (snap.empty) role = 'super';
+  } catch{}
+
+  profile = { name: displayName || email.split('@')[0], email, role, createdAt: Date.now(), active: true };
+  try { await fbMod.setDoc(fbMod.doc(db, 'users', uid), profile); } catch{}
+  return profile;
+}
+
+function setupAuthListener() {
+  if (!authMod || !auth) return;
+  authMod.onAuthStateChanged(auth, async (firebaseUser) => {
+    if (firebaseUser) {
+      const profile = await getOrCreateUserProfile(firebaseUser);
+      if (!profile || profile.active === false) {
+        await authMod.signOut(auth);
+        return;
+      }
+      currentUser = { uid: firebaseUser.uid, email: firebaseUser.email, name: profile.name, role: profile.role };
+      currentRole  = profile.role;
+      $('s-loading').classList.remove('on');
+      const deepId = new URLSearchParams(window.location.search).get('orden');
+      if (deepId) { await openDespacho(deepId); } else { goHome(); }
+    } else {
+      currentUser = null;
+      currentRole  = '';
+      $('s-loading').classList.remove('on');
+      showScreen('s-login');
+    }
+  });
+}
+
+/* ═══════════════════════════════════════
    INIT
 ═══════════════════════════════════════ */
 const FIREBASE_CFG = {
@@ -2509,64 +2678,21 @@ document.addEventListener('DOMContentLoaded', async () => {
   const savedTheme = localStorage.getItem(THEME_KEY);
   if (savedTheme === 'light') document.body.classList.add('light');
 
-  const params       = new URLSearchParams(window.location.search);
-  const deepId       = params.get('orden');
-  const usuarioParam = params.get('usuario');
-
   const ok = await initFirebase(FIREBASE_CFG);
-  $('s-loading').classList.remove('on');
 
   if (!ok) {
+    $('s-loading').classList.remove('on');
     showScreen('s-setup');
     const err = $('cfg-err');
     if (err) {
-      err.innerHTML = deepId
-        ? 'Hay una orden compartida contigo. Conecta Firebase para verla.'
-        : 'No se pudo conectar a Firebase. Verifica tu conexión a internet.';
+      err.innerHTML = 'No se pudo conectar a Firebase. Verifica tu conexión a internet.';
       err.style.display = 'block';
     }
     return;
   }
 
-  // Auto-login desde moto.html via ?usuario=
-  if (deepId && usuarioParam) {
-    try {
-      const snap = await fbMod.getDoc(fbMod.doc(db, 'config', 'team'));
-      if (snap.exists()) {
-        const member = (snap.data().members || []).find(m =>
-          m.active !== false &&
-          (typeof m === 'string' ? m : m.name).toLowerCase() === usuarioParam.toLowerCase()
-        );
-        if (member) {
-          const name = typeof member === 'string' ? member : member.name;
-          const role = typeof member === 'string' ? 'bodeguero' : (member.role || 'bodeguero');
-          const session = { userId: member.id || name, name, role, loginAt: Date.now() };
-          localStorage.setItem(SESSION_KEY, JSON.stringify(session));
-          currentUser = name;
-          currentRole  = role;
-          window.history.replaceState({}, '', window.location.pathname);
-          await openDespacho(deepId);
-          return;
-        }
-      }
-    } catch(e) { console.warn('Auto-login failed:', e.message); }
-    // Si falla, caer al flujo normal de PIN
-  }
-
-  // Verificar sesión PIN guardada
-  const session = getSession();
-  const validRoles = ['bodeguero', 'operador', 'encargado', 'super'];
-  if (session && validRoles.includes(session.role) && Date.now() < getExpiry(session.loginAt)) {
-    currentUser = session.name;
-    currentRole  = session.role;
-    if (deepId) { await openDespacho(deepId); } else { goHome(); }
-    return;
-  }
-
-  // Sesión inválida o expirada
-  localStorage.removeItem(SESSION_KEY);
-  await loadPinScreen();
-  showScreen('s-pin');
+  // onAuthStateChanged decide la pantalla y oculta s-loading
+  setupAuthListener();
 });
 
 </script>

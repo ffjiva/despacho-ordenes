@@ -816,7 +816,9 @@ body:not(.dark) input[type="time"] {
 <body>
 
 <!-- ══════════════ LOGIN ══════════════ -->
-<div id="s-login" class="scr on">
+<div id="s-loading" class="scr on" style="display:flex;align-items:center;justify-content:center;height:100vh;color:var(--muted);font-size:.8rem;letter-spacing:.1em">CARGANDO…</div>
+
+<div id="s-login" class="scr">
   <div class="topbar">
     <div class="topbar-title">⚙ Operaciones Ops</div>
     <div class="topbar-actions">
@@ -1250,6 +1252,8 @@ const UBICACIONES_OPS = [
 
 let db = null, fbMod = null, auth = null, authMod = null, storageMod = null, storage = null;
 let currentUser = 'Fernando';
+let authReady = false;
+let authDetermined = false;
 let editingPinUserId = null;
 let activeFilter = 'all';
 let showDone = false;
@@ -1337,22 +1341,27 @@ async function init() {
   authMod.onAuthStateChanged(auth, async user => {
     if (user) {
       try {
-        const snap = await fbMod.getDoc(fbMod.doc(db, 'config', 'team'));
-        const superEmail = snap.exists() ? (snap.data().superEmail || '') : '';
-        if (!superEmail || user.email.toLowerCase() !== superEmail.toLowerCase()) {
+        const userDoc = await fbMod.getDoc(fbMod.doc(db, 'users', user.uid));
+        if (!userDoc.exists() || userDoc.data().role !== 'super') {
           await authMod.signOut(auth);
           showScreen('s-login');
           showLoginErr('No tienes acceso a esta sección.');
           return;
         }
+        currentUser = userDoc.data().name || user.email;
+        authDetermined = true;
+        if (!authReady) {
+          authReady = true;
+          goHome();
+        }
       } catch(e) {
-        await authMod.signOut(auth);
-        showScreen('s-login');
-        showLoginErr('Error al verificar acceso. Intenta de nuevo.');
-        return;
+        console.error('Auth check error:', e);
+        // No redirigir a login por errores de red — mantener sesión activa
       }
-      goHome();
     } else {
+      authReady = false;
+      authDetermined = true;
+      console.warn('AUTH → user null. Stack:', new Error().stack);
       showScreen('s-login');
       $('mob-bottom-bar').style.display = 'none';
     }
@@ -1868,6 +1877,7 @@ window.toggleCard = id => {
 };
 
 window.initVueltasScreen = async () => {
+  console.log('initVueltasScreen, auth.currentUser:', auth?.currentUser?.email);
   activeVueltasTab = 'todas';
   $('vtab-todas').style.display    = '';
   $('vtab-vueltas').style.display  = 'none';
@@ -2171,6 +2181,7 @@ window.createVuelta = async () => {
   btn.innerHTML = '<span class="spin"></span>Agregando…';
 
   try {
+    console.log('createVuelta start, auth.currentUser:', auth?.currentUser?.email);
     const countSnap = await fbMod.getDocs(
       fbMod.query(fbMod.collection(db, 'vueltas'), fbMod.where('date', '==', date))
     );
@@ -2262,8 +2273,8 @@ window.renderVueltasSupervisor = list => {
 
 function formatVueltaDateBadge(dateStr) {
   if (!dateStr) return null;
-  const today    = new Date().toISOString().slice(0,10);
-  const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0,10);
+  const today    = new Date().toLocaleDateString('en-CA', { timeZone: 'America/El_Salvador' });
+  const tomorrow = new Date(Date.now() + 86400000).toLocaleDateString('en-CA', { timeZone: 'America/El_Salvador' });
   if (dateStr < today)      return { label: 'VENCIDA', color: 'var(--err-tx)',  bg: 'var(--err-bg)' };
   if (dateStr === today)    return null;
   if (dateStr === tomorrow) return { label: 'MAÑANA',  color: 'var(--warn-tx)', bg: 'var(--warn-bg)' };
