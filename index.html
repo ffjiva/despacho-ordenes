@@ -254,7 +254,8 @@ html, body {
 .pick-title-wrap .pick-name { font-size: .82rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; line-height: 1.3; }
 .pick-title-wrap .pick-date { font-size: .58rem; opacity: .5; margin-top: 3px; letter-spacing: .05em; }
 .pick-title-wrap .pick-assign { font-size: .6rem; opacity: .7; margin-top: 2px; }
-.pick-acts { display: flex; gap: 6px; flex-shrink: 0; align-items: center; }
+.pick-acts { display: flex; flex-direction: column; gap: 5px; flex-shrink: 0; align-items: flex-end; }
+.pick-acts-row { display: flex; gap: 5px; align-items: center; }
 .prog-wrap { padding-bottom: .8rem; }
 .prog-labels { display: flex; justify-content: space-between; font-size: .62rem; opacity: .65; margin-bottom: 5px; letter-spacing: .03em; }
 .prog-track { background: rgba(255,255,255,.18); border-radius: 2px; height: 4px; overflow: hidden; }
@@ -743,10 +744,14 @@ body:not(.dark) input[type="time"] {
         <div id="pk-route" style="font-size:.65rem;color:rgba(255,255,255,.7);margin-top:2px;letter-spacing:.04em"></div>
       </div>
       <div class="pick-acts">
-        <button class="btn btn-ghost" style="font-size:.65rem" onclick="goHome()">← Lista</button>
-        <button class="btn btn-ghost" style="font-size:.65rem" onclick="window.open('https://despacho-ordenes.web.app/ops.html','_blank')">⚙️ Ops</button>
-        <a id="pk-original-btn" style="display:none;font-size:.65rem" class="btn btn-ghost" target="_blank" rel="noopener">📄 Orden original</a>
-        <button class="btn btn-light" style="font-size:.65rem" onclick="printPDF()">⎙ PDF</button>
+        <div class="pick-acts-row">
+          <button class="btn btn-ghost" style="font-size:.65rem" onclick="goHome()">← Lista</button>
+          <a id="pk-original-btn" style="display:none;font-size:.65rem" class="btn btn-ghost" target="_blank" rel="noopener">📄 Orden original</a>
+        </div>
+        <div class="pick-acts-row">
+          <button class="btn btn-ghost" style="font-size:.65rem" onclick="window.open('https://despacho-ordenes.web.app/ops.html','_blank')">⚙️ Ops</button>
+          <button class="btn btn-light" style="font-size:.65rem" onclick="printPDF()">⎙ PDF</button>
+        </div>
       </div>
     </div>
     <div class="prog-wrap">

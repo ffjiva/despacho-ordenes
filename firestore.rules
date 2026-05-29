@@ -42,7 +42,8 @@ service cloud.firestore {
 
     // ── config/{doc} ─────────────────────────────────────
     match /config/{doc} {
-      allow read:  if isAuth();
+      // team es leído por moto.html sin auth
+      allow read:  if doc == 'team' || isAuth();
       allow write: if isSuper();
     }
 
