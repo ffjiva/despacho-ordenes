@@ -1,0 +1,63 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helpers ──────────────────────────────────────────
+    function isAuth() {
+      return request.auth != null;
+    }
+    function isSuper() {
+      return isAuth() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super';
+    }
+    function isActive() {
+      return isAuth() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.active == true;
+    }
+
+    // ── users/{uid} ───────────────────────────────────────
+    match /users/{uid} {
+      allow read:   if isAuth();
+      allow create: if isAuth() && request.auth.uid == uid;
+      allow update: if isSuper() || request.auth.uid == uid;
+      allow delete: if isSuper();
+    }
+
+    // ── despachos/{id} ────────────────────────────────────
+    match /despachos/{id} {
+      allow read: if isAuth() && isActive();
+
+      // Solo super puede crear y eliminar
+      allow create: if isSuper();
+      allow delete: if isSuper();
+
+      // Super puede actualizar cualquier campo
+      // Collaborator solo puede actualizar checked{}, lockedBy, lockedAt, status
+      allow update: if isSuper()
+        || (isAuth() && isActive() &&
+            resource.data.assignedTo == request.auth.uid &&
+            request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['checked', 'lockedBy', 'lockedByName', 'lockedAt', 'status', 'startedAt', 'completedAt']));
+    }
+
+    // ── config/{doc} ─────────────────────────────────────
+    match /config/{doc} {
+      allow read:  if isAuth();
+      allow write: if isSuper();
+    }
+
+    // ── reposiciones/{id} ────────────────────────────────
+    match /reposiciones/{id} {
+      allow read:  if isAuth();
+      allow write: if isSuper();
+    }
+
+    // ── vueltas y domicilios: sin auth (usados por moto.html) ──
+    match /vueltas/{id} {
+      allow read, write: if true;
+    }
+    match /domicilios/{id} {
+      allow read, write: if true;
+    }
+  }
+}
