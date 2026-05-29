@@ -1251,7 +1251,7 @@ const UBICACIONES_OPS = [
 ];
 
 let db = null, fbMod = null, auth = null, authMod = null, storageMod = null, storage = null;
-let currentUser = 'Fernando';
+let currentUser = null; // { uid, email, name, role }
 let authReady = false;
 let authDetermined = false;
 let editingPinUserId = null;
@@ -1348,7 +1348,8 @@ async function init() {
           showLoginErr('No tienes acceso a esta sección.');
           return;
         }
-        currentUser = userDoc.data().name || user.email;
+        const profile = userDoc.data();
+        currentUser = { uid: user.uid, email: user.email, name: profile.name || user.email, role: profile.role };
         authDetermined = true;
         if (!authReady) {
           authReady = true;
@@ -1420,7 +1421,7 @@ window.doLogout = async () => {
    HOME
 ═══════════════════════════════════ */
 function goHome() {
-  $('home-user').textContent = `👤 ${currentUser}`;
+  $('home-user').textContent = `👤 ${currentUser?.name || ''}`;
   $('home-date').textContent = new Date().toLocaleDateString('es-SV', {
     weekday: 'long', day: '2-digit', month: 'long'
   }).toUpperCase();
@@ -1552,7 +1553,7 @@ window.togglePend = async id => {
     const cur = snap.data();
     await fbMod.updateDoc(ref, cur.done
       ? { done: false, doneAt: null, doneBy: null }
-      : { done: true,  doneAt: Date.now(), doneBy: currentUser }
+      : { done: true,  doneAt: Date.now(), doneBy: currentUser?.name || '' }
     );
   } catch(e) { console.error(e); }
 };
@@ -1657,7 +1658,7 @@ window.saveNew = async () => {
     } else {
       await fbMod.addDoc(fbMod.collection(db, COLLECTION), {
         ...payload, done: false, doneAt: null, doneBy: null,
-        createdBy: currentUser, createdAt: Date.now()
+        createdBy: currentUser?.name || '', createdAt: Date.now()
       });
     }
     $('modal-new').classList.remove('on');
@@ -2197,7 +2198,7 @@ window.createVuelta = async () => {
       linkedOrderIds,
       status:         'pending',
       paradero:       '',
-      createdBy:      currentUser,
+      createdBy:      currentUser?.name || '',
       createdAt:      Date.now(),
       completedAt:    null,
       photos:         []
@@ -5072,7 +5073,7 @@ async function saveReposicionRecord(origen, destino, sendMap, fecha) {
       destino,
       productos,
       totalUnidades: productos.reduce((s, p) => s + p.cantidad, 0),
-      generadoPor: currentUser || 'ops'
+      generadoPor: currentUser?.name || 'ops'
     });
   } catch (e) {
     console.warn('saveReposicionRecord:', e);
