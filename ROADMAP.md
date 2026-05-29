@@ -28,44 +28,40 @@
 
 ---
 
-## Estado actual (v1 — producción)
+## Estado actual (Mayo 2026)
 
-### Pantallas implementadas
-- **`s-setup`** — Configuración inicial de Firebase (se omite si ya hay config guardada)
-- **`s-home`** — Lista de órdenes con progreso en tiempo real
-- **`s-new`** — Crear orden: subir PDF/imagen → extracción con IA → revisión → guardar
-- **`s-pick`** — Pantalla de picking: marcar ítems, notas, filtros, progreso
+### Módulos completados
+- **Módulo 1** ✅ — Firebase Auth con email/password en index.html y ops.html
+- **Módulo 2** ✅ — Roles super/collaborator, assignedTo con UID, Firestore Rules, índices
+- **Módulo 3** ✅ — Banner colaborador en s-home, FCM corregido para usar users/{uid}
 
-### Funcionalidades activas
-- Extracción automática de productos desde PDF/imagen usando Claude API
-- Sincronización en tiempo real con Firestore
-- Sistema de bloqueo de orden (lock) cuando alguien la está trabajando
-- Gestión de equipo: agregar/eliminar usuarios (`config/team` en Firestore)
-- Asignación de órdenes a usuarios
-- Modo offline/local (sin Firebase)
-- Filtros en picking: Todos / Pendientes / Listos
-- Ordenamiento: Alfabético / Por categoría
-- Impresión a PDF del picking list (`window.print()`)
+### Bug pendiente — Creación de usuarios desde la app
+`_createUser` en `index.html` falla silenciosamente al crear app secundaria de Firebase.
+El usuario se crea en Firebase Authentication pero no en Firestore `users/{uid}`.
+Workaround actual: crear el documento en Firestore manualmente.
+Próximo fix: revisar por qué `FIREBASE_CFG` no resuelve el problema en runtime.
 
-### Esquema Firestore actual
-```
-despachos/{id}
-  name: string
-  orderNumber: string
-  orderDate: string
-  origin: string
-  destination: string
-  assignedTo: string
-  createdBy: string
-  products: [ { id, name, code, qty, family } ]
-  checked: { [productId]: { done, time, note } }
-  lockedBy: string | null
-  lockedAt: number | null
-  createdAt: number
+### Cambios recientes aplicados
+- `assignedTo` migrado a UID + `assignedToName` como display
+- `currentUser` es objeto `{uid, email, name, role}` en index.html y ops.html
+- Cloud Functions `parseDocument`, `suggestReplenishment`, `parseXLS` protegidas con Firebase Auth token
+- Firestore Rules cubre todas las colecciones incluyendo ops_pendientes, cierres, agenda
+- `config/team` permite lectura sin auth para moto.html
+- `ops.html` fix: loader `s-loading` se oculta correctamente en onAuthStateChanged
+- `s-pick` topbar reorganizada en 2 filas para móvil
+- Despacho incompleto: status `dispatched_incomplete`, validación de notas obligatorias
+- `window.fbApp = fbApp` expuesto globalmente en initFirebase()
 
-config/team
-  members: string[]
-```
+### Usuarios activos en el sistema
+- Fernando — super — ffjiva@gmail.com
+- Miguel (pedidos) — collaborator — pedidos@zonadigitalsv.com
+- Memo — collaborator — memo@despacho.com (perfil Firestore creado manualmente)
+- Anderson De Sousa — collaborator — anderson@despacho.com (pendiente crear perfil Firestore)
+
+### Pendiente inmediato
+- Crear perfil Firestore de Anderson manualmente (igual que Memo)
+- Corregir nombres en Firestore: ffjiva → Fernando, pedidos → Miguel
+- Módulo 4 — Vista Supervisor + Generador de etiquetas
 
 ---
 
