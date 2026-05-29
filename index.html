@@ -647,6 +647,7 @@ body:not(.dark) input[type="time"] {
     <span class="home-user" id="home-user"></span>
   </div>
   <div class="dash-list">
+    <div id="collab-banner" style="display:none;background:var(--info-bg);border:1px solid var(--info-bd);color:var(--info-tx);border-radius:var(--r);padding:10px 13px;margin-bottom:.75rem;font-size:.72rem;line-height:1.5"></div>
     <div class="section-lbl">Órdenes</div>
     <div style="display:flex;gap:6px;margin-bottom:.75rem">
       <button class="fbtn on" id="hf-all"     onclick="setHomeFilter('all',this)">Todas</button>
@@ -1266,7 +1267,7 @@ window.doPinLogin = async () => {
 
 async function requestNotificationPermission() {
   if (!('Notification' in window) || Notification.permission === 'denied') return;
-  if (!fbApp || !db || !fbMod) return;
+  if (!fbApp || !db || !fbMod || !currentUser?.uid) return;
   try {
     const { getMessaging, getToken } = await import(
       'https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging.js'
@@ -1280,16 +1281,13 @@ async function requestNotificationPermission() {
       serviceWorkerRegistration: swReg
     });
     if (!token) return;
-    const snap = await fbMod.getDoc(fbMod.doc(db, 'config', 'team'));
+    // Guardar token en users/{uid} en vez de config/team
+    const userRef = fbMod.doc(db, 'users', currentUser.uid);
+    const snap = await fbMod.getDoc(userRef);
     if (!snap.exists()) return;
-    const members = snap.data().members || [];
-    const idx = members.findIndex(m => m.name === currentUser?.name);
-    if (idx === -1) return;
-    const tokens = members[idx].fcmTokens || [];
+    const tokens = snap.data().fcmTokens || [];
     if (!tokens.includes(token)) {
-      tokens.push(token);
-      members[idx].fcmTokens = tokens;
-      await fbMod.setDoc(fbMod.doc(db, 'config', 'team'), { members });
+      await fbMod.updateDoc(userRef, { fcmTokens: [...tokens, token] });
     }
   } catch(e) {
     console.warn('FCM token error:', e.message);
@@ -1656,6 +1654,19 @@ function renderDash(list) {
 
   if (currentUser?.role !== 'super') {
     list = list.filter(d => d.assignedTo === currentUser?.uid);
+    const banner = $('collab-banner');
+    if (banner) {
+      const activas = list.filter(d => !d.archived && d.status !== 'dispatched' && d.status !== 'dispatched_incomplete');
+      if (activas.length > 0) {
+        banner.innerHTML = `📦 Tienes <strong>${activas.length}</strong> orden${activas.length > 1 ? 'es' : ''} asignada${activas.length > 1 ? 's' : ''}`;
+        banner.style.display = 'block';
+      } else {
+        banner.style.display = 'none';
+      }
+    }
+  } else {
+    const banner = $('collab-banner');
+    if (banner) banner.style.display = 'none';
   }
 
   const archivadas = list.filter(d => d.archived);
@@ -2756,6 +2767,7 @@ function setupAuthListener() {
       currentUser = { uid: firebaseUser.uid, email: firebaseUser.email, name: profile.name, role: profile.role };
       currentRole  = profile.role;
       $('s-loading').classList.remove('on');
+      requestNotificationPermission(); // fire-and-forget
       const deepId = new URLSearchParams(window.location.search).get('orden');
       if (deepId) { await openDespacho(deepId); } else { goHome(); }
     } else {

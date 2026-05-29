@@ -27,57 +27,80 @@ const { onRequest }         = require('firebase-functions/v2/https');
 const { onSchedule }        = require('firebase-functions/v2/scheduler');
 
 exports.onDespachoAssigned = onDocumentWritten('despachos/{despachoId}', async (event) => {
-    const before = event.data.before.exists ? event.data.before.data() : null;
-    const after  = event.data.after.exists  ? event.data.after.data()  : null;
-    if (!after) return null;
+  const before = event.data.before.exists ? event.data.before.data() : null;
+  const after  = event.data.after.exists  ? event.data.after.data()  : null;
+  if (!after) return null;
 
-    const assignedBefore = before?.assignedTo || '';
-    const assignedAfter  = after.assignedTo   || '';
+  const assignedBefore = before?.assignedTo || '';
+  const assignedAfter  = after.assignedTo   || '';
 
-    if (!assignedAfter || assignedAfter === assignedBefore) return null;
+  // Solo disparar si cambió la asignación
+  if (!assignedAfter || assignedAfter === assignedBefore) return null;
 
-    // Deduplicación: si ya se notificó esta asignación, saltar
-    const alreadyNotified = after.lastNotifiedAssignedTo === assignedAfter;
-    if (alreadyNotified) return null;
+  // Deduplicación: si ya se notificó esta asignación, saltar
+  if (after.lastNotifiedAssignedTo === assignedAfter) return null;
 
-    const teamSnap = await admin.firestore().doc('config/team').get();
-    if (!teamSnap.exists) return null;
-
-    const members = teamSnap.data().members || [];
-    const member  = members.find(m => m.name === assignedAfter);
-    const token   = member?.fcmToken;
-    if (!token) {
-      console.log(`Sin token FCM para ${assignedAfter}`);
+  // Buscar tokens FCM en users/{uid} directamente
+  let tokens = [];
+  try {
+    const userSnap = await admin.firestore().doc(`users/${assignedAfter}`).get();
+    if (!userSnap.exists) {
+      console.log(`Usuario ${assignedAfter} no encontrado en users/`);
       return null;
     }
+    tokens = userSnap.data().fcmTokens || [];
+  } catch(e) {
+    console.error('Error buscando usuario:', e.message);
+    return null;
+  }
 
-    const orderLabel = after.orderNumber
-      ? `Orden ${after.orderNumber}`
-      : after.name || 'Nueva orden';
-    const dest = after.destination || '';
+  if (!tokens.length) {
+    console.log(`Sin tokens FCM para uid ${assignedAfter}`);
+    return null;
+  }
 
-    const message = {
+  const orderLabel = after.orderNumber
+    ? `Orden ${after.orderNumber}`
+    : after.name || 'Nueva orden';
+  const dest = after.destination || '';
+
+  // Enviar a todos los tokens del usuario (puede tener varios dispositivos)
+  const results = await Promise.allSettled(tokens.map(token =>
+    admin.messaging().send({
       token,
       notification: {
         title: '📦 Nueva orden asignada',
-        body:  `${orderLabel}${dest ? ' → ' + dest : ''}`
+        body: `${orderLabel}${dest ? ' → ' + dest : ''}`
       },
       android: { priority: 'high' },
       webpush: {
         notification: { icon: 'https://despacho-ordenes.web.app/favicon.png' },
-        fcmOptions:   { link: 'https://despacho-ordenes.web.app' }
+        fcmOptions: { link: 'https://despacho-ordenes.web.app' }
       }
-    };
+    })
+  ));
 
+  const sent   = results.filter(r => r.status === 'fulfilled').length;
+  const failed = results.filter(r => r.status === 'rejected').length;
+  console.log(`Notificaciones: ${sent} enviadas, ${failed} fallidas para uid ${assignedAfter}`);
+
+  // Limpiar tokens inválidos
+  const invalidTokens = tokens.filter((_, i) => results[i].status === 'rejected');
+  if (invalidTokens.length) {
+    const validTokens = tokens.filter(t => !invalidTokens.includes(t));
     try {
-      await admin.messaging().send(message);
-      console.log(`Notificación enviada a ${assignedAfter}`);
-      await event.data.after.ref.update({ lastNotifiedAssignedTo: assignedAfter });
-    } catch(e) {
-      console.error('Error enviando notificación:', e.message);
-    }
-    return null;
-  });
+      await admin.firestore().doc(`users/${assignedAfter}`).update({ fcmTokens: validTokens });
+      console.log(`Limpiados ${invalidTokens.length} tokens inválidos`);
+    } catch(e) { console.warn('Error limpiando tokens:', e.message); }
+  }
+
+  // Marcar como notificado
+  try {
+    await event.data.after.ref.update({ lastNotifiedAssignedTo: assignedAfter });
+  } catch(e) { console.warn('Error marcando notificación:', e.message); }
+
+  return null;
+});
 
 exports.onVueltaAssigned = onDocumentWritten('vueltas/{vueltaId}', async (event) => {
     const before = event.data.before.exists ? event.data.before.data() : null;
