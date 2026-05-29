@@ -59,5 +59,25 @@ service cloud.firestore {
     match /domicilios/{id} {
       allow read, write: if true;
     }
+
+    // ── ops_pendientes ───────────────────────────────────
+    match /ops_pendientes/{id} {
+      allow read, write: if isSuper();
+    }
+
+    // ── cierres ──────────────────────────────────────────
+    match /cierres/{id} {
+      allow read, write: if isSuper();
+    }
+
+    // ── agenda ───────────────────────────────────────────
+    match /agenda/{id} {
+      allow read, write: if isSuper();
+    }
+
+    // ── notificaciones ───────────────────────────────────
+    match /notificaciones/{id} {
+      allow read, write: if isAuth();
+    }
   }
 }
