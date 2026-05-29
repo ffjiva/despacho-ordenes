@@ -2241,7 +2241,10 @@ async function doOpenDespacho(id, readOnly = false, lockedBy = '') {
       curData = data;
       isReadOnly = readOnly || !!(
         data.assignedTo &&
+        currentUser?.role !== 'super' &&
+        data.assignedTo !== currentUser?.name &&
         data.assignedTo !== currentUser?.uid &&
+        data.createdBy  !== currentUser?.name &&
         data.createdBy  !== currentUser?.uid
       );
       const banner = $('readonly-banner');
@@ -2793,7 +2796,13 @@ function setupAuthListener() {
       $('s-loading').classList.remove('on');
       requestNotificationPermission(); // fire-and-forget
       const deepId = new URLSearchParams(window.location.search).get('orden');
-      if (deepId) { await openDespacho(deepId); } else { goHome(); }
+      if (deepId) {
+        // Limpiar parámetros de URL sin recargar
+        window.history.replaceState({}, '', window.location.pathname);
+        await openDespacho(deepId);
+      } else {
+        goHome();
+      }
     } else {
       currentUser = null;
       currentRole  = '';
