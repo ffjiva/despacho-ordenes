@@ -1118,7 +1118,7 @@ window.showUsersModal = async () => {
             <div style="font-size:.6rem;color:var(--muted)">${u.email || ''}</div>
           </div>
           ${u.uid === currentUser?.uid ? '<span class="user-me">Tú</span>' : ''}
-          <span class="badge ${u.role === 'super' ? 'badge-me' : 'badge-archived'}" style="flex-shrink:0">${u.role}</span>
+          <span class="badge ${u.role === 'super' ? 'badge-me' : u.role === 'motorista' ? 'badge-warn' : 'badge-archived'}" style="flex-shrink:0">${u.role}</span>
           ${isSuper && u.uid !== currentUser?.uid
             ? `<button class="btn btn-danger" style="font-size:.6rem;padding:3px 8px;flex-shrink:0" onclick="window._deactivateUser('${u.uid}')">✕</button>`
             : ''}
@@ -1134,6 +1134,7 @@ window.showUsersModal = async () => {
       <div class="fld"><label>Rol</label>
         <select id="nu-role">
           <option value="collaborator">Colaborador</option>
+          <option value="motorista">Motorista</option>
           <option value="super">Supervisor</option>
         </select>
       </div>
