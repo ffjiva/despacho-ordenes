@@ -1181,7 +1181,7 @@ window.showUsersModal = async () => {
     try {
       // Secondary app to no perder sesión del super
       const { initializeApp: initApp2, deleteApp } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
-      const app2 = initApp2(fbApp.options, 'dsp-secondary-' + Date.now());
+      const app2 = initApp2(FIREBASE_CFG, 'dsp-secondary-' + Date.now());
       const auth2 = authMod.getAuth(app2);
       const cred = await authMod.createUserWithEmailAndPassword(auth2, email, pw);
       await fbMod.setDoc(fbMod.doc(db, 'users', cred.user.uid), { name, email, role, createdAt: Date.now(), active: true });
