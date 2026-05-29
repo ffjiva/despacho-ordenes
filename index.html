@@ -1179,22 +1179,39 @@ window.showUsersModal = async () => {
     btn.innerHTML = '<span class="spin"></span>Creando...';
 
     try {
-      // Secondary app to no perder sesión del super
+      // Secondary app para no perder sesión del super
       const { initializeApp: initApp2, deleteApp } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
-      const app2 = initApp2(FIREBASE_CFG, 'dsp-secondary-' + Date.now());
-      const auth2 = authMod.getAuth(app2);
-      const cred = await authMod.createUserWithEmailAndPassword(auth2, email, pw);
-      await fbMod.setDoc(fbMod.doc(db, 'users', cred.user.uid), { name, email, role, createdAt: Date.now(), active: true });
+      const { getAuth: getAuth2, createUserWithEmailAndPassword: createUser2 } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
+
+      const secondaryName = 'dsp-tmp-' + Date.now();
+      const app2  = initApp2(fbApp.options, secondaryName);
+      const auth2 = getAuth2(app2);
+
+      const cred = await createUser2(auth2, email, pw);
+      const newUid = cred.user.uid;
+
+      await fbMod.setDoc(fbMod.doc(db, 'users', newUid), {
+        name, email, role,
+        createdAt: Date.now(),
+        active: true
+      });
+
+      await authMod.signOut(auth2).catch(() => {});
       await deleteApp(app2);
 
       msgEl.textContent = `✓ Usuario "${name}" creado correctamente.`;
       msgEl.style.cssText = 'display:block;background:var(--done-bg);color:var(--done-tx);border-color:var(--done-bd)';
+      $('nu-name').value = '';
+      $('nu-email').value = '';
+      $('nu-pw').value = '';
       setTimeout(() => { closeModal(); showUsersModal(); }, 1400);
     } catch(e) {
-      let msg = 'Error al crear usuario.';
+      console.error('Create user error:', e.code, e.message, e);
+      let msg = `Error al crear usuario. (${e.code || e.message || 'desconocido'})`;
       if (e.code === 'auth/email-already-in-use') msg = 'Este email ya está registrado.';
-      else if (e.code === 'auth/invalid-email') msg = 'Email inválido.';
-      else if (e.code === 'auth/weak-password') msg = 'Contraseña muy débil (mínimo 6 caracteres).';
+      else if (e.code === 'auth/invalid-email')   msg = 'Email inválido.';
+      else if (e.code === 'auth/weak-password')   msg = 'Contraseña muy débil (mínimo 6 caracteres).';
+      else if (e.code === 'auth/operation-not-allowed') msg = 'Email/contraseña no está habilitado en Firebase Auth.';
       msgEl.textContent = msg;
       msgEl.style.cssText = 'display:block;background:var(--err-bg);color:var(--err-tx);border-color:var(--err-bd)';
       btn.disabled = false;
