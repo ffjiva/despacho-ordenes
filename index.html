@@ -934,6 +934,7 @@ async function initFirebase(cfg) {
     const APP_NAME = 'despacho-main';
     const existing = getApps().find(a => a.name === APP_NAME);
     fbApp = existing || initializeApp(cfg, APP_NAME);
+    window.fbApp = fbApp;
     db = fbMod.getFirestore(fbApp);
     storage = storageMod.getStorage(fbApp);
     auth = authMod.getAuth(fbApp);
