@@ -201,6 +201,9 @@ html, body {
 .badge-archived { background: var(--surface2); color: var(--muted); border-color: var(--border); }
 .badge-err { background: var(--err-bg); color: var(--err-tx); border-color: var(--err-bd); }
 .badge-dispatched { background: var(--info-bg); color: var(--info-tx); border-color: var(--info-bd); }
+.badge-warn { background: var(--warn-bg); color: var(--warn-tx); border-color: var(--warn-bd); }
+.badge-active-now { background:#0a1f10; color:#3ddc84; border-color:#1e5c38; animation: pulse-green 2s infinite; }
+@keyframes pulse-green { 0%,100%{opacity:1} 50%{opacity:.6} }
 .badge-incomplete { background: var(--warn-bg); color: var(--warn-tx); border-color: var(--warn-bd); }
 .dcard-meta { display: flex; gap: 12px; margin-top: 7px; font-size: .65rem; color: var(--muted); flex-wrap: wrap; align-items: center; }
 .dcard-assign { color: var(--text2); font-weight: 600; }
@@ -650,13 +653,30 @@ body:not(.dark) input[type="time"] {
   <div class="dash-list">
     <div id="collab-banner" style="display:none;background:var(--info-bg);border:1px solid var(--info-bd);color:var(--info-tx);border-radius:var(--r);padding:10px 13px;margin-bottom:.75rem;font-size:.72rem;line-height:1.5"></div>
     <div class="section-lbl">Órdenes</div>
-    <div style="display:flex;gap:6px;margin-bottom:.75rem">
+    <div style="display:flex;gap:6px;margin-bottom:.5rem;flex-wrap:wrap;align-items:center">
       <button class="fbtn on" id="hf-all"     onclick="setHomeFilter('all',this)">Todas</button>
       <button class="fbtn"    id="hf-pending" onclick="setHomeFilter('pending',this)">Pendientes</button>
       <button class="fbtn"    id="hf-active"  onclick="setHomeFilter('active',this)">En proceso</button>
       <button class="fbtn"    id="hf-done"    onclick="setHomeFilter('done',this)">Completadas</button>
+      <button id="btn-sup-filters" class="fbtn" style="display:none;margin-left:auto" onclick="toggleSupFilters()">⚙ Filtros ▾</button>
     </div>
-    <div id="dash-content"><div class="empty-state"><span class="spin"></span></div></div>
+    <div id="sup-filters-panel" style="display:none;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r);padding:.6rem .75rem;margin-bottom:.75rem">
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <div style="flex:1;min-width:120px">
+          <div style="font-size:.55rem;font-weight:700;letter-spacing:.1em;color:var(--muted);text-transform:uppercase;margin-bottom:4px">Colaborador</div>
+          <select id="hf-user" class="fbtn" style="width:100%;padding:5px 8px;font-size:.65rem;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-family:var(--mono)" onchange="applySupFilters()">
+            <option value="">Todos</option>
+          </select>
+        </div>
+        <div style="flex:1;min-width:120px">
+          <div style="font-size:.55rem;font-weight:700;letter-spacing:.1em;color:var(--muted);text-transform:uppercase;margin-bottom:4px">Destino</div>
+          <select id="hf-dest" class="fbtn" style="width:100%;padding:5px 8px;font-size:.65rem;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-family:var(--mono)" onchange="applySupFilters()">
+            <option value="">Todos</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div id="dash-content" style="margin-top:.25rem"><div class="empty-state"><span class="spin"></span></div></div>
   </div>
 </div>
 
@@ -750,6 +770,7 @@ body:not(.dark) input[type="time"] {
         </div>
         <div class="pick-acts-row">
           <button class="btn btn-ghost" style="font-size:.65rem" onclick="window.open('https://despacho-ordenes.web.app/ops.html','_blank')">⚙️ Ops</button>
+          <button id="btn-etiquetas" class="btn btn-light" style="font-size:.65rem;display:none" onclick="openEtiquetasModal()">📦 Etiquetas</button>
           <button class="btn btn-light" style="font-size:.65rem" onclick="printPDF()">⎙ PDF</button>
         </div>
       </div>
@@ -835,6 +856,8 @@ let parsedProducts = [];
 let pendingOriginalFile = null;
 let pickFilter = 'all';
 let homeFilter = 'all';
+let supUserFilter = '';
+let supDestFilter = '';
 let lastDashList = null;
 let pickSort = 'alpha';
 let lockSet = false;
@@ -1573,6 +1596,37 @@ window.setHomeFilter = (f, btn) => {
   if (lastDashList) renderDash(lastDashList);
 };
 
+window.toggleSupFilters = () => {
+  const panel = $('sup-filters-panel');
+  const btn   = $('btn-sup-filters');
+  const open  = panel.style.display === 'none' || panel.style.display === '';
+  panel.style.display = open ? 'block' : 'none';
+  btn.textContent = open ? '⚙ Filtros ▴' : '⚙ Filtros ▾';
+};
+
+window.applySupFilters = () => {
+  supUserFilter = $('hf-user')?.value || '';
+  supDestFilter = $('hf-dest')?.value || '';
+  if (lastDashList) renderDash(lastDashList);
+};
+
+async function populateSupFilters(list) {
+  const userSel = $('hf-user');
+  const destSel = $('hf-dest');
+  if (!userSel || !destSel) return;
+
+  const users = [...new Set(list.map(d => d.assignedTo).filter(Boolean))].sort();
+  const dests = [...new Set(list.map(d => d.destination).filter(Boolean))].sort();
+
+  userSel.innerHTML = '<option value="">Todos</option>' +
+    users.map(u => `<option value="${u}"${u===supUserFilter?' selected':''}>${u}</option>`).join('');
+  destSel.innerHTML = '<option value="">Todos</option>' +
+    dests.map(d => {
+      const lbl = ubicLabel(d) || d;
+      return `<option value="${d}"${d===supDestFilter?' selected':''}>${lbl}</option>`;
+    }).join('');
+}
+
 function inferStatus(d) {
   if (d.status) return d.status;
   const prods = d.products || [];
@@ -1598,8 +1652,10 @@ function cardHtml(d, archived = false) {
   const lockedByMe    = !archived && isLocked && d.lockedBy === currentUser?.uid;
 
   const lockBadge = lockedByOther
-    ? `<span class="badge badge-lock">🔒 ${d.lockedByName || d.lockedBy}</span>`
-    : lockedByMe ? `<span class="badge badge-me">✏️ Tú</span>` : '';
+    ? `<span class="badge badge-lock">🔒 ${d.lockedBy}</span>`
+    : (d.lockedBy && !lockedByOther)
+      ? `<span class="badge badge-active-now">● EN USO</span>`
+      : '';
 
   const line1 = d.orderNumber
     ? `<div class="dcard-name">ORDEN ${d.orderNumber}<span class="dcard-date">${d.orderDate || fmtShort(d.createdAt)}</span></div>`
@@ -1676,7 +1732,9 @@ function renderDash(list) {
     });
   }
 
-  if (currentUser?.role !== 'super') {
+  const isSuper = currentUser?.role === 'super';
+
+  if (!isSuper) {
     list = list.filter(d => d.assignedTo === currentUser?.uid);
     const banner = $('collab-banner');
     if (banner) {
@@ -1692,6 +1750,16 @@ function renderDash(list) {
     const banner = $('collab-banner');
     if (banner) banner.style.display = 'none';
   }
+
+  // Mostrar/ocultar controles exclusivos de super
+  const btnSupF = $('btn-sup-filters');
+  const btnEtiq = $('btn-etiquetas');
+  if (btnSupF) btnSupF.style.display = isSuper ? '' : 'none';
+  if (isSuper) populateSupFilters(list);
+
+  // Aplicar filtros adicionales del supervisor
+  if (isSuper && supUserFilter) list = list.filter(d => d.assignedTo === supUserFilter);
+  if (isSuper && supDestFilter) list = list.filter(d => d.destination === supDestFilter);
 
   const archivadas = list.filter(d => d.archived);
   let activas = list.filter(d => !d.archived);
@@ -2281,6 +2349,8 @@ function renderPick() {
   $('pk-date').textContent = fmtDate(createdAt);
   const assignDisplay = curData?.assignedToName || assignedTo;
   $('pk-assign').textContent = assignDisplay ? `👤 ${assignDisplay}` : '';
+  const etqBtn = $('btn-etiquetas');
+  if (etqBtn) etqBtn.style.display = currentUser?.role === 'super' ? '' : 'none';
   $('pk-route').textContent = (origin || destination) ? `${ubicLabel(origin) || '—'} → ${ubicLabel(destination) || '—'}` : '';
   const origBtn = $('pk-original-btn');
   origBtn.style.display = originalUrl ? '' : 'none';
@@ -2856,6 +2926,126 @@ document.addEventListener('DOMContentLoaded', async () => {
   // onAuthStateChanged decide la pantalla y oculta s-loading
   setupAuthListener();
 });
+
+window.openEtiquetasModal = () => {
+  if (!curData) return;
+  const dest   = ubicLabel(curData.destination) || curData.destination || '';
+  const orden  = curData.orderNumber || curData.name || '';
+  openModal(
+    '📦 Etiquetas de caja',
+    'Configura e imprime las etiquetas para este despacho.',
+    `<div class="fld"><label>Destino</label><input id="etq-dest" type="text" value="${dest}" placeholder="Ej: Merliot"/></div>
+     <div class="fld"><label>Número de orden</label><input id="etq-orden" type="text" value="${orden}" placeholder="Ej: #045"/></div>
+     <div class="fld"><label>Total de cajas</label><input id="etq-total" type="number" min="1" max="999" value="1" placeholder="Ej: 12"/></div>
+     <div class="fld">
+       <label>Diseño de logo</label>
+       <select id="etq-logo">
+         <option value="icon">Solo ícono ZD</option>
+         <option value="text">Solo texto "ZD"</option>
+         <option value="full">Logo completo</option>
+       </select>
+     </div>`,
+    [
+      { label: 'Cancelar', cls: 'btn-outline', fn: 'closeModal(event)' },
+      { label: '🖨 Imprimir', cls: 'btn-dark', fn: 'printEtiquetas()' }
+    ]
+  );
+};
+
+window.printEtiquetas = () => {
+  const dest   = $('etq-dest')?.value.trim().toUpperCase() || 'DESTINO';
+  const orden  = $('etq-orden')?.value.trim() || '';
+  const total  = parseInt($('etq-total')?.value) || 1;
+  const logo   = $('etq-logo')?.value || 'icon';
+  const fecha  = new Date().toLocaleDateString('es-SV', { day:'2-digit', month:'2-digit', year:'numeric' });
+  closeModal();
+
+  const logoHtml = {
+    icon: `<div style="display:flex;align-items:center;gap:6px">
+             <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+               <rect x="1" y="1" width="30" height="30" rx="4" stroke="#1a3a8a" stroke-width="2" fill="none"/>
+               <polyline points="6,17 13,24 26,9" stroke="#4477dd" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+               <circle cx="9" cy="26" r="1.5" fill="#4477dd"/>
+               <circle cx="13" cy="26" r="1.5" fill="#4477dd"/>
+             </svg>
+           </div>`,
+    text: `<div style="font-family:'Arial Black',Arial,sans-serif;font-size:22px;font-weight:900;letter-spacing:-.02em;color:#4477dd">ZD</div>`,
+    full: `<div style="display:flex;align-items:center;gap:8px">
+             <svg width="28" height="28" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+               <rect x="1" y="1" width="30" height="30" rx="4" stroke="#1a3a8a" stroke-width="2" fill="none"/>
+               <polyline points="6,17 13,24 26,9" stroke="#4477dd" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+               <circle cx="9" cy="26" r="1.5" fill="#4477dd"/>
+               <circle cx="13" cy="26" r="1.5" fill="#4477dd"/>
+             </svg>
+             <span style="font-family:'Arial Black',Arial,sans-serif;font-size:16px;font-weight:900;color:#4477dd;letter-spacing:-.01em">Zona Digital</span>
+           </div>`
+  }[logo];
+
+  const etiquetas = Array.from({ length: total }, (_, i) => `
+    <div class="etq-page">
+      <div class="etq-header">
+        ${logoHtml}
+        <div class="etq-fecha">${fecha}</div>
+      </div>
+      <div class="etq-sep"></div>
+      <div class="etq-destino">${dest}</div>
+      <div class="etq-sep"></div>
+      <div class="etq-info">
+        ${orden ? `<div class="etq-orden">Orden: ${orden}</div>` : ''}
+      </div>
+      <div class="etq-caja-wrap">
+        <div class="etq-caja">CAJA ${i+1} DE ${total}</div>
+      </div>
+    </div>
+  `).join('');
+
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"/>
+  <style>
+    * { box-sizing:border-box; margin:0; padding:0; }
+    @page { size: 4in 6in; margin: 0; }
+    body { font-family: Arial, sans-serif; background: #fff; }
+    .etq-page {
+      width: 4in; height: 6in;
+      padding: .25in .25in .2in;
+      display: flex; flex-direction: column;
+      page-break-after: always;
+      border: 2px solid #000;
+    }
+    .etq-header {
+      display: flex; justify-content: space-between; align-items: center;
+      padding-bottom: 8px;
+    }
+    .etq-fecha { font-size: 11px; color: #666; font-family: monospace; }
+    .etq-sep { border-top: 2px solid #000; margin: 8px 0; }
+    .etq-destino {
+      font-size: 58px; font-weight: 900; text-align: center;
+      letter-spacing: -.02em; line-height: 1.1;
+      color: #000; flex: 1;
+      display: flex; align-items: center; justify-content: center;
+      padding: 10px 0;
+      word-break: break-word;
+    }
+    .etq-info { text-align: center; font-size: 14px; color: #444; margin-bottom: 8px; }
+    .etq-orden { font-family: monospace; font-size: 13px; }
+    .etq-caja-wrap { margin-top: auto; }
+    .etq-caja {
+      border: 4px solid #000; border-radius: 6px;
+      text-align: center; padding: 14px 8px;
+      font-size: 32px; font-weight: 900;
+      letter-spacing: .04em;
+    }
+    @media print {
+      .etq-page { border: none; }
+    }
+  </style>
+  </head><body>${etiquetas}</body></html>`;
+
+  const w = window.open('', '_blank', 'width=420,height=650');
+  if (!w) { alert('Permite ventanas emergentes para imprimir.'); return; }
+  w.document.write(html);
+  w.document.close();
+  setTimeout(() => { w.focus(); w.print(); }, 400);
+};
 
 </script>
 </body>
