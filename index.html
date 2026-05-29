@@ -201,6 +201,7 @@ html, body {
 .badge-archived { background: var(--surface2); color: var(--muted); border-color: var(--border); }
 .badge-err { background: var(--err-bg); color: var(--err-tx); border-color: var(--err-bd); }
 .badge-dispatched { background: var(--info-bg); color: var(--info-tx); border-color: var(--info-bd); }
+.badge-incomplete { background: var(--warn-bg); color: var(--warn-tx); border-color: var(--warn-bd); }
 .dcard-meta { display: flex; gap: 12px; margin-top: 7px; font-size: .65rem; color: var(--muted); flex-wrap: wrap; align-items: center; }
 .dcard-assign { color: var(--text2); font-weight: 600; }
 .dcard-pbar { height: 3px; background: var(--border2); margin-top: 9px; border-radius: 2px; overflow: hidden; }
@@ -288,6 +289,18 @@ html, body {
 }
 .ic.done { background: var(--done-bg); border-color: var(--done-bd); }
 .ic.has-nota { border-left: 3px solid var(--warn-bd); }
+.ic.needs-note {
+  border: 2px solid var(--warn-bd) !important;
+  background: var(--warn-bg) !important;
+  animation: pulse-warn 1.5s ease-in-out 3;
+}
+.ic.needs-note .ic-name { color: var(--warn-tx); }
+.ic.needs-note .note-in { border-bottom-color: var(--warn-bd); }
+.ic.needs-note .note-in::placeholder { color: var(--warn-tx); opacity: .7; }
+@keyframes pulse-warn {
+  0%, 100% { box-shadow: none; }
+  50%       { box-shadow: 0 0 0 3px var(--warn-bd); }
+}
 .ic-main { display: flex; align-items: flex-start; gap: 10px; padding: 14px 10px 12px; cursor: pointer; }
 .chk {
   width: 26px; height: 26px; flex-shrink: 0; margin-top: 0;
@@ -1577,10 +1590,11 @@ function cardHtml(d, archived = false) {
     : '';
 
   const badgeMap = {
-    pending:    { cls: 'badge-err',        label: 'Pendiente' },
-    active:     { cls: 'badge-active',     label: 'En proceso' },
-    done:       { cls: 'badge-done',       label: '✓ Listo' },
-    dispatched: { cls: 'badge-dispatched', label: '🚚 Despachada' }
+    pending:               { cls: 'badge-err',        label: 'Pendiente' },
+    active:                { cls: 'badge-active',     label: 'En proceso' },
+    done:                  { cls: 'badge-done',       label: '✓ Listo' },
+    dispatched:            { cls: 'badge-dispatched', label: '🚚 Despachada' },
+    dispatched_incomplete: { cls: 'badge-incomplete', label: '🚚⚠ Incompleta' }
   };
   const statusKey = inferStatus(d);
   const badgeDef  = badgeMap[statusKey] || badgeMap.pending;
@@ -1595,7 +1609,7 @@ function cardHtml(d, archived = false) {
     ? (_isSuper ? `<div class="dcard-actions" onclick="event.stopPropagation()"><button class="btn btn-danger" style="font-size:.6rem;padding:5px 10px" onclick="confirmDelete('${d.id}','${(d.name||'').replace(/'/g,"\\'")}')">✕ Eliminar</button></div>` : '')
     : `<div class="dcard-actions" onclick="event.stopPropagation()">
         ${_isSuper ? `<button class="btn btn-outline" style="font-size:.6rem;padding:5px 10px" onclick="assignDespacho('${d.id}','${(d.assignedTo||'').replace(/'/g,"\\'")}')"> ${d.assignedTo ? '🔄 Reasignar' : '👤 Asignar'}</button>` : ''}
-        ${statusKey === 'done' && (_isSuper || d.assignedTo === currentUser?.name) ? `<button class="btn btn-outline" style="font-size:.6rem;padding:5px 10px;border-color:var(--info-bd);color:var(--info-tx)" onclick="confirmDispatch('${d.id}','${(d.name||d.orderNumber||'').replace(/'/g,"\\'")}')">🚚 Despachar</button>` : ''}
+        ${(['done','active'].includes(statusKey)) && (_isSuper || d.assignedTo === currentUser?.uid) ? `<button class="btn btn-outline" style="font-size:.6rem;padding:5px 10px;border-color:var(--info-bd);color:var(--info-tx)" onclick="confirmDispatch('${d.id}','${(d.name||d.orderNumber||'').replace(/'/g,"\\'")}')">🚚 Despachar</button>` : ''}
         ${_isSuper ? `<button class="btn btn-danger" style="font-size:.6rem;padding:5px 10px" onclick="confirmDelete('${d.id}','${(d.name||'').replace(/'/g,"\\'")}')">✕ Eliminar</button>` : ''}
       </div>`;
 
@@ -2295,7 +2309,7 @@ function buildItem(p, ckData) {
         ${ok ? `<div class="done-time">✓ Listo a las ${time}</div>` : ''}
         <div class="note-row">
           <input class="note-in" placeholder="${isReadOnly ? 'Solo lectura' : 'Agregar nota…'}" value="${note}"
-            ${isReadOnly ? 'disabled' : `onchange="saveNote('${p.id}', this.value)" onclick="event.stopPropagation()"`}/>
+            ${isReadOnly ? 'disabled' : `onchange="saveNote('${p.id}', this.value); document.getElementById('ic-${p.id}')?.classList.remove('needs-note');" onclick="event.stopPropagation()"`}/>
         </div>
       </div>
     </div>`;
@@ -2526,20 +2540,99 @@ window.assignDespacho = async (id, currentAssignUid) => {
 };
 
 window.confirmDispatch = (id, name) => {
+  if (!curData || curData.id !== id) {
+    // Llamado desde s-home sin curData — despacho directo sin validación de ítems
+    openModal(
+      'Confirmar despacho',
+      `¿Marcar "${name}" como despachada? Esto indica que la orden ya salió de bodega hacia su destino.`,
+      '',
+      [
+        { label: 'Cancelar',     cls: 'btn-outline', fn: 'closeModal(event)' },
+        { label: '🚚 Despachar', cls: 'btn-dark',    fn: `doDispatch('${id}',false)` }
+      ]
+    );
+    return;
+  }
+
+  const products = curData.products || [];
+  const checked  = curData.checked  || {};
+  const pending  = products.filter(p => !checked[p.id]?.done);
+
+  if (pending.length === 0) {
+    // Orden 100% completa
+    openModal(
+      'Confirmar despacho',
+      `¿Marcar "${name}" como despachada? Esto indica que la orden ya salió de bodega hacia su destino.`,
+      '',
+      [
+        { label: 'Cancelar',     cls: 'btn-outline', fn: 'closeModal(event)' },
+        { label: '🚚 Despachar', cls: 'btn-dark',    fn: `doDispatch('${id}',false)` }
+      ]
+    );
+    return;
+  }
+
+  // Hay ítems sin marcar — verificar que todos tengan nota
+  const sinNota = pending.filter(p => !(checked[p.id]?.note || '').trim());
+
+  if (sinNota.length > 0) {
+    // Bloquear: resaltar ítems problemáticos y cerrar modal
+    closeModal();
+    // Quitar clase de iteraciones anteriores
+    document.querySelectorAll('.ic.needs-note').forEach(el => el.classList.remove('needs-note'));
+    // Aplicar a los que no tienen nota
+    sinNota.forEach(p => {
+      const el = document.getElementById('ic-' + p.id);
+      if (el) {
+        el.classList.add('needs-note');
+        // Actualizar placeholder del input de nota
+        const noteIn = el.querySelector('.note-in');
+        if (noteIn && !noteIn.value.trim()) noteIn.placeholder = '⚠ Escribe el motivo aquí…';
+      }
+    });
+    // Scroll al primer ítem sin nota
+    const first = document.getElementById('ic-' + sinNota[0].id);
+    if (first) first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    // Mostrar mensaje de error temporal en pantalla
+    const banner = $('readonly-banner');
+    if (banner) {
+      const prev = banner.style.display;
+      const prevHtml = banner.innerHTML;
+      banner.innerHTML = `⚠ ${sinNota.length} ítem${sinNota.length > 1 ? 's' : ''} sin nota. Agrega el motivo en cada uno antes de despachar.`;
+      banner.style.display = '';
+      banner.style.background = 'var(--warn-bg)';
+      banner.style.color = 'var(--warn-tx)';
+      banner.style.borderColor = 'var(--warn-bd)';
+      setTimeout(() => {
+        banner.innerHTML = prevHtml;
+        banner.style.display = prev;
+        banner.style.background = '';
+        banner.style.color = '';
+        banner.style.borderColor = '';
+      }, 4000);
+    }
+    return;
+  }
+
+  // Todos los pendientes tienen nota — advertencia y confirmar
   openModal(
-    'Confirmar despacho',
-    `¿Marcar "${name}" como despachada? Esto indica que la orden ya salió de bodega hacia su destino.`,
+    '🚚⚠ Despachar incompleta',
+    `Esta orden tiene ${pending.length} ítem${pending.length > 1 ? 's' : ''} sin completar. Todos tienen comentario registrado. ¿Despachar de todas formas?`,
     '',
     [
-      { label: 'Cancelar',      cls: 'btn-outline', fn: 'closeModal(event)' },
-      { label: '🚚 Despachar',  cls: 'btn-dark',    fn: `doDispatch('${id}')` }
+      { label: 'Cancelar',              cls: 'btn-outline', fn: 'closeModal(event)' },
+      { label: '🚚 Despachar de todas formas', cls: 'btn-dark', fn: `doDispatch('${id}',true)` }
     ]
   );
 };
 
-window.doDispatch = async id => {
+window.doDispatch = async (id, incomplete = false) => {
   closeModal();
-  await dbUpdate(id, { status: 'dispatched', dispatchedAt: Date.now() });
+  const status = incomplete ? 'dispatched_incomplete' : 'dispatched';
+  const extra  = incomplete && curData
+    ? { incompleteItems: (curData.products || []).filter(p => !(curData.checked||{})[p.id]?.done).length }
+    : {};
+  await dbUpdate(id, { status, dispatchedAt: Date.now(), ...extra });
 };
 
 window.confirmDelete = (id, name) => {
