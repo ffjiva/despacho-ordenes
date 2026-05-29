@@ -1662,11 +1662,10 @@ function cardHtml(d, archived = false) {
   const lockedByOther = !archived && isLocked && d.lockedBy !== currentUser?.uid;
   const lockedByMe    = !archived && isLocked && d.lockedBy === currentUser?.uid;
 
-  const lockActive = !!(d.lockedBy && lockAge < LOCK_TTL_MS);
   const lockBadge = lockedByOther
-    ? `<span class="badge badge-lock">🔒 ${d.lockedByName || d.lockedBy}</span>`
-    : (lockActive && !lockedByOther)
-      ? `<span class="badge badge-active-now">● EN USO</span>`
+    ? `<span class="badge badge-lock badge-active-now">🔒 ${d.lockedByName || d.lockedBy}</span>`
+    : lockedByMe
+      ? `<span class="badge badge-active-now">● Tú</span>`
       : '';
 
   const line1 = d.orderNumber
