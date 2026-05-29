@@ -1664,7 +1664,7 @@ function cardHtml(d, archived = false) {
 
   const lockActive = !!(d.lockedBy && lockAge < LOCK_TTL_MS);
   const lockBadge = lockedByOther
-    ? `<span class="badge badge-lock">🔒 ${d.lockedBy}</span>`
+    ? `<span class="badge badge-lock">🔒 ${d.lockedByName || d.lockedBy}</span>`
     : (lockActive && !lockedByOther)
       ? `<span class="badge badge-active-now">● EN USO</span>`
       : '';
@@ -2282,7 +2282,7 @@ async function doOpenDespacho(id, readOnly = false, lockedBy = '') {
 
   const banner = $('readonly-banner');
   if (readOnly && banner) {
-    banner.innerHTML = `👁 MODO LECTURA — Orden en uso por ${lockedBy}`;
+    banner.innerHTML = `👁 MODO LECTURA — Orden en uso por ${d?.lockedByName || lockedBy}`;
     banner.style.display = '';
   } else if (banner) {
     banner.style.display = 'none';
