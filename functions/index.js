@@ -5,6 +5,23 @@ const XLSX = require("xlsx");
 
 if (!admin.apps.length) admin.initializeApp();
 
+// ── Auth helper ──────────────────────────────────────────
+async function verifyFirebaseToken(req, res) {
+  const authHeader = req.headers.authorization || '';
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+  if (!token) {
+    res.status(401).json({ error: 'No autorizado. Token requerido.' });
+    return null;
+  }
+  try {
+    const decoded = await admin.auth().verifyIdToken(token);
+    return decoded;
+  } catch(e) {
+    res.status(401).json({ error: 'Token inválido o expirado.' });
+    return null;
+  }
+}
+
 const { onDocumentWritten } = require('firebase-functions/v2/firestore');
 const { onRequest }         = require('firebase-functions/v2/https');
 const { onSchedule }        = require('firebase-functions/v2/scheduler');
@@ -118,9 +135,12 @@ exports.parseDocument = functions.https.onRequest(
   console.log("Request received:", req.method);
   res.set("Access-Control-Allow-Origin", "*");
   res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.set("Access-Control-Allow-Headers", "Content-Type");
+  res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
   if (req.method === "OPTIONS") { res.status(204).send(""); return; }
   if (req.method !== "POST") { res.status(405).send("Method Not Allowed"); return; }
+
+  const user = await verifyFirebaseToken(req, res);
+  if (!user) return;
 
   const { base64Data, mediaType } = req.body;
   if (!base64Data || !mediaType) { res.status(400).json({ error: "Missing base64Data or mediaType" }); return; }
@@ -233,6 +253,9 @@ exports.parseXLS = onRequest({
   memory: '256MiB'
 }, async (req, res) => {
   if (req.method !== 'POST') return res.status(405).send('Method Not Allowed');
+
+  const user = await verifyFirebaseToken(req, res);
+  if (!user) return;
 
   try {
     const { base64Data } = req.body;
@@ -407,9 +430,12 @@ exports.suggestReplenishment = functions.https.onRequest(
   (req, res) => {
   res.set('Access-Control-Allow-Origin', '*');
   res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.set('Access-Control-Allow-Headers', 'Content-Type');
+  res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') { res.status(204).send(''); return; }
   if (req.method !== 'POST')   { res.status(405).json({ error: 'Method not allowed' }); return; }
+
+  const user = await verifyFirebaseToken(req, res);
+  if (!user) return;
 
   const { products } = req.body;
   if (!products?.length) { res.status(400).json({ error: 'No products' }); return; }

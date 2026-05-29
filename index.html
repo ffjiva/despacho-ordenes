@@ -1895,11 +1895,21 @@ async function aiExtractProducts(b64, mime) {
     const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
     try {
+      let idToken = '';
+      try {
+        if (authMod && auth?.currentUser) {
+          idToken = await authMod.getIdToken(auth.currentUser);
+        }
+      } catch(e) { console.warn('getIdToken error:', e.message); }
+
       const res = await fetch(
         'https://parsedocument-aqd2rvesuq-uc.a.run.app',
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {})
+          },
           body: JSON.stringify({ base64Data: b64, mediaType: mime }),
           signal: controller.signal
         }
