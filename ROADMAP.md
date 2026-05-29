@@ -415,3 +415,185 @@ generadoPor:   string
 - Verde exclusivo para "completado", ámbar para "en proceso/activo"
 - IBM Plex Mono como tipografía principal — identidad técnica
 - Base: dark theme café-oscuro (#161410), no negro genérico
+
+---
+
+## Módulo 7 — Validación de Inventario Físico
+
+### Contexto
+Fernando sube un reporte XLS de inventario (formato similar al GerencialTotal)
+de una bodega o sucursal. La app presenta la lista y el equipo va marcando
+ítem por ítem durante el conteo físico. El resultado se guarda para consulta posterior.
+
+### Flujo
+1. Desde `ops.html` → botón "📋 Validar Inventario" en topbar de s-home
+2. Nueva pantalla `s-inventario`
+3. Subir archivo XLS del reporte de inventario
+4. Parser local (SheetJS) extrae productos con código, nombre, cantidad sistema
+5. Se presenta lista con:
+   - Código y nombre del producto
+   - Cantidad según sistema
+   - Input numérico para cantidad contada físicamente
+   - Estado: pendiente / contado / discrepancia
+6. Al finalizar → resumen de discrepancias (faltantes, sobrantes)
+7. Resultado se guarda en Firestore: `inventarios/{id}`
+
+### Esquema Firestore propuesto
+```
+inventarios/{id}
+  fecha: string (YYYY-MM-DD)
+  ubicacion: string (bodega/sucursal)
+  creadoPor: string (uid)
+  items: [{ code, name, qtySistema, qtyFisico, diff }]
+  resumen: { total, contados, discrepancias, faltantes, sobrantes }
+  createdAt: number
+  status: 'en_proceso' | 'completado'
+```
+
+### Archivo de entrada
+- Formato XLS similar a GerencialTotal
+- A confirmar columnas exactas cuando se tenga un archivo de muestra
+
+### Pendientes de definir
+- ¿Desde qué página accede? ¿`ops.html` o `index.html`?
+- Formato exacto del XLS de inventario (necesita archivo de muestra)
+- ¿Quién puede hacer validaciones? ¿Solo super o también colaboradores?
+
+---
+
+## Módulo 8 — Base de Datos de Colaboradores
+
+### Contexto
+Directorio interno de todos los empleados de la empresa, independiente
+de los usuarios del sistema. En el futuro podría relacionarse con `users/{uid}`
+para los colaboradores que usen la app.
+
+### Datos por colaborador
+- Nombre completo
+- Cargo
+- Sucursal asignada
+- Fecha de ingreso
+- Contacto (teléfono / email)
+- Evaluación del supervisor (texto libre, privado)
+- Fotografía
+
+### Esquema Firestore propuesto
+```
+colaboradores/{id}
+  nombre: string
+  cargo: string
+  sucursal: string (ID de ubicación)
+  fechaIngreso: string (YYYY-MM-DD)
+  telefono: string
+  email: string
+  evaluacion: string (privado, solo visible para super)
+  fotoUrl: string (Firebase Storage)
+  uid: string | null (si está vinculado a users/{uid})
+  activo: boolean
+  createdAt: number
+```
+
+### Ubicación en la app
+- Panel exclusivo para `super` en `ops.html`
+- Nueva pantalla `s-colaboradores`
+
+### Seguridad
+- Solo `super` puede ver evaluaciones y datos de contacto completos
+- Foto almacenada en Firebase Storage bajo `colaboradores/{id}/foto.jpg`
+- Regla Firestore: lectura y escritura solo para `super`
+
+### Relación futura con users/{uid}
+- Campo `uid` en el documento del colaborador apunta a su cuenta Firebase Auth
+- Permite cruzar historial de órdenes con perfil del colaborador
+
+---
+
+## Módulo 9 — Mapa de Sucursales
+
+### Contexto
+Visualización geográfica de todas las sucursales y bodegas de la empresa.
+
+### Datos por ubicación
+- Nombre y código (ya existe en `UBICACIONES[]`)
+- Coordenadas (lat/lng)
+- Dirección física
+- Teléfono y encargado
+- Horario de atención
+- Foto (opcional)
+
+### Esquema Firestore propuesto
+```
+ubicaciones/{id}
+  codigo: string (M01, S02, B01, etc.)
+  nombre: string
+  tipo: 'sucursal' | 'bodega'
+  lat: number
+  lng: number
+  direccion: string
+  telefono: string
+  encargado: string
+  horario: string
+  fotoUrl: string
+  activo: boolean
+```
+
+### Implementación
+- Mapa interactivo usando Leaflet.js (libre, sin costo) o Google Maps Embed
+- Marcadores diferenciados por tipo (bodega vs sucursal)
+- Al tocar un marcador → tarjeta con datos de la ubicación
+- Accesible desde `ops.html` y posiblemente desde `index.html`
+
+### Pendientes de definir
+- ¿Leaflet (gratuito) o Google Maps?
+- ¿Editable desde la app o datos fijos en código?
+
+---
+
+## Módulo 10 — Mapeo de Bodegas (Ubicación de Productos)
+
+### Contexto
+Plano visual interactivo de las bodegas con zonificación de estantes.
+Permite saber exactamente dónde está almacenado cada producto.
+La información se alimenta desde los reportes de inventario (Módulo 7).
+
+### Funcionalidades
+1. **Plano visual** de la bodega con pasillos, estantes y zonas numeradas
+2. **Asignación de productos a zonas**: cada producto tiene una ubicación
+   (ej. "Zona B / Estante 3 / Nivel 2")
+3. **Buscador**: ingresar nombre o código → resalta la zona en el plano
+4. **Integración con picking**: en `s-pick`, cada ítem muestra su ubicación
+   (ej. "📍 B-3") para que el bodeguero sepa a dónde ir
+5. **Alimentación desde inventario**: al procesar un reporte (Módulo 7),
+   se puede actualizar/confirmar la ubicación de cada producto
+
+### Esquema Firestore propuesto
+```
+zonas/{bodegaId}/estantes/{zonaId}
+  codigo: string (ej. "B-3")
+  descripcion: string (ej. "Pasillo B, Estante 3")
+  productos: [{ code, name, qty }]
+  updatedAt: number
+
+productos_ubicacion/{productCode}
+  code: string
+  name: string
+  bodega: string
+  zona: string (ej. "B-3")
+  updatedAt: number
+```
+
+### Integración con picking (`index.html`)
+- En `buildItem()`, si el producto tiene ubicación registrada,
+  mostrar badge "📍 B-3" junto al nombre
+- Al abrir `s-pick`, el super puede ver el mapa de la bodega
+  con los ítems de esa orden resaltados en sus zonas
+
+### Pendientes de definir
+- ¿El plano se dibuja con SVG personalizado o es un grid configurable?
+- ¿Cuántas bodegas necesitan mapeo? (B01 y B02)
+- ¿El plano es estático (dibujado una vez) o editable desde la app?
+
+---
+
+## Feature: Generador de Etiquetas de Caja
+[Ya documentado arriba en el ROADMAP — ver sección correspondiente]
