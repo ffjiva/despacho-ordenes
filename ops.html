@@ -857,7 +857,6 @@ body:not(.dark) input[type="time"] {
       <button class="btn btn-ghost" id="btn-vueltas" style="font-size:.65rem" onclick="goVueltas()">🚐<span class="hide-mobile"> Vueltas</span></button>
       <button class="btn btn-ghost" style="font-size:.65rem" onclick="goCierre()">🔒<span class="hide-mobile"> Cierre</span></button>
       <button class="btn btn-ghost" style="font-size:.65rem" onclick="goAgenda()">📅<span class="hide-mobile"> Agenda</span></button>
-      <button class="btn btn-ghost" style="font-size:.65rem" onclick="goEquipoScreen()">👥<span class="hide-mobile"> Equipo</span></button>
       <button class="btn btn-ghost" style="font-size:.65rem" onclick="window.open('https://despacho-ordenes.web.app','_blank')">📦<span class="hide-mobile"> Órdenes</span></button>
       <button id="btn-reposicion" class="btn btn-ghost" style="font-size:.65rem" onclick="goReposicion()">📊<span class="hide-mobile"> Reposición</span></button>
       <button class="btn btn-ghost" style="font-size:.85rem;padding:5px 9px" onclick="toggleDark()" id="theme-btn" title="Modo oscuro">🌙</button>
@@ -1163,66 +1162,6 @@ body:not(.dark) input[type="time"] {
   </div>
 </div>
 
-<!-- ══════════════ EQUIPO ══════════════ -->
-<div id="s-equipo" class="scr">
-  <div class="topbar">
-    <div class="topbar-title">👥 Equipo</div>
-    <div class="topbar-actions">
-      <button class="btn btn-ghost" style="font-size:.65rem" onclick="goBackFromEquipo()">← Volver</button>
-    </div>
-  </div>
-  <div class="equipo-wrap">
-    <div id="equipo-list"></div>
-    <div id="equipo-msg" style="display:none;font-size:.68rem;padding:8px 10px;border-radius:var(--r);margin-top:.5rem"></div>
-    <div class="equipo-add">
-      <button class="btn btn-outline btn-full" id="btn-toggle-add" onclick="toggleAddForm()">➕ Agregar usuario</button>
-      <div id="add-user-form" style="display:none;margin-top:10px">
-        <div class="equipo-add-title">Nuevo usuario</div>
-        <div class="fld">
-          <label>Nombre</label>
-          <input id="new-user-name" type="text" placeholder="Nombre completo" autocomplete="off"
-            onkeydown="if(event.key==='Enter')$('new-user-pin').focus()"/>
-        </div>
-        <div class="fld">
-          <label>PIN (4 dígitos)</label>
-          <input id="new-user-pin" type="password" inputmode="numeric" maxlength="4"
-            placeholder="••••" style="letter-spacing:.25em;text-align:center"/>
-        </div>
-        <div class="fld">
-          <label>Rol</label>
-          <select id="new-user-role">
-            <option value="bodeguero">Bodeguero</option>
-            <option value="motorista">Motorista</option>
-            <option value="encargado">Encargado</option>
-            <option value="operador">Operador</option>
-          </select>
-        </div>
-        <div style="display:flex;gap:8px">
-          <button class="btn btn-outline" style="flex:1;justify-content:center" onclick="toggleAddForm()">Cancelar</button>
-          <button class="btn btn-dark" style="flex:2;justify-content:center" onclick="createUser()">Agregar →</button>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- ══════════════ MODAL CAMBIAR PIN ══════════════ -->
-<div class="modal-overlay" id="modal-pin" onclick="closePinModal(event)">
-  <div class="modal">
-    <div class="modal-title">🔑 Cambiar PIN</div>
-    <div class="modal-sub" id="pin-modal-sub">Nuevo PIN de 4 dígitos.</div>
-    <div class="fld">
-      <input id="pin-change-input" type="password" inputmode="numeric" maxlength="4"
-        placeholder="••••" style="letter-spacing:.3em;font-size:1.2rem;text-align:center"
-        onkeydown="if(event.key==='Enter')savePinChange()"/>
-    </div>
-    <div id="pin-change-err" style="display:none;font-size:.65rem;color:var(--err-tx);margin-bottom:.5rem"></div>
-    <div class="modal-btns">
-      <button class="btn btn-outline" onclick="closePinModal()">Cancelar</button>
-      <button class="btn btn-dark" onclick="savePinChange()">Guardar →</button>
-    </div>
-  </div>
-</div>
 
 <script type="module">
 /* ═══════════════════════════════════
@@ -1744,9 +1683,14 @@ window.toggleDark = () => {
 async function loadTeamMembers() {
   if (!db) return [];
   try {
-    const snap = await fbMod.getDoc(fbMod.doc(db, 'config', 'team'));
-    const members = snap.exists() ? (snap.data().members || []) : [];
-    return members.filter(m => m.active !== false && m.role === 'motorista').map(m => m.name);
+    const snap = await fbMod.getDocs(
+      fbMod.query(
+        fbMod.collection(db, 'users'),
+        fbMod.where('role', '==', 'motorista'),
+        fbMod.where('active', '==', true)
+      )
+    );
+    return snap.docs.map(d => d.data().name);
   } catch { return []; }
 }
 
@@ -2457,191 +2401,6 @@ window.saveVueltaEdit = async () => {
   }
 };
 
-/* ═══════════════════════════════════
-   EQUIPO — CRUD
-═══════════════════════════════════ */
-async function getAllMembers() {
-  if (!db) return [];
-  try {
-    const snap = await fbMod.getDoc(fbMod.doc(db, 'config', 'team'));
-    return snap.exists() ? (snap.data().members || []) : [];
-  } catch { return []; }
-}
-
-async function saveAllMembers(members) {
-  await fbMod.setDoc(fbMod.doc(db, 'config', 'team'), { members });
-}
-
-function fmtAccess(ts) {
-  if (!ts) return 'Nunca';
-  const d = new Date(ts);
-  const p = n => String(n).padStart(2, '0');
-  return `${p(d.getDate())}/${p(d.getMonth()+1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
-}
-
-function equipoMsg(txt, isErr) {
-  const el = $('equipo-msg');
-  el.textContent = txt;
-  el.style.display = 'block';
-  el.style.background = isErr ? 'var(--err-bg)' : 'var(--done-bg)';
-  el.style.color       = isErr ? 'var(--err-tx)' : 'var(--done-tx)';
-  el.style.border      = `1px solid ${isErr ? 'var(--err-bd)' : 'var(--done-bd)'}`;
-  clearTimeout(el._t);
-  el._t = setTimeout(() => { el.style.display = 'none'; }, 3000);
-}
-
-async function renderTeamTable() {
-  const raw = await getAllMembers();
-  const members = raw.map(m => typeof m === 'string'
-    ? { id: null, name: m, role: 'bodeguero', active: true, pin: null, lastAccess: null }
-    : m);
-  const el = $('equipo-list');
-  if (!members.length) {
-    el.innerHTML = '<div style="text-align:center;color:var(--muted);padding:1rem;font-size:.72rem">Sin usuarios.</div>';
-    return;
-  }
-  el.innerHTML = members.map(m => `
-    <div class="ucard">
-      <div class="ucard-meta">
-        <span class="ucard-role ${escHtml(m.role)}">${escHtml(m.role)}</span>
-        <span class="ucard-last">Último acceso: ${fmtAccess(m.lastAccess)}</span>
-      </div>
-      <div style="display:flex;align-items:center;gap:8px">
-        <input class="uname-inp" type="text" value="${escHtml(m.name)}"
-          onblur="saveUserName('${escHtml(m.id)}',this.value)"
-          onkeydown="if(event.key==='Enter')this.blur()"/>
-      </div>
-      ${m.role !== 'super' ? `
-      <div class="ucard-actions">
-        <select class="btn" style="font-size:.6rem;padding:3px 8px;min-height:0;background:var(--surface2);color:var(--text);border:1px solid var(--border);cursor:pointer;font-family:var(--mono)"
-          onchange="saveUserRole('${escHtml(m.id)}',this.value)">
-          <option value="bodeguero"${m.role==='bodeguero'?' selected':''}>Bodeguero</option>
-          <option value="motorista"${m.role==='motorista'?' selected':''}>Motorista</option>
-          <option value="encargado"${m.role==='encargado'?' selected':''}>Encargado</option>
-          <option value="operador"${m.role==='operador'?' selected':''}>Operador</option>
-        </select>
-        <button class="btn" style="font-size:.6rem;padding:3px 8px;min-height:0;background:var(--surface2);color:var(--text);border:1px solid var(--border)"
-          onclick="openPinModal('${escHtml(m.id)}','${escHtml(m.name)}')">🔑 PIN</button>
-        <button class="btn" style="font-size:.6rem;padding:3px 8px;min-height:0;background:${m.active!==false?'var(--done-bg)':'var(--err-bg)'};color:${m.active!==false?'var(--done-tx)':'var(--err-tx)'};border:1px solid ${m.active!==false?'var(--done-bd)':'var(--err-bd)'}"
-          onclick="toggleUserActive('${escHtml(m.id)}',${m.active!==false})">${m.active!==false?'✓ Activo':'✗ Inactivo'}</button>
-        <button class="btn btn-danger" style="font-size:.6rem;padding:3px 8px;min-height:0;margin-left:auto"
-          onclick="deleteUser('${escHtml(m.id)}','${escHtml(m.name)}')">✕</button>
-      </div>` : ''}
-    </div>`).join('');
-}
-
-window.goEquipoScreen = async () => {
-  if (homeUnsub) { homeUnsub(); homeUnsub = null; }
-  showScreen('s-equipo');
-  await renderTeamTable();
-};
-
-window.goBackFromEquipo = () => goHome();
-
-window.toggleAddForm = () => {
-  const form = $('add-user-form');
-  const btn  = $('btn-toggle-add');
-  const open = form.style.display === 'none';
-  form.style.display = open ? 'block' : 'none';
-  btn.style.display  = open ? 'none'  : '';
-  if (open) setTimeout(() => $('new-user-name')?.focus(), 50);
-};
-
-window.saveUserRole = async (id, newRole) => {
-  const members = await getAllMembers();
-  const idx = members.findIndex(m => m.id === id);
-  if (idx === -1 || members[idx].role === newRole) return;
-  members[idx].role = newRole;
-  try { await saveAllMembers(members); await renderTeamTable(); equipoMsg('Rol actualizado.', false); }
-  catch { equipoMsg('Error al guardar.', true); }
-};
-
-window.saveUserName = async (id, newName) => {
-  newName = newName.trim();
-  if (!newName) return;
-  const members = await getAllMembers();
-  const idx = members.findIndex(m => m.id === id);
-  if (idx === -1 || members[idx].name === newName) return;
-  members[idx].name = newName;
-  try { await saveAllMembers(members); equipoMsg('Nombre actualizado.', false); }
-  catch { equipoMsg('Error al guardar.', true); }
-};
-
-window.openPinModal = (id, name) => {
-  editingPinUserId = id;
-  $('pin-modal-sub').textContent = `Nuevo PIN para ${name}.`;
-  $('pin-change-input').value = '';
-  $('pin-change-err').style.display = 'none';
-  $('modal-pin').classList.add('on');
-  setTimeout(() => $('pin-change-input').focus(), 100);
-};
-
-window.closePinModal = e => {
-  if (!e || e.target === $('modal-pin')) {
-    $('modal-pin').classList.remove('on');
-    editingPinUserId = null;
-  }
-};
-
-window.savePinChange = async () => {
-  const pin = $('pin-change-input').value.trim();
-  if (!/^\d{4}$/.test(pin)) {
-    $('pin-change-err').textContent = 'Debe ser exactamente 4 dígitos numéricos.';
-    $('pin-change-err').style.display = 'block';
-    return;
-  }
-  const members = await getAllMembers();
-  const idx = members.findIndex(m => m.id === editingPinUserId);
-  if (idx === -1) return;
-  members[idx].pin = pin;
-  try {
-    await saveAllMembers(members);
-    $('modal-pin').classList.remove('on');
-    editingPinUserId = null;
-    equipoMsg('PIN actualizado.', false);
-  } catch {
-    $('pin-change-err').textContent = 'Error al guardar.';
-    $('pin-change-err').style.display = 'block';
-  }
-};
-
-window.toggleUserActive = async (id, currentActive) => {
-  const members = await getAllMembers();
-  const idx = members.findIndex(m => m.id === id);
-  if (idx === -1) return;
-  members[idx].active = !currentActive;
-  try { await saveAllMembers(members); await renderTeamTable(); equipoMsg(members[idx].active ? 'Usuario activado.' : 'Usuario desactivado.', false); }
-  catch { equipoMsg('Error al guardar.', true); }
-};
-
-window.deleteUser = async (id, name) => {
-  if (!confirm(`¿Eliminar a "${name}"? Esta acción no se puede deshacer.`)) return;
-  const members = await getAllMembers();
-  const updated = members.filter(m => m.id !== id);
-  try { await saveAllMembers(updated); await renderTeamTable(); equipoMsg(`"${name}" eliminado.`, false); }
-  catch { equipoMsg('Error al guardar.', true); }
-};
-
-window.createUser = async () => {
-  const name = $('new-user-name').value.trim();
-  const pin  = $('new-user-pin').value.trim();
-  const role = $('new-user-role').value;
-  if (!name) { $('new-user-name').focus(); return; }
-  if (!/^\d{4}$/.test(pin)) { equipoMsg('PIN debe tener 4 dígitos.', true); $('new-user-pin').focus(); return; }
-  const members = await getAllMembers();
-  if (members.some(m => m.name.toLowerCase() === name.toLowerCase())) {
-    equipoMsg(`"${name}" ya existe.`, true); return;
-  }
-  const newMember = { id: 'u' + Date.now().toString(36), name, pin, role, active: true, lastAccess: null };
-  try {
-    await saveAllMembers([...members, newMember]);
-    $('new-user-name').value = ''; $('new-user-pin').value = '';
-    $('add-user-form').style.display = 'none';
-    $('btn-toggle-add').style.display = '';
-    await renderTeamTable();
-    equipoMsg(`"${name}" agregado.`, false);
-  } catch { equipoMsg('Error al guardar.', true); }
-};
 
 /* ═══════════════════════════════════
    DOMICILIOS — MÓDULO 8
@@ -5466,9 +5225,6 @@ document.addEventListener('DOMContentLoaded', init);
       </button>
       <button class="mob-drawer-btn" onclick="closeMobDrawer();goAgenda()">
         <span class="mob-icon">📅</span>Agenda
-      </button>
-      <button class="mob-drawer-btn" onclick="closeMobDrawer();goEquipoScreen()">
-        <span class="mob-icon">👥</span>Equipo
       </button>
       <button class="mob-drawer-btn" onclick="closeMobDrawer();window.open('https://despacho-ordenes.web.app','_blank')">
         <span class="mob-icon">📦</span>Órdenes
