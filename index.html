@@ -1067,8 +1067,8 @@ async function loadUsers() {
     const snap = await fbMod.getDocs(fbMod.collection(db, 'users'));
     return snap.docs
       .map(d => ({ uid: d.id, ...d.data() }))
-      .filter(u => u.active !== false)
-      .map(u => u.name);
+      .filter(u => u.active !== false && u.role !== undefined)
+      .map(u => ({ uid: u.uid, name: u.name }));
   } catch { return []; }
 }
 
@@ -1515,7 +1515,7 @@ function startHomeListener() {
   try {
     const isCollaborator = currentUser?.role === 'collaborator';
     const q = isCollaborator
-      ? fbMod.query(fbMod.collection(db,'despachos'), fbMod.where('assignedTo','==',currentUser?.name ?? ''), fbMod.orderBy('createdAt','desc'))
+      ? fbMod.query(fbMod.collection(db,'despachos'), fbMod.where('assignedTo','==',currentUser?.uid ?? ''), fbMod.orderBy('createdAt','desc'))
       : fbMod.query(fbMod.collection(db,'despachos'), fbMod.orderBy('createdAt','desc'));
     homeUnsub = fbMod.onSnapshot(q,
       snap => {
@@ -1559,11 +1559,11 @@ function cardHtml(d, archived = false) {
 
   const lockAge = Date.now() - (d.lockedAt || 0);
   const isLocked = d.lockedBy && lockAge < LOCK_TTL_MS;
-  const lockedByOther = !archived && isLocked && d.lockedBy !== currentUser?.name;
-  const lockedByMe    = !archived && isLocked && d.lockedBy === currentUser?.name;
+  const lockedByOther = !archived && isLocked && d.lockedBy !== currentUser?.uid;
+  const lockedByMe    = !archived && isLocked && d.lockedBy === currentUser?.uid;
 
   const lockBadge = lockedByOther
-    ? `<span class="badge badge-lock">🔒 ${d.lockedBy}</span>`
+    ? `<span class="badge badge-lock">🔒 ${d.lockedByName || d.lockedBy}</span>`
     : lockedByMe ? `<span class="badge badge-me">✏️ Tú</span>` : '';
 
   const line1 = d.orderNumber
@@ -1572,7 +1572,9 @@ function cardHtml(d, archived = false) {
   const line2 = (d.origin || d.destination)
     ? `<div class="dcard-route">${ubicLabel(d.origin)||'—'} <span style="font-size:1.1rem;font-weight:700;color:var(--text);margin:0 2px">→</span> ${ubicLabel(d.destination)||'—'}</div>`
     : '';
-  const assignStr = d.assignedTo ? `<span class="dcard-assign">👤 ${d.assignedTo}</span>` : '';
+  const assignStr = (d.assignedToName || d.assignedTo)
+    ? `<span class="dcard-assign">👤 ${d.assignedToName || d.assignedTo}</span>`
+    : '';
 
   const badgeMap = {
     pending:    { cls: 'badge-err',        label: 'Pendiente' },
@@ -1639,7 +1641,7 @@ function renderDash(list) {
   }
 
   if (currentUser?.role !== 'super') {
-    list = list.filter(d => d.assignedTo === currentUser?.name);
+    list = list.filter(d => d.assignedTo === currentUser?.uid);
   }
 
   const archivadas = list.filter(d => d.archived);
@@ -1717,9 +1719,9 @@ window.goNew = async () => {
   const members = await loadUsers();
   members.forEach(m => {
     const opt = document.createElement('option');
-    opt.value = m;
-    opt.textContent = m;
-    if (m === currentUser?.name) opt.selected = true;
+    opt.value = m.uid;
+    opt.textContent = m.name;
+    if (m.uid === currentUser?.uid) opt.selected = true;
     sel.appendChild(opt);
   });
 
@@ -1997,7 +1999,10 @@ window.saveDespacho = async () => {
 
   const name = $('dsp-name').value.trim()
     || `Despacho ${new Date().toLocaleDateString('es-SV',{day:'2-digit',month:'2-digit'})} ${new Date().toLocaleTimeString('es-SV',{hour:'2-digit',minute:'2-digit'})}`;
-  const assignedTo = $('dsp-assign').value || '';
+  const assignedToUid  = $('dsp-assign').value || '';
+  const assignedToName = assignedToUid
+    ? ($('dsp-assign').selectedOptions[0]?.textContent || '')
+    : '';
 
   const slowTimer = setTimeout(() => {
     if (btn) btn.innerHTML = '<span class="spin"></span>Reconectando...';
@@ -2009,8 +2014,10 @@ window.saveDespacho = async () => {
     const header = window._lastHeader || {};
     const id = await dbSave({
       name,
-      assignedTo,
-      createdBy: currentUser?.name ?? '',
+      assignedTo:     assignedToUid,
+      assignedToName: assignedToName,
+      createdBy:      currentUser?.uid  ?? '',
+      createdByName:  currentUser?.name ?? '',
       orderNumber: header.orderNumber || '',
       orderDate: header.orderDate || '',
       origin:      $('dsp-origin').value      || '',
@@ -2064,7 +2071,7 @@ window.openDespacho = async id => {
         }
         const lockAge = Date.now() - (d.lockedAt || 0);
         const valid = d.lockedBy && lockAge < LOCK_TTL_MS;
-        if (valid && d.lockedBy !== currentUser?.name) {
+        if (valid && d.lockedBy !== currentUser?.uid) {
           if (currentUser?.role === 'super') {
             await doOpenDespacho(id, true, d.lockedBy);
             return;
@@ -2152,7 +2159,7 @@ async function doOpenDespacho(id, readOnly = false, lockedBy = '') {
       // Set lock (no crítico — timeout de 5s)
       try {
         await Promise.race([
-          dbUpdate(id, { lockedBy: currentUser?.name, lockedAt: Date.now() }),
+          dbUpdate(id, { lockedBy: currentUser?.uid, lockedByName: currentUser?.name, lockedAt: Date.now() }),
           new Promise((_, rej) => setTimeout(() => rej(new Error('lock timeout')), 5000))
         ]);
         lockSet = true;
@@ -2173,19 +2180,23 @@ async function doOpenDespacho(id, readOnly = false, lockedBy = '') {
     unsub = dbListen(id, data => {
       clearTimeout(listenTimeout);
       curData = data;
-      isReadOnly = readOnly || !!(data.assignedTo && data.assignedTo !== currentUser?.name && data.createdBy !== currentUser?.name);
+      isReadOnly = readOnly || !!(
+        data.assignedTo &&
+        data.assignedTo !== currentUser?.uid &&
+        data.createdBy  !== currentUser?.uid
+      );
       const banner = $('readonly-banner');
       if (isReadOnly && banner) {
         banner.innerHTML = readOnly && lockedBy
           ? `👁 MODO LECTURA — Orden en uso por ${lockedBy}`
-          : `👁 MODO LECTURA — Esta orden está asignada a ${data.assignedTo}`;
+          : `👁 MODO LECTURA — Esta orden está asignada a ${data.assignedToName || data.assignedTo}`;
         banner.style.display = '';
       } else if (banner) {
         banner.style.display = 'none';
       }
       if (firstLoad) {
         firstLoad = false;
-        if (!isReadOnly && data.assignedTo === currentUser?.name && data.status === 'pending') {
+        if (!isReadOnly && data.assignedTo === currentUser?.uid && data.status === 'pending') {
           dbUpdate(id, { status: 'active', startedAt: Date.now() }).catch(() => {});
         }
       }
@@ -2206,7 +2217,8 @@ function renderPick() {
 
   $('pk-name').textContent = name;
   $('pk-date').textContent = fmtDate(createdAt);
-  $('pk-assign').textContent = assignedTo ? `👤 ${assignedTo}` : '';
+  const assignDisplay = curData?.assignedToName || assignedTo;
+  $('pk-assign').textContent = assignDisplay ? `👤 ${assignDisplay}` : '';
   $('pk-route').textContent = (origin || destination) ? `${ubicLabel(origin) || '—'} → ${ubicLabel(destination) || '—'}` : '';
   const origBtn = $('pk-original-btn');
   origBtn.style.display = originalUrl ? '' : 'none';
@@ -2480,7 +2492,7 @@ window.duplicateDespacho = async id => {
   if (isLocal) startHomeListener();
 };
 
-window.assignDespacho = async (id, currentAssign) => {
+window.assignDespacho = async (id, currentAssignUid) => {
   const members = await loadUsers();
   if (!members.length) {
     openModal(
@@ -2491,8 +2503,8 @@ window.assignDespacho = async (id, currentAssign) => {
     );
     return;
   }
-  const opts = ['', ...members].map(m =>
-    `<option value="${m}" ${m === currentAssign ? 'selected' : ''}>${m || 'Sin asignar'}</option>`
+  const opts = [{ uid: '', name: 'Sin asignar' }, ...members].map(m =>
+    `<option value="${m.uid}" ${m.uid === currentAssignUid ? 'selected' : ''}>${m.name}</option>`
   ).join('');
   openModal(
     '👤 Asignar orden',
@@ -2504,9 +2516,11 @@ window.assignDespacho = async (id, currentAssign) => {
     ]
   );
   window._saveAssign = async oid => {
-    const val = document.getElementById('assign-sel')?.value || '';
+    const sel = document.getElementById('assign-sel');
+    const uid  = sel?.value || '';
+    const name = uid ? (sel?.selectedOptions[0]?.textContent || '') : '';
     closeModal();
-    await dbUpdate(oid, { assignedTo: val });
+    await dbUpdate(oid, { assignedTo: uid, assignedToName: name });
     if (isLocal) startHomeListener();
   };
 };
