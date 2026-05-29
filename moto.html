@@ -729,6 +729,7 @@ function startListener() {
 
   let firstSnap = true;
   let prevEmergencyIds = new Set();
+  let prevVueltaIds = new Set();
 
   homeUnsub = fbMod.onSnapshot(q,
     snap => {
@@ -738,10 +739,14 @@ function startListener() {
           if (v.emergency && !prevEmergencyIds.has(v.id)) {
             notify('🚨 Emergencia asignada', `Vuelta a ${v.destination} marcada como emergencia`);
           }
+          if (!prevVueltaIds.has(v.id)) {
+            notify('🚐 Nueva vuelta asignada', `${v.destination || 'Revisa tus vueltas'}`);
+          }
         });
       }
       firstSnap = false;
       prevEmergencyIds = new Set(list.filter(v => v.emergency).map(v => v.id));
+      prevVueltaIds = new Set(list.map(v => v.id));
       renderList(list);
     },
     err  => {

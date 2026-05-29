@@ -62,6 +62,56 @@ exports.onDespachoAssigned = onDocumentWritten('despachos/{despachoId}', async (
     return null;
   });
 
+exports.onVueltaAssigned = onDocumentWritten('vueltas/{vueltaId}', async (event) => {
+    const before = event.data.before.exists ? event.data.before.data() : null;
+    const after  = event.data.after.exists  ? event.data.after.data()  : null;
+    if (!after) return null;
+
+    const assignedBefore = before?.assignedTo || '';
+    const assignedAfter  = after.assignedTo   || '';
+
+    if (!assignedAfter || assignedAfter === assignedBefore) return null;
+
+    const alreadyNotified = after.lastNotifiedAssignedTo === assignedAfter;
+    if (alreadyNotified) return null;
+
+    const teamSnap = await admin.firestore().doc('config/team').get();
+    if (!teamSnap.exists) return null;
+
+    const members = teamSnap.data().members || [];
+    const member  = members.find(m => m.name === assignedAfter);
+    const token   = member?.fcmToken;
+    if (!token) {
+      console.log(`Sin token FCM para vuelta: ${assignedAfter}`);
+      return null;
+    }
+
+    const dest = after.destination || '';
+    const fecha = after.date || '';
+
+    const message = {
+      token,
+      notification: {
+        title: '🚐 Nueva vuelta asignada',
+        body:  `${dest ? dest : 'Revisa tus vueltas'}${fecha ? ' — ' + fecha : ''}`
+      },
+      android: { priority: 'high' },
+      webpush: {
+        notification: { icon: 'https://despacho-ordenes.web.app/favicon.png' },
+        fcmOptions:   { link: 'https://despacho-ordenes.web.app/moto.html' }
+      }
+    };
+
+    try {
+      await admin.messaging().send(message);
+      console.log(`Notificación vuelta enviada a ${assignedAfter}`);
+      await event.data.after.ref.update({ lastNotifiedAssignedTo: assignedAfter });
+    } catch(e) {
+      console.error('Error enviando notificación vuelta:', e.message);
+    }
+    return null;
+  });
+
 exports.parseDocument = functions.https.onRequest(
   { timeoutSeconds: 300, memory: '1GiB' },
   (req, res) => {
