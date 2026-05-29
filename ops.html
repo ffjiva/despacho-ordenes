@@ -1353,6 +1353,7 @@ async function init() {
         authDetermined = true;
         if (!authReady) {
           authReady = true;
+          $('s-loading').style.display = 'none';
           goHome();
         }
       } catch(e) {
@@ -1363,6 +1364,7 @@ async function init() {
       authReady = false;
       authDetermined = true;
       console.warn('AUTH → user null. Stack:', new Error().stack);
+      $('s-loading').style.display = 'none';
       showScreen('s-login');
       $('mob-bottom-bar').style.display = 'none';
     }
