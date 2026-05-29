@@ -131,7 +131,7 @@ exports.onVueltaAssigned = onDocumentWritten('vueltas/{vueltaId}', async (event)
 
 exports.parseDocument = functions.https.onRequest(
   { timeoutSeconds: 300, memory: '1GiB' },
-  (req, res) => {
+  async (req, res) => {
   console.log("Request received:", req.method);
   res.set("Access-Control-Allow-Origin", "*");
   res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
