@@ -1785,7 +1785,7 @@ function renderDash(list) {
 
   let html = '';
   if (!activas.length) {
-    const noAssigned = currentUser?.role !== 'super' && list.length === 0;
+    const noAssigned = currentUser?.role !== 'super' && activas.length === 0;
     html += noAssigned
       ? `<div class="empty-state">
           <div class="empty-icon">📦</div>
