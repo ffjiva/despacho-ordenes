@@ -1663,7 +1663,7 @@ function cardHtml(d, archived = false) {
   const lockedByMe    = !archived && isLocked && d.lockedBy === currentUser?.uid;
 
   const lockBadge = lockedByOther
-    ? `<span class="badge badge-lock badge-active-now">🔒 ${d.lockedByName || d.lockedBy}</span>`
+    ? `<span class="badge badge-lock badge-active-now">🔒 Dándole</span>`
     : lockedByMe
       ? `<span class="badge badge-active-now">● Tú</span>`
       : '';
@@ -1769,7 +1769,7 @@ function renderDash(list) {
   if (isSuper) populateSupFilters(list);
 
   // Aplicar filtros adicionales del supervisor
-  if (isSuper && supUserFilter) list = list.filter(d => d.assignedTo === supUserFilter);
+  if (isSuper && supUserFilter) list = list.filter(d => (d.assignedToName || d.assignedTo) === supUserFilter);
   if (isSuper && supDestFilter) list = list.filter(d => d.destination === supDestFilter);
 
   const archivadas = list.filter(d => d.archived);
