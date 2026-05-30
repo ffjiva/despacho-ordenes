@@ -2646,8 +2646,8 @@ window.assignDespacho = async (id, currentAssignUid) => {
     );
     return;
   }
-  const opts = [{ uid: '', name: 'Sin asignar' }, ...members].map(m =>
-    `<option value="${m.uid}" ${m.uid === currentAssignUid ? 'selected' : ''}>${m.name}</option>`
+  const opts = [{ uid: '', name: '' }, ...members].map(m =>
+    `<option value="${m.uid}" data-name="${m.name || ''}" ${m.uid === currentAssignUid ? 'selected' : ''}>${m.name || 'Sin asignar'}</option>`
   ).join('');
   openModal(
     '👤 Asignar orden',
@@ -2659,9 +2659,9 @@ window.assignDespacho = async (id, currentAssignUid) => {
     ]
   );
   window._saveAssign = async oid => {
-    const sel = document.getElementById('assign-sel');
+    const sel  = document.getElementById('assign-sel');
     const uid  = sel?.value || '';
-    const name = uid ? (sel?.selectedOptions[0]?.textContent || '') : '';
+    const name = sel?.options[sel.selectedIndex]?.dataset?.name || '';
     closeModal();
     await dbUpdate(oid, { assignedTo: uid, assignedToName: name });
     if (isLocal) startHomeListener();
