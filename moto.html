@@ -553,14 +553,15 @@ async function registerFCMToken(userName) {
     });
     if (!token) return;
 
-    const snap = await fbMod.getDoc(fbMod.doc(db, 'config', 'team'));
-    if (!snap.exists()) return;
-    const members = snap.data().members || [];
-    const idx = members.findIndex(m => m.name === userName);
-    if (idx === -1) return;
-    if (members[idx].fcmToken === token) return;
-    members[idx].fcmToken = token;
-    await fbMod.setDoc(fbMod.doc(db, 'config', 'team'), { members });
+    if (!auth?.currentUser?.uid) return;
+    const userRef = fbMod.doc(db, 'users', auth.currentUser.uid);
+    const userSnap = await fbMod.getDoc(userRef);
+    if (!userSnap.exists()) return;
+    const tokens = userSnap.data().fcmTokens || [];
+    if (!tokens.includes(token)) {
+      tokens.push(token);
+      await fbMod.updateDoc(userRef, { fcmTokens: tokens });
+    }
     console.log('FCM token registrado para', userName);
   } catch(e) {
     console.warn('FCM token error:', e.message);

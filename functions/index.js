@@ -115,16 +115,20 @@ exports.onVueltaAssigned = onDocumentWritten('vueltas/{vueltaId}', async (event)
     const alreadyNotified = after.lastNotifiedAssignedTo === assignedAfter;
     if (alreadyNotified) return null;
 
-    const teamSnap = await admin.firestore().doc('config/team').get();
-    if (!teamSnap.exists) return null;
-
-    const members = teamSnap.data().members || [];
-    const member  = members.find(m => m.name === assignedAfter);
-    const token   = member?.fcmToken;
-    if (!token) {
-      console.log(`Sin token FCM para vuelta: ${assignedAfter}`);
+    // assignedAfter es el uid del usuario
+    const userSnap = await admin.firestore().doc(`users/${assignedAfter}`).get();
+    if (!userSnap.exists) {
+      console.log(`Usuario no encontrado: ${assignedAfter}`);
       return null;
     }
+    const userData = userSnap.data();
+    const tokens = userData.fcmTokens || (userData.fcmToken ? [userData.fcmToken] : []);
+    if (!tokens.length) {
+      console.log(`Sin token FCM para ${userData.name || assignedAfter}`);
+      return null;
+    }
+    // Enviar a todos los tokens del usuario (múltiples dispositivos)
+    const token = tokens[tokens.length - 1]; // usar el más reciente
 
     const dest = after.destination || '';
     const fecha = after.date || '';
