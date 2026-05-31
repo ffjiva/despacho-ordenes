@@ -2261,7 +2261,7 @@ function showCelebrationModal() {
     <div class="celebr-stat-row"><span class="celebr-stat-lbl">Total productos</span><span class="celebr-stat-val">${tot}</span></div>
     <div class="celebr-stat-row"><span class="celebr-stat-lbl">Total unidades</span><span class="celebr-stat-val">${totU}</span></div>
     <div class="celebr-stat-row"><span class="celebr-stat-lbl">Tiempo transcurrido</span><span class="celebr-stat-val">${elapsed}</span></div>
-    <div class="celebr-stat-row"><span class="celebr-stat-lbl">Asignado a</span><span class="celebr-stat-val">${curData.assignedTo || '—'}</span></div>
+    <div class="celebr-stat-row"><span class="celebr-stat-lbl">Asignado a</span><span class="celebr-stat-val">${curData.assignedToName || curData.assignedTo || '—'}</span></div>
   `;
   $('celebr-overlay').classList.add('on');
 }
