@@ -471,21 +471,6 @@ html, body {
   gap: 1.5rem;
   font-size: 3rem;
 }
-/* ── PIN LOGIN ── */
-.pin-wrap { max-width: 380px; margin: 0 auto; padding: 2.5rem 1.25rem; }
-.pin-logo { font-size: 2.4rem; text-align: center; margin-bottom: .75rem; }
-.pin-h    { font-size: 1rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; text-align: center; margin-bottom: .25rem; }
-.pin-sub  { font-size: .72rem; color: var(--text2); text-align: center; margin-bottom: 1.5rem; }
-.pin-user-btn {
-  width: 100%; padding: 13px 16px; border-radius: var(--r);
-  border: 1px solid var(--border); background: var(--surface);
-  font-family: var(--mono); font-size: .82rem; font-weight: 600;
-  color: var(--text); text-align: left; cursor: pointer;
-  margin-bottom: 8px; transition: all .15s; display: block;
-}
-.pin-user-btn:hover { border-color: var(--accent); }
-.pin-user-btn.on { background: var(--brand); color: #1a1000; border-color: var(--brand); }
-
 /* ── EMAIL LOGIN ── */
 .login-wrap { max-width: 400px; margin: 0 auto; padding: 3rem 1.25rem; display: flex; flex-direction: column; align-items: center; }
 .login-logo { width: 52px; height: 52px; background: var(--brand); color: #1a1000; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; margin-bottom: 1.25rem; }
@@ -510,55 +495,6 @@ body:not(.dark) input[type="time"] {
 <div id="s-loading" class="scr on">
   <span>📦</span>
   <span class="spin" style="font-size:1rem"></span>
-</div>
-
-<!-- ══════════════ PIN LOGIN ══════════════ -->
-<div id="s-pin" class="scr">
-  <div class="topbar">
-    <div class="topbar-title">📦 Despacho Manager</div>
-  </div>
-  <div class="pin-wrap">
-    <div class="pin-logo">📦</div>
-    <div class="pin-h">¿Quién eres?</div>
-    <div class="pin-sub" id="pin-sub">Selecciona tu usuario para continuar.</div>
-    <div id="pin-users"></div>
-    <div id="pin-entry" style="display:none;margin-top:.5rem">
-      <div class="fld">
-        <label>PIN de acceso</label>
-        <input id="pin-field" type="password" inputmode="numeric" maxlength="4"
-          placeholder="••••" autocomplete="off"
-          style="letter-spacing:.3em;font-size:1.2rem;text-align:center"
-          onkeydown="if(event.key==='Enter')doPinLogin()"/>
-      </div>
-      <div id="pin-err" class="box box-err" style="display:none;margin-bottom:.75rem"></div>
-      <button class="btn btn-dark btn-full" onclick="doPinLogin()">Entrar →</button>
-    </div>
-    <div style="text-align:center;margin-top:1.75rem">
-      <button onclick="showSuperPin()"
-        style="background:none;border:none;color:var(--muted);font-size:.63rem;cursor:pointer;font-family:var(--mono);letter-spacing:.05em;padding:4px 8px">
-        🔐 Supervisor
-      </button>
-    </div>
-  </div>
-</div>
-
-<!-- ══════════════ MODAL SUPERVISOR PIN ══════════════ -->
-<div class="modal-overlay" id="modal-super-pin" onclick="closeSuperPin(event)">
-  <div class="modal">
-    <div class="modal-title">🔐 Acceso Supervisor</div>
-    <div class="modal-sub">Ingresa tu PIN para continuar.</div>
-    <div class="fld">
-      <input id="super-pin-field" type="password" inputmode="numeric" maxlength="4"
-        placeholder="••••" autocomplete="off"
-        style="letter-spacing:.3em;font-size:1.2rem;text-align:center"
-        onkeydown="if(event.key==='Enter')doSuperLogin()"/>
-    </div>
-    <div id="super-pin-err" style="display:none;font-size:.68rem;color:var(--err-tx);margin-bottom:.75rem"></div>
-    <div class="modal-btns">
-      <button class="btn btn-outline" onclick="closeSuperPin()">Cancelar</button>
-      <button class="btn btn-dark" onclick="doSuperLogin()">Entrar →</button>
-    </div>
-  </div>
 </div>
 
 <!-- ══════════════ SETUP ══════════════ -->
@@ -871,11 +807,7 @@ const CFG_KEY     = 'dspmgr_cfg_v1';
 const THEME_KEY   = 'dspmgr_theme_v1';
 const USER_KEY    = 'dspmgr_user_v1';
 const USERS_KEY   = 'dspmgr_team_v1';
-const SESSION_KEY = 'dsp_session_v1';
 const LOCK_TTL_MS = 30 * 60 * 1000; // 30 minutos
-
-let pinUsers = [];
-let pinSelectedUser = null;
 
 /* ═══════════════════════════════════════
    UTILS
@@ -1232,74 +1164,6 @@ window.showUsersModal = async () => {
   };
 };
 
-/* ═══════════════════════════════════════
-   PIN AUTH
-═══════════════════════════════════════ */
-function getExpiry(loginAt) {
-  const d = new Date(loginAt);
-  d.setDate(d.getDate() + 1);
-  d.setHours(3, 0, 0, 0);
-  return d.getTime();
-}
-
-function getSession() {
-  try { return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); } catch { return null; }
-}
-
-async function loadPinScreen() {
-  if (!db) return;
-  try {
-    const snap = await fbMod.getDoc(fbMod.doc(db, 'config', 'team'));
-    const members = snap.exists() ? (snap.data().members || []) : [];
-    pinUsers = members.filter(m => m.active !== false && ['bodeguero', 'operador', 'encargado', 'motorista'].includes(m.role));
-  } catch { pinUsers = []; }
-  renderPinUsers();
-}
-
-function renderPinUsers() {
-  const el = $('pin-users');
-  if (!pinUsers.length) {
-    el.innerHTML = '<div style="color:var(--muted);font-size:.75rem;text-align:center;padding:1rem">Sin usuarios configurados.<br/>Accede a <strong>⚙️ Ops</strong> para agregar usuarios.</div>';
-    return;
-  }
-  el.innerHTML = pinUsers.map(u =>
-    `<button class="pin-user-btn" onclick="selectPinUser('${u.id}','${u.name.replace(/'/g,"\\'")}',this)">👤 ${u.name}</button>`
-  ).join('');
-}
-
-window.selectPinUser = (id, name, btn) => {
-  pinSelectedUser = { id, name };
-  document.querySelectorAll('.pin-user-btn').forEach(b => b.classList.remove('on'));
-  btn.classList.add('on');
-  $('pin-sub').textContent = `Hola, ${name}. Ingresa tu PIN.`;
-  $('pin-entry').style.display = 'block';
-  $('pin-field').value = '';
-  $('pin-err').style.display = 'none';
-  setTimeout(() => $('pin-field').focus(), 50);
-};
-
-window.doPinLogin = async () => {
-  if (!pinSelectedUser) return;
-  const pin = $('pin-field').value.trim();
-  const user = pinUsers.find(u => u.id === pinSelectedUser.id);
-  if (!user || user.pin !== pin) {
-    $('pin-err').textContent = 'PIN incorrecto.';
-    $('pin-err').style.display = 'block';
-    $('pin-field').value = '';
-    setTimeout(() => $('pin-field').focus(), 50);
-    return;
-  }
-  const session = { userId: user.id, name: user.name, role: user.role, loginAt: Date.now() };
-  localStorage.setItem(SESSION_KEY, JSON.stringify(session));
-  updateLastAccess(user.id); // fire-and-forget
-  currentUser = user.name;
-  currentRole  = user.role || '';
-  $('pin-err').style.display = 'none';
-  requestNotificationPermission(); // fire-and-forget
-  const deepId = new URLSearchParams(window.location.search).get('orden');
-  if (deepId) { await openDespacho(deepId); } else { goHome(); }
-};
-
 async function requestNotificationPermission() {
   if (!('Notification' in window) || Notification.permission === 'denied') return;
   if (!fbApp || !db || !fbMod || !currentUser?.uid) return;
@@ -1328,103 +1192,6 @@ async function requestNotificationPermission() {
     console.warn('FCM token error:', e.message);
   }
 }
-
-async function updateLastAccess(userId) {
-  if (!db || !fbMod) return;
-  try {
-    const snap = await fbMod.getDoc(fbMod.doc(db, 'config', 'team'));
-    if (!snap.exists()) return;
-    const members = snap.data().members || [];
-    const idx = members.findIndex(m => m.id === userId);
-    if (idx === -1) return;
-    members[idx].lastAccess = Date.now();
-    await fbMod.setDoc(fbMod.doc(db, 'config', 'team'), { members });
-  } catch(e) { console.error(e); }
-}
-
-window.doPinLogout = () => {
-  localStorage.removeItem(SESSION_KEY);
-  currentUser = '';
-  currentRole  = '';
-  if (homeUnsub) { homeUnsub(); homeUnsub = null; }
-  pinSelectedUser = null;
-  $('pin-sub').textContent = 'Selecciona tu usuario para continuar.';
-  $('pin-entry').style.display = 'none';
-  document.querySelectorAll('.pin-user-btn').forEach(b => b.classList.remove('on'));
-  showScreen('s-pin');
-};
-
-window.showSuperPin = async () => {
-  $('super-pin-field').value = '';
-  $('super-pin-err').style.display = 'none';
-
-  // Si el super no tiene PIN → entrar directo sin mostrar modal
-  try {
-    const snap = await fbMod.getDoc(fbMod.doc(db, 'config', 'team'));
-    if (snap.exists()) {
-      const su = (snap.data().members || []).find(m => m.role === 'super' && m.active !== false);
-      if (su && !su.pin) {
-        const session = { userId: su.id, name: su.name, role: 'super', loginAt: Date.now() };
-        localStorage.setItem(SESSION_KEY, JSON.stringify(session));
-        updateLastAccess(su.id);
-        currentUser = su.name;
-        currentRole  = 'super';
-        const deepId = new URLSearchParams(window.location.search).get('orden');
-        if (deepId) { await openDespacho(deepId); } else { goHome(); }
-        return;
-      }
-    }
-  } catch {}
-
-  $('modal-super-pin').classList.add('on');
-  setTimeout(() => $('super-pin-field').focus(), 100);
-};
-
-window.closeSuperPin = e => {
-  if (!e || e.target === $('modal-super-pin')) $('modal-super-pin').classList.remove('on');
-};
-
-window.doSuperLogin = async () => {
-  const pin = $('super-pin-field').value.trim();
-  const errEl = $('super-pin-err');
-  errEl.style.display = 'none';
-
-  let superUser = null;
-  try {
-    const snap = await fbMod.getDoc(fbMod.doc(db, 'config', 'team'));
-    if (snap.exists()) {
-      superUser = (snap.data().members || []).find(m => m.role === 'super' && m.active !== false);
-    }
-  } catch {
-    errEl.textContent = 'Error al verificar. Intenta de nuevo.';
-    errEl.style.display = 'block';
-    return;
-  }
-
-  if (!superUser) {
-    errEl.textContent = 'No hay supervisor configurado.';
-    errEl.style.display = 'block';
-    return;
-  }
-
-  if (superUser.pin && superUser.pin !== pin) {
-    errEl.textContent = 'PIN incorrecto.';
-    errEl.style.display = 'block';
-    $('super-pin-field').value = '';
-    setTimeout(() => $('super-pin-field').focus(), 50);
-    return;
-  }
-
-  const session = { userId: superUser.id, name: superUser.name, role: 'super', loginAt: Date.now() };
-  localStorage.setItem(SESSION_KEY, JSON.stringify(session));
-  updateLastAccess(superUser.id);
-  currentUser = superUser.name;
-  currentRole  = 'super';
-  $('modal-super-pin').classList.remove('on');
-  requestNotificationPermission(); // fire-and-forget
-  const deepId = new URLSearchParams(window.location.search).get('orden');
-  if (deepId) { await openDespacho(deepId); } else { goHome(); }
-};
 
 /* ═══════════════════════════════════════
    STORAGE HELPERS
