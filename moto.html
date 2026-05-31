@@ -376,7 +376,6 @@ const FIREBASE_CFG = {
   appId: "1:694628838838:web:30e9745a0465b004f42517"
 };
 
-const SESSION_KEY     = 'dsp_session_v1';
 const THEME_KEY       = 'moto_theme_v1';
 const COLLECTION      = 'vueltas';
 const WHATSAPP_GROUP  = '50377081881';
@@ -394,9 +393,6 @@ let storage         = null;
 let messagingMod    = null;
 let fotoVueltaId    = null;
 let fotoDomId       = null;
-let motoUsers       = [];
-let motoPinSelected = null;
-let motoPinValue    = '';
 let noEntregaId     = null;
 let noEntregaMotivo = '';
 const MOTIVOS_NE = ['Cliente no contesta', 'Dirección incorrecta', 'Cliente reagendó', 'Devolver a bodega'];
@@ -413,10 +409,6 @@ function nowTime() {
 /* ═══════════════════════════════════
    INIT
 ═══════════════════════════════════ */
-function getExpiry(loginAt) {
-  return loginAt + 8 * 60 * 60 * 1000;
-}
-
 async function init() {
   if (localStorage.getItem(THEME_KEY) === 'dark') applyDark(true);
 
