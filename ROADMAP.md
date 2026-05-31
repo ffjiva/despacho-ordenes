@@ -593,3 +593,26 @@ productos_ubicacion/{productCode}
 
 ## Feature: Generador de Etiquetas de Caja
 [Ya documentado arriba en el ROADMAP — ver sección correspondiente]
+
+---
+
+## Estado al 30/05/2026
+
+### Completado hoy:
+- Bug creación usuarios: fix secondary app Firebase Auth
+- Sistema usuarios unificado: Firebase Auth en index.html, ops.html y moto.html
+- Rol motorista agregado al sistema
+- Flujo vuelta→picking funcionando end-to-end
+- Módulo 4 completo: filtros supervisor, badge Dándole, badge Tú, etiquetas 4x6"
+- FCM tokens migrados de config/team a users/{uid}
+- assignedTo/assignedToName consistentes (uid + nombre)
+- parseXLS autenticado con Firebase token
+- Logo ZD en etiquetas de caja (base64 embebido)
+
+### Pendiente inmediato:
+- Verificar etiquetas con logo recortado 520x520px (base64 en proceso)
+- Notificaciones FCM: deploy de function_index.js con cambio a users/{uid}
+
+### Próximo módulo:
+- Módulo 5: Vista colaborador (ya funcional básico, revisar edge cases)
+- Módulo 6d: Puente identidades motorista↔bodeguero (confirmar con Anderson)
