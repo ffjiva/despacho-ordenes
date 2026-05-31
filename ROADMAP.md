@@ -35,11 +35,12 @@
 - **Módulo 2** ✅ — Roles super/collaborator, assignedTo con UID, Firestore Rules, índices
 - **Módulo 3** ✅ — Banner colaborador en s-home, FCM corregido para usar users/{uid}
 
-### Bug pendiente — Creación de usuarios desde la app
-`_createUser` en `index.html` falla silenciosamente al crear app secundaria de Firebase.
-El usuario se crea en Firebase Authentication pero no en Firestore `users/{uid}`.
-Workaround actual: crear el documento en Firestore manualmente.
-Próximo fix: revisar por qué `FIREBASE_CFG` no resuelve el problema en runtime.
+### Bug resuelto — Creación de usuarios ✅ Mayo 2026
+`_createUser` en `index.html` fue migrado a Cloud Function `createUser`.
+- La función crea el usuario en Firebase Auth y el documento en `users/{uid}` atómicamente
+- El frontend solo envía el idToken del super como Bearer token
+- URL: https://us-central1-despacho-ordenes.cloudfunctions.net/createUser
+- El sistema viejo (secondary app + config/team) fue eliminado completamente
 
 ### Cambios recientes aplicados
 - `assignedTo` migrado a UID + `assignedToName` como display

@@ -39,25 +39,16 @@ exports.onDespachoAssigned = onDocumentWritten('despachos/{despachoId}', async (
     const alreadyNotified = after.lastNotifiedAssignedTo === assignedAfter;
     if (alreadyNotified) return null;
 
-    // Buscar usuario en users/{uid} por nombre
     const usersSnap = await admin.firestore().collection('users')
       .where('name', '==', assignedAfter).limit(1).get();
 
-    let tokens = [];
-
-    if (!usersSnap.empty) {
-      const userData = usersSnap.docs[0].data();
-      tokens = userData.fcmTokens || [];
-    } else {
-      // Fallback: buscar en config/team (compatibilidad hacia atrás)
-      const teamSnap = await admin.firestore().doc('config/team').get();
-      if (teamSnap.exists) {
-        const members = teamSnap.data().members || [];
-        const member  = members.find(m => m.name === assignedAfter);
-        if (member?.fcmToken)  tokens = [member.fcmToken];
-        if (member?.fcmTokens) tokens = member.fcmTokens;
-      }
+    if (usersSnap.empty) {
+      console.log(`Usuario "${assignedAfter}" no encontrado en users/`);
+      return null;
     }
+
+    const userData = usersSnap.docs[0].data();
+    const tokens   = userData.fcmTokens || [];
 
     if (!tokens.length) {
       console.log(`Sin tokens FCM para ${assignedAfter}`);
@@ -69,14 +60,12 @@ exports.onDespachoAssigned = onDocumentWritten('despachos/{despachoId}', async (
       : after.name || 'Nueva orden';
     const dest = after.destination || '';
 
-    const notification = {
-      title: '📦 Nueva orden asignada',
-      body:  `${orderLabel}${dest ? ' → ' + dest : ''}`
-    };
-
     const messages = tokens.map(token => ({
       token,
-      notification,
+      notification: {
+        title: '📦 Nueva orden asignada',
+        body:  `${orderLabel}${dest ? ' → ' + dest : ''}`
+      },
       android: { priority: 'high' },
       webpush: {
         notification: { icon: 'https://despacho-ordenes.web.app/favicon.png' },
@@ -86,20 +75,19 @@ exports.onDespachoAssigned = onDocumentWritten('despachos/{despachoId}', async (
 
     try {
       const response = await admin.messaging().sendEach(messages);
-      console.log(`Notificaciones enviadas a ${assignedAfter}: ${response.successCount}/${messages.length}`);
-      // Limpiar tokens inválidos
-      const invalidTokens = [];
-      response.responses.forEach((r, i) => {
-        if (!r.success && r.error?.code === 'messaging/registration-token-not-registered') {
-          invalidTokens.push(tokens[i]);
-        }
-      });
-      if (invalidTokens.length && !usersSnap.empty) {
-        const uid = usersSnap.docs[0].id;
+      console.log(`Notificaciones: ${response.successCount}/${messages.length} a ${assignedAfter}`);
+
+      const uid = usersSnap.docs[0].id;
+      const invalidTokens = response.responses
+        .map((r, i) => (!r.success && r.error?.code === 'messaging/registration-token-not-registered') ? tokens[i] : null)
+        .filter(Boolean);
+
+      if (invalidTokens.length) {
         const cleanTokens = tokens.filter(t => !invalidTokens.includes(t));
         await admin.firestore().doc(`users/${uid}`).update({ fcmTokens: cleanTokens });
-        console.log(`Tokens inválidos removidos para ${assignedAfter}: ${invalidTokens.length}`);
+        console.log(`Tokens inválidos removidos: ${invalidTokens.length}`);
       }
+
       await event.data.after.ref.update({ lastNotifiedAssignedTo: assignedAfter });
     } catch(e) {
       console.error('Error enviando notificación:', e.message);
@@ -566,3 +554,57 @@ exports.autoCierreJornada = onSchedule({
     console.error('Auto-cierre error:', e.message);
   }
 });
+
+exports.createUser = onRequest(
+  { timeoutSeconds: 60, memory: '256MiB' },
+  async (req, res) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    if (req.method === 'OPTIONS') { res.status(204).send(''); return; }
+    if (req.method !== 'POST') { res.status(405).send('Method Not Allowed'); return; }
+
+    const authHeader = req.headers.authorization || '';
+    const idToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+    if (!idToken) { res.status(401).json({ error: 'No autorizado' }); return; }
+
+    try {
+      const decoded = await admin.auth().verifyIdToken(idToken);
+      const callerDoc = await admin.firestore().doc(`users/${decoded.uid}`).get();
+      if (!callerDoc.exists || callerDoc.data().role !== 'super') {
+        res.status(403).json({ error: 'Solo el supervisor puede crear usuarios' });
+        return;
+      }
+    } catch(e) {
+      res.status(401).json({ error: 'Token inválido' });
+      return;
+    }
+
+    const { name, email, password, role } = req.body;
+    if (!name || !email || !password || !role) {
+      res.status(400).json({ error: 'Faltan campos requeridos' });
+      return;
+    }
+
+    try {
+      const userRecord = await admin.auth().createUser({ email, password, displayName: name });
+      await admin.firestore().doc(`users/${userRecord.uid}`).set({
+        name,
+        email,
+        role,
+        createdAt: Date.now(),
+        active: true,
+        fcmTokens: []
+      });
+      console.log(`Usuario creado: ${name} (${email}) — uid: ${userRecord.uid}`);
+      res.status(200).json({ success: true, uid: userRecord.uid });
+    } catch(e) {
+      console.error('Error creando usuario:', e.message);
+      let error = 'Error al crear usuario';
+      if (e.code === 'auth/email-already-exists') error = 'Este email ya está registrado';
+      else if (e.code === 'auth/invalid-email')   error = 'Email inválido';
+      else if (e.code === 'auth/weak-password')   error = 'Contraseña muy débil (mínimo 6 caracteres)';
+      res.status(400).json({ error });
+    }
+  }
+);
