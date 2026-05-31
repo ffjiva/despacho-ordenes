@@ -650,10 +650,11 @@ body:not(.dark) input[type="time"] {
     <span class="home-meta" id="home-date"></span>
     <span class="home-user" id="home-user"></span>
   </div>
+  <div id="collab-summary" style="display:none;padding:7px 14px 6px;background:var(--info-bg);border-bottom:1px solid var(--info-bd);font-size:.65rem;color:var(--info-tx);gap:10px;align-items:center"></div>
   <div class="dash-list">
     <div id="collab-banner" style="display:none;background:var(--info-bg);border:1px solid var(--info-bd);color:var(--info-tx);border-radius:var(--r);padding:10px 13px;margin-bottom:.75rem;font-size:.72rem;line-height:1.5"></div>
     <div class="section-lbl">Órdenes</div>
-    <div style="display:flex;gap:6px;margin-bottom:.5rem;flex-wrap:wrap;align-items:center">
+    <div id="home-filter-bar" style="display:flex;gap:6px;margin-bottom:.5rem;flex-wrap:wrap;align-items:center">
       <button class="fbtn on" id="hf-all"     onclick="setHomeFilter('all',this)">Todas</button>
       <button class="fbtn"    id="hf-pending" onclick="setHomeFilter('pending',this)">Pendientes</button>
       <button class="fbtn"    id="hf-active"  onclick="setHomeFilter('active',this)">En proceso</button>
@@ -1541,6 +1542,11 @@ window.goHome = async () => {
   if ($('btn-ops'))    $('btn-ops').style.display    = canManage ? '' : 'none';
   const fab = $('fab-new');
   if (fab) fab.style.display = isSuper ? 'flex' : 'none';
+  // Ajustes para collaborator
+  const filterBar = $('home-filter-bar');
+  if (filterBar) filterBar.style.display = currentUser?.role === 'collaborator' ? 'none' : 'flex';
+  const topTitle = document.querySelector('#s-home .topbar-title');
+  if (topTitle) topTitle.textContent = currentUser?.role === 'collaborator' ? '📦 Mis Órdenes' : '📦 Despachos';
   updateThemeBtn();
 
   startHomeListener();
@@ -1772,11 +1778,18 @@ function renderDash(list) {
 
   let html = '';
   if (!activas.length) {
-    const noAssigned = currentUser?.role !== 'super' && activas.length === 0;
+    const isCollab = currentUser?.role === 'collaborator';
+    const noAssigned = isCollab && list.length === 0;
+    const filteredEmpty = isCollab && list.length > 0 && homeFilter !== 'all';
     html += noAssigned
       ? `<div class="empty-state">
           <div class="empty-icon">📦</div>
           <div class="empty-text">Esperando que me den</div>
+        </div>`
+      : filteredEmpty
+      ? `<div class="empty-state">
+          <div class="empty-icon">📋</div>
+          <div class="empty-text">No hay órdenes con este estado.</div>
         </div>`
       : `<div class="empty-state">
           <div class="empty-icon">📋</div>
@@ -1799,6 +1812,22 @@ function renderDash(list) {
   }
 
   el.innerHTML = html;
+
+  // Resumen de progreso para collaborator
+  const summaryEl = $('collab-summary');
+  if (summaryEl) {
+    if (currentUser?.role === 'collaborator' && list.length > 0) {
+      const actNoArch = list.filter(d => !d.archived);
+      const totalProds = actNoArch.reduce((s,d) => s + (d.products||[]).length, 0);
+      const doneProds  = actNoArch.reduce((s,d) => s + Object.values(d.checked||{}).filter(c=>c.done).length, 0);
+      const pct = totalProds ? Math.round(doneProds / totalProds * 100) : 0;
+      const ordLabel = actNoArch.length === 1 ? '1 orden asignada' : `${actNoArch.length} órdenes asignadas`;
+      summaryEl.style.display = 'flex';
+      summaryEl.innerHTML = `<span>📋 ${ordLabel}</span><span style="color:var(--text)">·</span><span>${doneProds}/${totalProds} productos</span><span style="color:var(--text)">·</span><span style="font-weight:700;color:${pct===100?'var(--done-tx)':'var(--info-tx)'}">${pct}%</span>`;
+    } else {
+      summaryEl.style.display = 'none';
+    }
+  }
 }
 
 window.toggleArchivo = () => {
@@ -2315,8 +2344,11 @@ async function doOpenDespacho(id, readOnly = false, lockedBy = '') {
       );
       const banner = $('readonly-banner');
       if (isReadOnly && banner) {
+        const isCollab = currentUser?.role === 'collaborator';
         banner.innerHTML = readOnly && lockedBy
           ? `👁 MODO LECTURA — Orden en uso por ${lockedBy}`
+          : isCollab
+          ? `🔒 Esta orden no te fue asignada`
           : `👁 MODO LECTURA — Esta orden está asignada a ${data.assignedToName || data.assignedTo}`;
         banner.style.display = '';
       } else if (banner) {
