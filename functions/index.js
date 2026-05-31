@@ -27,79 +27,84 @@ const { onRequest }         = require('firebase-functions/v2/https');
 const { onSchedule }        = require('firebase-functions/v2/scheduler');
 
 exports.onDespachoAssigned = onDocumentWritten('despachos/{despachoId}', async (event) => {
-  const before = event.data.before.exists ? event.data.before.data() : null;
-  const after  = event.data.after.exists  ? event.data.after.data()  : null;
-  if (!after) return null;
+    const before = event.data.before.exists ? event.data.before.data() : null;
+    const after  = event.data.after.exists  ? event.data.after.data()  : null;
+    if (!after) return null;
 
-  const assignedBefore = before?.assignedTo || '';
-  const assignedAfter  = after.assignedTo   || '';
+    const assignedBefore = before?.assignedTo || '';
+    const assignedAfter  = after.assignedTo   || '';
 
-  // Solo disparar si cambió la asignación
-  if (!assignedAfter || assignedAfter === assignedBefore) return null;
+    if (!assignedAfter || assignedAfter === assignedBefore) return null;
 
-  // Deduplicación: si ya se notificó esta asignación, saltar
-  if (after.lastNotifiedAssignedTo === assignedAfter) return null;
+    const alreadyNotified = after.lastNotifiedAssignedTo === assignedAfter;
+    if (alreadyNotified) return null;
 
-  // Buscar tokens FCM en users/{uid} directamente
-  let tokens = [];
-  try {
-    const userSnap = await admin.firestore().doc(`users/${assignedAfter}`).get();
-    if (!userSnap.exists) {
-      console.log(`Usuario ${assignedAfter} no encontrado en users/`);
+    // Buscar usuario en users/{uid} por nombre
+    const usersSnap = await admin.firestore().collection('users')
+      .where('name', '==', assignedAfter).limit(1).get();
+
+    let tokens = [];
+
+    if (!usersSnap.empty) {
+      const userData = usersSnap.docs[0].data();
+      tokens = userData.fcmTokens || [];
+    } else {
+      // Fallback: buscar en config/team (compatibilidad hacia atrás)
+      const teamSnap = await admin.firestore().doc('config/team').get();
+      if (teamSnap.exists) {
+        const members = teamSnap.data().members || [];
+        const member  = members.find(m => m.name === assignedAfter);
+        if (member?.fcmToken)  tokens = [member.fcmToken];
+        if (member?.fcmTokens) tokens = member.fcmTokens;
+      }
+    }
+
+    if (!tokens.length) {
+      console.log(`Sin tokens FCM para ${assignedAfter}`);
       return null;
     }
-    tokens = userSnap.data().fcmTokens || [];
-  } catch(e) {
-    console.error('Error buscando usuario:', e.message);
-    return null;
-  }
 
-  if (!tokens.length) {
-    console.log(`Sin tokens FCM para uid ${assignedAfter}`);
-    return null;
-  }
+    const orderLabel = after.orderNumber
+      ? `Orden ${after.orderNumber}`
+      : after.name || 'Nueva orden';
+    const dest = after.destination || '';
 
-  const orderLabel = after.orderNumber
-    ? `Orden ${after.orderNumber}`
-    : after.name || 'Nueva orden';
-  const dest = after.destination || '';
+    const notification = {
+      title: '📦 Nueva orden asignada',
+      body:  `${orderLabel}${dest ? ' → ' + dest : ''}`
+    };
 
-  // Enviar a todos los tokens del usuario (puede tener varios dispositivos)
-  const results = await Promise.allSettled(tokens.map(token =>
-    admin.messaging().send({
+    const messages = tokens.map(token => ({
       token,
-      notification: {
-        title: '📦 Nueva orden asignada',
-        body: `${orderLabel}${dest ? ' → ' + dest : ''}`
-      },
+      notification,
       android: { priority: 'high' },
       webpush: {
         notification: { icon: 'https://despacho-ordenes.web.app/favicon.png' },
-        fcmOptions: { link: 'https://despacho-ordenes.web.app' }
+        fcmOptions:   { link: 'https://despacho-ordenes.web.app' }
       }
-    })
-  ));
+    }));
 
-  const sent   = results.filter(r => r.status === 'fulfilled').length;
-  const failed = results.filter(r => r.status === 'rejected').length;
-  console.log(`Notificaciones: ${sent} enviadas, ${failed} fallidas para uid ${assignedAfter}`);
-
-  // Limpiar tokens inválidos
-  const invalidTokens = tokens.filter((_, i) => results[i].status === 'rejected');
-  if (invalidTokens.length) {
-    const validTokens = tokens.filter(t => !invalidTokens.includes(t));
     try {
-      await admin.firestore().doc(`users/${assignedAfter}`).update({ fcmTokens: validTokens });
-      console.log(`Limpiados ${invalidTokens.length} tokens inválidos`);
-    } catch(e) { console.warn('Error limpiando tokens:', e.message); }
-  }
-
-  // Marcar como notificado
-  try {
-    await event.data.after.ref.update({ lastNotifiedAssignedTo: assignedAfter });
-  } catch(e) { console.warn('Error marcando notificación:', e.message); }
-
-  return null;
+      const response = await admin.messaging().sendEach(messages);
+      console.log(`Notificaciones enviadas a ${assignedAfter}: ${response.successCount}/${messages.length}`);
+      // Limpiar tokens inválidos
+      const invalidTokens = [];
+      response.responses.forEach((r, i) => {
+        if (!r.success && r.error?.code === 'messaging/registration-token-not-registered') {
+          invalidTokens.push(tokens[i]);
+        }
+      });
+      if (invalidTokens.length && !usersSnap.empty) {
+        const uid = usersSnap.docs[0].id;
+        const cleanTokens = tokens.filter(t => !invalidTokens.includes(t));
+        await admin.firestore().doc(`users/${uid}`).update({ fcmTokens: cleanTokens });
+        console.log(`Tokens inválidos removidos para ${assignedAfter}: ${invalidTokens.length}`);
+      }
+      await event.data.after.ref.update({ lastNotifiedAssignedTo: assignedAfter });
+    } catch(e) {
+      console.error('Error enviando notificación:', e.message);
+    }
+    return null;
 });
 
 exports.onVueltaAssigned = onDocumentWritten('vueltas/{vueltaId}', async (event) => {
