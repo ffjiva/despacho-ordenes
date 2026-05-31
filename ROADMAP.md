@@ -42,6 +42,18 @@
 - URL: https://us-central1-despacho-ordenes.cloudfunctions.net/createUser
 - El sistema viejo (secondary app + config/team) fue eliminado completamente
 
+### Sesión Mayo 30 2026 — Completado
+- `onDespachoAssigned` refactorizado: sin fallback config/team, usa users/{uid}, sendEach(), limpieza de tokens inválidos
+- Script verify-users.js ejecutado: sistema auditado y limpio
+- Anderson De Sousa: nombre estandarizado en Firestore (D mayúscula)
+- Bug creación de usuarios ✅ RESUELTO: migrado a Cloud Function createUser
+  URL: https://us-central1-despacho-ordenes.cloudfunctions.net/createUser
+- Módulo 5 — Vista Colaborador: PENDIENTE, es el próximo paso
+
+### Pendientes documentados
+- Reabrir orden: botón para super que revierte estado dispatched → pending (implementar en Módulo 4)
+- Módulo 6d: Puente identidades motorista↔bodeguero (confirmar flujo real con Anderson)
+
 ### Cambios recientes aplicados
 - `assignedTo` migrado a UID + `assignedToName` como display
 - `currentUser` es objeto `{uid, email, name, role}` en index.html y ops.html
@@ -121,6 +133,7 @@ users/{uid}
 - Filtros por: estado (en proceso / listo), colaborador asignado, sucursal destino
 - Indicador visual de quién está trabajando activamente en cada orden
 - **Generador de etiquetas de caja** (ver sección separada abajo)
+- **Reabrir orden** — botón visible solo para `super` que revierte una orden despachada a `pending`. Previene errores operativos cuando se despacha por accidente.
 
 ---
 
