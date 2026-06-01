@@ -4947,7 +4947,9 @@ function renderCompraPanelFiles() {
         <span class="rep-file-count">${repCompraProducts.length} productos</span>
       </div>`).join('') +
       `<button class="btn btn-outline" style="font-size:.58rem;margin-left:4px"
-        onclick="document.getElementById('rep-compra-input').click()">Cambiar archivo</button>`;
+        onclick="document.getElementById('rep-compra-input').click()">+ Agregar más</button>
+       <button class="btn btn-outline" style="font-size:.58rem;color:var(--err-tx);border-color:var(--err-tx)"
+        onclick="clearCompraFiles()">⊘ Limpiar compras</button>`;
   } else {
     uploadEl.style.display   = '';
     filelistEl.style.display = 'none';
@@ -5033,6 +5035,15 @@ function renderCompraTable() {
     </table>`;
 }
 
+window.clearCompraFiles = () => {
+  repCompraFiles    = [];
+  repCompraProducts = [];
+  repCompraData     = {};
+  renderCompraPanelFiles();
+  renderRepFull();
+  saveRepSession();
+};
+
 window.enterCompraMode = () => {
   repMode = 'compra';
   $('rep-compra-panel').style.display = '';
@@ -5070,16 +5081,34 @@ window.handleCompraFile = async inputEl => {
   inputEl.value = '';
   if (!files.length) return;
   try {
-    const file     = files[0];
-    const buf      = await file.arrayBuffer();
-    const wb       = XLSX.read(buf, { type: 'array' });
-    const products = parseCompraXLS(wb);
-    if (!products.length) {
-      alert('No se encontraron productos en el archivo. Verificar formato.');
-      return;
+    // Merge map: código → { name, qty } — conservar productos ya cargados
+    const mergeMap = {};
+    repCompraProducts.forEach(p => { mergeMap[p.code] = { name: p.name, qty: p.qty }; });
+
+    const newFileEntries = [];
+    for (const file of files) {
+      const buf      = await file.arrayBuffer();
+      const wb       = XLSX.read(buf, { type: 'array' });
+      const products = parseCompraXLS(wb);
+      if (!products.length) {
+        alert(`"${file.name}" no tiene productos reconocibles. Se omitió.`);
+        continue;
+      }
+      products.forEach(p => {
+        if (mergeMap[p.code]) {
+          // Mismo código → sumar cantidad, conservar nombre existente
+          mergeMap[p.code].qty += (p.qty || 0);
+        } else {
+          mergeMap[p.code] = { name: p.name, qty: p.qty || 0 };
+        }
+      });
+      newFileEntries.push({ name: file.name, added: new Date().toISOString() });
     }
-    repCompraFiles    = [{ name: file.name, added: new Date().toISOString() }];
-    repCompraProducts = products;
+
+    if (!newFileEntries.length) return; // todos los archivos fallaron
+
+    repCompraFiles    = [...repCompraFiles, ...newFileEntries];
+    repCompraProducts = Object.entries(mergeMap).map(([code, d]) => ({ code, name: d.name, qty: d.qty }));
     repCompraData     = {};
     computeComprasSuggestions();
     renderCompraPanelFiles();
@@ -5401,7 +5430,7 @@ document.addEventListener('DOMContentLoaded', init);
 
   <input type="file" id="rep-xls-input" accept=".xls,.xlsx" multiple
     style="display:none" onchange="handleRepFiles(this)"/>
-  <input type="file" id="rep-compra-input" accept=".xls,.xlsx"
+  <input type="file" id="rep-compra-input" accept=".xls,.xlsx" multiple
     style="display:none" onchange="handleCompraFile(this)"/>
 
   <div id="rep-loading" style="display:none;text-align:center;padding:3rem 1rem">
