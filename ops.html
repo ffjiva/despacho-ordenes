@@ -1193,7 +1193,6 @@ let db = null, fbMod = null, auth = null, authMod = null, storageMod = null, sto
 let currentUser = null; // { uid, email, name, role }
 let authReady = false;
 let authDetermined = false;
-let editingPinUserId = null;
 let activeFilter = 'all';
 let showDone = false;
 let selectedType = '';
@@ -1695,7 +1694,7 @@ async function loadTeamMembers() {
         fbMod.where('active', '==', true)
       )
     );
-    return snap.docs.map(d => d.data().name);
+    return snap.docs.map(d => ({ uid: d.id, name: d.data().name || d.data().email }));
   } catch { return []; }
 }
 
@@ -1736,7 +1735,7 @@ window.openEditDomModal = async id => {
   const sel = $('ed-motorista');
   sel.innerHTML = '<option value="">Sin asignar</option>';
   members.forEach(m => {
-    sel.innerHTML += `<option value="${escHtml(m)}"${m === d.assignedTo ? ' selected' : ''}>${escHtml(m)}</option>`;
+    sel.innerHTML += `<option value="${escHtml(m.uid)}"${m.uid === d.assignedTo ? ' selected' : ''}>${escHtml(m.name)}</option>`;
   });
   $('modal-edit-dom').classList.add('on');
 };
@@ -2145,6 +2144,7 @@ window.createVuelta = async () => {
       destination:    dest.toUpperCase(),
       description:    desc,
       assignedTo:     moto,
+      assignedToName: members.find(m => m.uid === moto)?.name || moto,
       urgency:        newVueltaUrg,
       linkedOrderIds,
       status:         'pending',
@@ -2337,7 +2337,7 @@ window.editVuelta = async id => {
     const sel = $('ve-motorista');
     sel.innerHTML = '<option value="">Sin asignar</option>';
     members.forEach(m => {
-      sel.innerHTML += `<option value="${escHtml(m)}"${m === v.assignedTo ? ' selected' : ''}>${escHtml(m)}</option>`;
+      sel.innerHTML += `<option value="${escHtml(m.uid)}"${m.uid === v.assignedTo ? ' selected' : ''}>${escHtml(m.name)}</option>`;
     });
     const existingIds = v.linkedOrderIds || (v.linkedOrderId ? [v.linkedOrderId] : []);
     fillOrdenCheckboxes('ve', despachos, todayVueltas, existingIds, id);
@@ -2373,6 +2373,7 @@ window.saveVueltaEdit = async () => {
       destination:    dest.toUpperCase(),
       description:    $('ve-desc').value.trim(),
       assignedTo:     editMotorista,
+      assignedToName: members.find(m => m.uid === editMotorista)?.name || editMotorista,
       urgency:        editingVueltaUrg,
       linkedOrderIds: editLinkedOrderIds,
       date:           $('ve-fecha').value

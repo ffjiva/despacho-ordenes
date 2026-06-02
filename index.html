@@ -1477,6 +1477,7 @@ function cardHtml(d, archived = false) {
     : `<div class="dcard-actions" onclick="event.stopPropagation()">
         ${_isSuper ? `<button class="btn btn-outline" style="font-size:.6rem;padding:5px 10px" onclick="assignDespacho('${d.id}','${(d.assignedTo||'').replace(/'/g,"\\'")}')"> ${d.assignedTo ? '🔄 Reasignar' : '👤 Asignar'}</button>` : ''}
         ${(['done','active'].includes(statusKey)) && (_isSuper || d.assignedTo === currentUser?.uid) ? `<button class="btn btn-outline" style="font-size:.6rem;padding:5px 10px;border-color:var(--info-bd);color:var(--info-tx)" onclick="confirmDispatch('${d.id}','${(d.name||d.orderNumber||'').replace(/'/g,"\\'")}')">🚚 Despachar</button>` : ''}
+        ${_isSuper && ['dispatched','dispatched_incomplete','done'].includes(statusKey) ? `<button class="btn btn-outline" style="font-size:.6rem;padding:5px 10px;border-color:var(--warn-bd);color:var(--warn-tx)" onclick="confirmReopen('${d.id}','${(d.name||d.orderNumber||'').replace(/'/g,"\\'")}')">🔓 Reabrir</button>` : ''}
         ${_isSuper ? `<button class="btn btn-danger" style="font-size:.6rem;padding:5px 10px" onclick="confirmDelete('${d.id}','${(d.name||'').replace(/'/g,"\\'")}')">✕ Eliminar</button>` : ''}
       </div>`;
 
@@ -2132,10 +2133,16 @@ async function doOpenDespacho(id, readOnly = false, lockedBy = '') {
       const banner = $('readonly-banner');
       if (isReadOnly && banner) {
         const isCollab = currentUser?.role === 'collaborator';
+        const isDispatched = ['dispatched','dispatched_incomplete'].includes(data.status);
+        const reopenBtn = (currentUser?.role === 'super' && isDispatched)
+          ? ` <button onclick="confirmReopen('${id}','${(data.name||data.orderNumber||'').replace(/'/g,"\\'")}')" style="margin-left:10px;padding:2px 10px;font-size:.6rem;font-family:var(--mono);font-weight:700;border:1px solid var(--warn-bd);border-radius:4px;background:transparent;color:var(--warn-tx);cursor:pointer">🔓 Reabrir</button>`
+          : '';
         banner.innerHTML = readOnly && lockedBy
           ? `👁 MODO LECTURA — Orden en uso por ${lockedBy}`
           : isCollab
           ? `🔒 Esta orden no te fue asignada`
+          : isDispatched && currentUser?.role === 'super'
+          ? `🚚 Orden despachada${reopenBtn}`
           : `👁 MODO LECTURA — Esta orden está asignada a ${data.assignedToName || data.assignedTo}`;
         banner.style.display = '';
       } else if (banner) {
@@ -2591,6 +2598,36 @@ window.doDispatch = async (id, incomplete = false) => {
     ? { incompleteItems: (curData.products || []).filter(p => !(curData.checked||{})[p.id]?.done).length }
     : {};
   await dbUpdate(id, { status, dispatchedAt: Date.now(), ...extra });
+};
+
+window.confirmReopen = (id, name) => {
+  openModal(
+    '🔓 Reabrir orden',
+    `¿Reabrir "${name}"? La orden volverá a estado activo. El progreso de picking se conserva.`,
+    '',
+    [
+      { label: 'Cancelar',      cls: 'btn-outline', fn: 'closeModal(event)' },
+      { label: '🔓 Reabrir',   cls: 'btn-dark',    fn: `doReopen('${id}')` }
+    ]
+  );
+};
+
+window.doReopen = async id => {
+  closeModal();
+  const del = fbMod.deleteField();
+  await dbUpdate(id, {
+    status:          'active',
+    completedAt:     del,
+    dispatchedAt:    del,
+    incompleteItems: del,
+  });
+  // Si estamos dentro de s-pick, desbloquear la vista
+  if (curId === id) {
+    isReadOnly = false;
+    const banner = $('readonly-banner');
+    if (banner) banner.style.display = 'none';
+    renderPick();
+  }
 };
 
 window.confirmDelete = (id, name) => {

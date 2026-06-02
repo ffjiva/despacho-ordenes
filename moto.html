@@ -241,36 +241,6 @@ html, body {
 .empty-state { text-align: center; padding: 3rem 1rem 2rem; color: var(--muted); }
 .empty-icon  { font-size: 2.5rem; opacity: .3; margin-bottom: .75rem; }
 .empty-text  { font-size: .8rem; line-height: 1.7; }
-/* ── PIN LOGIN ── */
-.moto-user-btn {
-  width: 100%; padding: 16px 18px; border-radius: var(--r);
-  border: 2px solid var(--border); background: var(--surface);
-  font-family: var(--mono); font-size: .9rem; font-weight: 600;
-  color: var(--text); text-align: left; cursor: pointer;
-  margin-bottom: 10px; transition: all .15s; display: block;
-}
-.moto-user-btn:active, .moto-user-btn.on { background: var(--brand); color: #1a1000; border-color: var(--brand); }
-.pin-keypad {
-  display: grid; grid-template-columns: repeat(3, 1fr);
-  gap: 10px; max-width: 300px; margin: 0 auto 1rem;
-}
-.pin-key {
-  aspect-ratio: 1; border-radius: var(--r2);
-  border: 1px solid var(--border); background: var(--surface);
-  font-family: var(--mono); font-size: 1.5rem; font-weight: 700;
-  color: var(--text); cursor: pointer; transition: all .1s;
-  display: flex; align-items: center; justify-content: center;
-  min-height: 72px;
-}
-.pin-key:active { background: var(--accent); color: #fff; transform: scale(.94); }
-.pin-key-enter  { background: var(--accent); color: #fff; font-size: 1.2rem; }
-.pin-dots { display: flex; gap: 14px; justify-content: center; margin: .75rem 0 1.25rem; }
-.pin-dot {
-  width: 16px; height: 16px; border-radius: 50%;
-  border: 2px solid var(--border); transition: all .15s;
-}
-.pin-dot.filled { background: var(--accent); border-color: var(--accent); }
-body.dark .pin-key { background: var(--surface2); }
 
 /* ── DOMICILIO BADGES ── */
 .dmbadge { font-size:.58rem; font-weight:700; padding:2px 7px; border-radius:20px; border:1px solid; display:inline-block; white-space:nowrap; }
