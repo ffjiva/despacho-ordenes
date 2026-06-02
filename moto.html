@@ -709,8 +709,29 @@ function startDomiciliosListener() {
 /* ═══════════════════════════════════
    RENDER
 ═══════════════════════════════════ */
+const despachoPhotosCache = new Map();
+
+async function prefetchDespachoPhotos(list) {
+  // Recolectar todos los linkedOrderIds únicos de la lista
+  const ids = new Set();
+  list.forEach(v => {
+    const linked = v.linkedOrderIds || (v.linkedOrderId ? [v.linkedOrderId] : []);
+    linked.forEach(oid => { if (!despachoPhotosCache.has(oid)) ids.add(oid); });
+  });
+  if (!ids.size) return;
+  // Fetch en paralelo, silencioso
+  await Promise.all([...ids].map(async oid => {
+    try {
+      const snap = await fbMod.getDoc(fbMod.doc(db, 'despachos', oid));
+      despachoPhotosCache.set(oid, snap.exists() ? (snap.data().photos || []) : []);
+    } catch { despachoPhotosCache.set(oid, []); }
+  }));
+  renderCombined();
+}
+
 function renderList(list) {
   cachedList = list;
+  prefetchDespachoPhotos(list); // fire-and-forget, re-renders cuando termina
   renderCombined();
 }
 
@@ -820,7 +841,16 @@ function buildVueltaCard(v) {
     : '';
   const linkedOrderIds = v.linkedOrderIds || (v.linkedOrderId ? [v.linkedOrderId] : []);
   const ordenLink = linkedOrderIds.length
-    ? linkedOrderIds.map(oid => `
+    ? linkedOrderIds.map(oid => {
+        const despachoFotos = despachoPhotosCache.get(oid) || [];
+        const fotosHtml = despachoFotos.length
+          ? `<div style="display:flex;flex-wrap:wrap;gap:6px;padding:0 14px 8px">
+              ${despachoFotos.map(u => `<img src="${esc(u)}" onclick="window.open('${escAttr(u)}','_blank')"
+                style="width:72px;height:72px;object-fit:cover;border-radius:6px;border:1px solid var(--border);cursor:pointer" alt="foto preparación"/>`).join('')}
+             </div>`
+          : '';
+        return `
+      ${fotosHtml}
       <div style="padding:0 14px 8px">
         <a href="https://despacho-ordenes.web.app/?orden=${oid}&usuario=${encodeURIComponent(currentDriver)}"
           target="_blank" rel="noopener"
@@ -830,7 +860,8 @@ function buildVueltaCard(v) {
                  text-decoration:none;background:var(--info-bg)">
           📋 Ver lista de productos →
         </a>
-      </div>`).join('')
+      </div>`;
+      }).join('')
     : '';
 
   const hasDetail = ordenLink || photos.length || (isCamino || isDone);

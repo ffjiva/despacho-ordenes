@@ -478,6 +478,18 @@ html, body {
 .login-sub { font-size: .72rem; color: var(--text2); text-align: center; margin-bottom: 1.75rem; line-height: 1.7; }
 .login-form { width: 100%; }
 
+/* ── PICK PHOTOS ── */
+.pick-photos { max-width: 900px; margin: 0 auto; padding: .5rem .8rem 1rem; }
+.pick-photos-hd { display: flex; align-items: center; gap: 8px; font-size: .68rem; font-weight: 700; letter-spacing: .06em; color: var(--muted); text-transform: uppercase; margin-bottom: .6rem; }
+.pick-photos-btns { display: flex; gap: 6px; margin-left: auto; }
+.btn-foto-pick { padding: 4px 11px; font-size: .62rem; font-family: var(--mono); font-weight: 700; border: 1px solid var(--border); border-radius: var(--r); background: var(--surface2); color: var(--text2); cursor: pointer; transition: all .15s; }
+.btn-foto-pick:active { background: var(--brand); color: #1a1000; border-color: var(--brand); }
+.btn-foto-pick:disabled { opacity: .4; cursor: not-allowed; }
+.pick-photo-strip { display: flex; flex-wrap: wrap; gap: 8px; }
+.pick-photo-thumb { width: 80px; height: 80px; object-fit: cover; border-radius: var(--r); border: 1px solid var(--border); cursor: pointer; transition: opacity .15s; }
+.pick-photo-thumb:active { opacity: .7; }
+.pick-photos-empty { font-size: .65rem; color: var(--muted); padding: .25rem 0; }
+
 /* ── DATE / TIME INPUT DARK FIX ── */
 input[type="date"],
 input[type="time"] {
@@ -751,6 +763,18 @@ body:not(.dark) input[type="time"] {
   </div>
 
   <div class="pick-list" id="pick-list"></div>
+  <div id="pick-photos-section" class="pick-photos" style="display:none">
+    <div class="pick-photos-hd">
+      📷 Fotos de preparación
+      <div class="pick-photos-btns">
+        <button class="btn-foto-pick" id="btn-foto-cam" onclick="triggerPickFoto('cam')" title="Cámara">📷 Cámara</button>
+        <button class="btn-foto-pick" id="btn-foto-gal" onclick="triggerPickFoto('gal')" title="Galería">🖼 Galería</button>
+      </div>
+    </div>
+    <div class="pick-photo-strip" id="pick-photo-strip"></div>
+  </div>
+  <input type="file" id="pick-foto-cam-input" accept="image/*" capture="environment" style="display:none" onchange="uploadPickFoto(this)"/>
+  <input type="file" id="pick-foto-gal-input" accept="image/*" style="display:none" onchange="uploadPickFoto(this)"/>
   <div class="pb-spacer"></div>
 
   <div class="bottom-bar">
@@ -779,6 +803,7 @@ body:not(.dark) input[type="time"] {
     <div class="celebr-stats" id="celebr-stats"></div>
     <div class="celebr-btns">
       <button class="btn btn-outline" onclick="closeCelebration()">← Volver a lista</button>
+      <button class="btn btn-outline" style="border-color:var(--brand);color:var(--brand)" onclick="closeCelebrationToPhoto()">📷 Documentar preparación</button>
       <button class="btn btn-dark" onclick="viewSummary()">Ver resumen completo →</button>
     </div>
   </div>
@@ -2241,6 +2266,7 @@ function renderPick() {
   }
 
   $('pick-list').innerHTML = html;
+  renderPickPhotos();
 }
 
 function buildItem(p, ckData) {
@@ -2310,9 +2336,89 @@ function showCelebrationModal() {
   $('celebr-overlay').classList.add('on');
 }
 
+/* ── PICK PHOTOS ── */
+const PICK_PHOTOS_MAX = 5;
+
+function renderPickPhotos() {
+  const section = $('pick-photos-section');
+  if (!section || !curData) return;
+
+  const photos  = curData.photos || [];
+  const status  = curData.status || '';
+  const canUpload = !isReadOnly
+    && ['active','done'].includes(status)
+    && photos.length < PICK_PHOTOS_MAX;
+
+  // Mostrar sección si hay fotos o puede subir
+  const visible = photos.length > 0 || canUpload;
+  section.style.display = visible ? '' : 'none';
+
+  // Botones subir
+  const camBtn = $('btn-foto-cam');
+  const galBtn = $('btn-foto-gal');
+  if (camBtn) camBtn.style.display = canUpload ? '' : 'none';
+  if (galBtn) galBtn.style.display = canUpload ? '' : 'none';
+
+  // Strip de thumbnails
+  const strip = $('pick-photo-strip');
+  if (!strip) return;
+  if (photos.length === 0) {
+    strip.innerHTML = canUpload
+      ? `<span class="pick-photos-empty">Sin fotos aún. Documenta dónde quedaron los productos.</span>`
+      : '';
+    return;
+  }
+  strip.innerHTML = photos.map((url, i) =>
+    `<img class="pick-photo-thumb" src="${url}" alt="foto ${i+1}"
+      onclick="window.open('${url.replace(/'/g,"\\'")}','_blank')" />`
+  ).join('');
+}
+
+window.triggerPickFoto = type => {
+  const inp = $(type === 'cam' ? 'pick-foto-cam-input' : 'pick-foto-gal-input');
+  if (inp) { inp.value = ''; inp.click(); }
+};
+
+window.uploadPickFoto = async input => {
+  const file = input.files[0];
+  if (!file || !curId) return;
+  const photos = curData?.photos || [];
+  if (photos.length >= PICK_PHOTOS_MAX) return;
+
+  const camBtn = $('btn-foto-cam');
+  const galBtn = $('btn-foto-gal');
+  if (camBtn) { camBtn.disabled = true; camBtn.textContent = '⏳'; }
+  if (galBtn) { galBtn.disabled = true; galBtn.textContent = '⏳'; }
+
+  try {
+    const ext     = file.name.split('.').pop() || 'jpg';
+    const path    = `despachos/${curId}/fotos/${Date.now()}_${currentUser?.name || 'user'}.${ext}`;
+    const storRef = storageMod.ref(storage, path);
+    await storageMod.uploadBytes(storRef, file);
+    const url = await storageMod.getDownloadURL(storRef);
+    await fbMod.updateDoc(fbMod.doc(db, 'despachos', curId), {
+      photos: fbMod.arrayUnion(url)
+    });
+  } catch(e) {
+    console.error('Error subiendo foto:', e);
+    alert('Error al subir la foto. Intenta de nuevo.');
+  } finally {
+    if (camBtn) { camBtn.disabled = false; camBtn.textContent = '📷 Cámara'; }
+    if (galBtn) { galBtn.disabled = false; galBtn.textContent = '🖼 Galería'; }
+  }
+};
+
 window.closeCelebration = () => {
   $('celebr-overlay').classList.remove('on');
   goHome();
+};
+
+window.closeCelebrationToPhoto = () => {
+  $('celebr-overlay').classList.remove('on');
+  setTimeout(() => {
+    const section = $('pick-photos-section');
+    if (section) section.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, 100);
 };
 
 window.viewSummary = () => {
