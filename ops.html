@@ -1248,6 +1248,7 @@ let repMode           = 'stock';
 let repCompraProducts = [];
 let repCompraData     = {};
 let repCompraFiles    = [];
+let repCompraTouched  = {}; // { code: Set<sucId> } — sucursales editadas manualmente por producto
 
 const $ = id => document.getElementById(id);
 
@@ -4722,6 +4723,14 @@ window.onRepQtyInput = inp => {
     const badge = n ? `<span class="rtab-badge">${n}</span>` : '';
     btn.innerHTML = `${REP_LBLS[suc]}${badge}`;
   }
+
+  // En modo compra: marcar como tocada y redistribuir el pool
+  if (isCompra) {
+    if (!repCompraTouched[code]) repCompraTouched[code] = new Set();
+    repCompraTouched[code].add(suc);
+    redistributeCompraPool(code);
+  }
+
   renderRepGlobalTotals();
   saveRepSessionDebounced();
 };
@@ -5039,10 +5048,83 @@ window.clearCompraFiles = () => {
   repCompraFiles    = [];
   repCompraProducts = [];
   repCompraData     = {};
+  repCompraTouched  = {};
   renderCompraPanelFiles();
   renderRepFull();
   saveRepSession();
 };
+
+function redistributeCompraPool(code) {
+  const product = repCompraProducts.find(p => p.code === code);
+  if (!product) return;
+
+  const touched = repCompraTouched[code] || new Set();
+
+  // Calcular pool libre = total comprado - suma de lo asignado a todas las sucursales
+  const totalAsigned = REP_DESTS.reduce((sum, sid) => sum + (repCompraData[sid]?.[code] || 0), 0);
+  let pool = product.qty - totalAsigned;
+
+  // Primero liberar pool de sucursales no tocadas (se van a recalcular)
+  REP_DESTS.forEach(sid => {
+    if (!touched.has(sid)) {
+      pool += (repCompraData[sid]?.[code] || 0);
+      if (repCompraData[sid]) delete repCompraData[sid][code];
+    }
+  });
+
+  // Redistribuir pool siguiendo REP_PRIORITY_ORDER, solo sucursales no tocadas bajo su mínimo
+  const stockMap = repProductMap ? repProductMap.get(code) : null;
+  const getStock = sid => stockMap ? (stockMap.stock?.[sid] || 0) : 0;
+
+  for (const sid of REP_PRIORITY_ORDER) {
+    if (pool <= 0) break;
+    if (touched.has(sid)) continue;
+    if (!repCompraData[sid]) repCompraData[sid] = {};
+    const stockSuc = getStock(sid);
+    const min      = REP_MINIMUMS[sid] || 0;
+    const need     = Math.max(0, min - stockSuc);
+    if (need > 0) {
+      const send = Math.min(need, pool);
+      repCompraData[sid][code] = send;
+      pool -= send;
+    }
+  }
+
+  // Actualizar inputs en el DOM sin re-renderizar toda la tabla
+  REP_DESTS.forEach(sid => {
+    if (touched.has(sid)) return;
+    const inp = document.querySelector(
+      `input[data-code="${code}"][data-suc="${sid}"][data-mode="compra"]`
+    );
+    if (!inp) return;
+    const val = repCompraData[sid]?.[code] || 0;
+    inp.value = val > 0 ? val : '';
+    inp.classList.toggle('has-qty', val > 0);
+  });
+
+  // Actualizar badges de tabs
+  REP_DESTS.forEach(sid => {
+    const btn = $(`rtab-${sid}`);
+    if (!btn) return;
+    const n = Object.values(repCompraData[sid] || {}).filter(v => v > 0).length;
+    const badge = n ? `<span class="rtab-badge">${n}</span>` : '';
+    btn.className = `rtab${sid === repActiveTab ? ' on' : ''}`;
+    btn.innerHTML = `${REP_LBLS[sid]}${badge}`;
+  });
+
+  // Banner de advertencia si el pool quedó negativo
+  const totalFinal = REP_DESTS.reduce((sum, sid) => sum + (repCompraData[sid]?.[code] || 0), 0);
+  const deficit = totalFinal - product.qty;
+  const summaryEl = $('rep-summary');
+  if (summaryEl && deficit > 0) {
+    summaryEl.innerHTML = `<span style="color:var(--err-tx);font-weight:600">
+      ⚠ Asignado supera la compra por ${deficit} unidades en código ${code}
+    </span>`;
+  } else if (summaryEl) {
+    // Limpiar aviso si ya no hay deficit
+    if (summaryEl.innerHTML.includes('Asignado supera')) summaryEl.innerHTML = '';
+  }
+}
 
 window.enterCompraMode = () => {
   repMode = 'compra';
@@ -5110,6 +5192,7 @@ window.handleCompraFile = async inputEl => {
     repCompraFiles    = [...repCompraFiles, ...newFileEntries];
     repCompraProducts = Object.entries(mergeMap).map(([code, d]) => ({ code, name: d.name, qty: d.qty }));
     repCompraData     = {};
+    repCompraTouched  = {};
     computeComprasSuggestions();
     renderCompraPanelFiles();
     renderRepFull();
