@@ -4408,6 +4408,12 @@ function getTotalesGlobales() {
   });
 }
 
+function stkCls(v) {
+  if (!v || v <= 0) return 'stk-zero';
+  if (v < 3)        return 'stk-low';
+  return 'stk-ok';
+}
+
 function renderRepFull() {
   renderRepFileList();
   renderRepTabs();
@@ -4564,12 +4570,6 @@ function renderRepTable() {
       <div class="empty-icon">🔍</div>
       <div class="empty-text">Sin productos para este filtro.</div></div>`;
     return;
-  }
-
-  function stkCls(v) {
-    if (!v || v <= 0) return 'stk-zero';
-    if (v < 3)        return 'stk-low';
-    return 'stk-ok';
   }
 
   const LIMIT    = 300;
@@ -5022,12 +5022,6 @@ function renderCompraTable() {
     return;
   }
 
-  function stkCls(v) {
-    if (!v || v <= 0) return 'stk-zero';
-    if (v < 3)        return 'stk-low';
-    return 'stk-ok';
-  }
-
   const totalCompra = filtered.reduce((s,p) => s + p.qty, 0);
   const totalSuc    = filtered.reduce((s,p) => s + (repProductMap.get(p.code)?.stock[sucId] ?? 0), 0);
   const totalSendF  = filtered.reduce((s,p) => s + (send[p.code] || 0), 0);
@@ -5293,11 +5287,6 @@ function renderRedistTable() {
         Sin productos para mostrar.</div>`;
     return;
   }
-
-  const stockOrig = sid => {
-    const p = repProductMap.get(sid);
-    return p ? (p.stock[orig] || 0) : 0;
-  };
 
   // Cabeceras de destinos con stock actual
   const destHeaders = destinos.map(dest =>
