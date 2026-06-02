@@ -1249,6 +1249,7 @@ let repCompraProducts = [];
 let repCompraData     = {};
 let repCompraFiles    = [];
 let repCompraTouched  = {}; // { code: Set<sucId> } — sucursales editadas manualmente por producto
+let repDisplayLimit   = 300;
 
 const $ = id => document.getElementById(id);
 
@@ -4130,12 +4131,20 @@ window.clearRepSession = () => {
   repCompraProducts = [];
   repCompraData     = {};
   repCompraFiles    = [];
+  repCompraTouched  = {};
+  repDisplayLimit   = 300;
   const compraPanel = $('rep-compra-panel');
   if (compraPanel) compraPanel.style.display = 'none';
   const btnCompra = $('btn-compra-mode');
   if (btnCompra) btnCompra.style.display = '';
   showRepState('empty');
   $('rep-err').style.display = 'none';
+  // Resetear parámetros a valores por defecto
+  REP_FILL_TO_MAX = false;
+  REP_B01_RESERVE = 2;
+  REP_DIST_PCT    = 85;
+  REP_MINIMUMS    = { ...REP_MINIMUMS_DEFAULT };
+  REP_MAXIMUMS    = { ...REP_MAXIMUMS_DEFAULT };
 };
 
 function showRepState(state) {
@@ -4604,10 +4613,13 @@ function renderRepTable() {
         return a.name.localeCompare(b.name, 'es');
     }
   });
-  const toRender = sorted.slice(0, LIMIT);
-  const extraRow = filtered.length > LIMIT ? `<tr><td colspan="${hasBrand?8:7}"
-    style="text-align:center;padding:10px;font-size:.65rem;color:var(--muted)">
-    Mostrando ${LIMIT} de ${filtered.length} — aplicá un filtro para ver más.</td></tr>` : '';
+  const toRender = sorted.slice(0, repDisplayLimit);
+  const extraRow = filtered.length > repDisplayLimit ? `<tr><td colspan="${hasBrand?8:7}"
+    style="text-align:center;padding:14px;font-size:.65rem;color:var(--muted)">
+    Mostrando ${repDisplayLimit} de ${filtered.length}
+    <button class="btn btn-outline" style="font-size:.6rem;margin-left:10px"
+      onclick="repLoadMore()">Cargar 300 más ↓</button>
+    </td></tr>` : '';
 
   const rows = toRender.map(p => {
     const qty   = send[p.code] || 0;
@@ -4674,7 +4686,13 @@ function renderRepTable() {
     </table>`;
 }
 
+window.repLoadMore = () => {
+  repDisplayLimit += 300;
+  renderRepTable();
+};
+
 window.switchRepTab = id => {
+  repDisplayLimit = 300;
   repActiveTab = id;
   const _stSrc = repMode === 'compra' ? repCompraData : repSendData;
   REP_DESTS.forEach(sid => {
@@ -4688,9 +4706,9 @@ window.switchRepTab = id => {
   renderRepTable();
 };
 
-window.setRepCat    = cat  => { repActiveCat   = cat;   renderRepTable(); };
-window.setRepBrand  = brand => { repActiveBrand = brand.toUpperCase().trim(); renderRepTable(); };
-window.setRepSort   = val  => { repSortBy      = val; repSortCol = ''; renderRepTable(); };
+window.setRepCat    = cat   => { repActiveCat   = cat;                         repDisplayLimit = 300; renderRepTable(); };
+window.setRepBrand  = brand => { repActiveBrand = brand.toUpperCase().trim();  repDisplayLimit = 300; renderRepTable(); };
+window.setRepSort   = val   => { repSortBy      = val; repSortCol = '';        repDisplayLimit = 300; renderRepTable(); };
 window.toggleRepSort = col => {
   if (repSortCol === col) {
     repSortDir = repSortDir === 'desc' ? 'asc' : 'desc';
@@ -4705,7 +4723,7 @@ window.toggleRepSort = col => {
 let _repSearchTimer = null;
 window.onRepSearch = val => {
   clearTimeout(_repSearchTimer);
-  _repSearchTimer = setTimeout(() => { repSearch = val.trim(); renderRepTable(); }, 220);
+  _repSearchTimer = setTimeout(() => { repSearch = val.trim(); repDisplayLimit = 300; renderRepTable(); }, 220);
 };
 
 window.onRepQtyInput = inp => {
