@@ -71,8 +71,11 @@ fcmTokens: string[]
 ## Esquema Firestore
 despachos/{id}
 name, orderNumber, orderDate, origin, destination
-assignedTo:     string   ← nombre del collaborator
-assignedToUid:  string   ← uid Firebase Auth
+assignedTo:     string   ← uid Firebase Auth
+assignedToName: string   ← nombre para display
+createdBy:      string   ← uid Firebase Auth
+createdByName:  string   ← nombre para display
+photos:         string[] ← URLs de fotos de preparación (Storage)
 createdBy:      string
 products:       [{ id, name, code, qty, family }]
 checked:        { [productId]: { done, time, note } }
@@ -167,6 +170,18 @@ Collaborator ve solo sus órdenes. "Esperando que me den" si no hay órdenes asi
 ### Módulo 7 — Trazabilidad de Reposiciones
 `ops.html` → pantalla `s-trazabilidad`. Registro automático en Firestore al generar XLS. Filtros por origen, destino, fecha. Cards expandibles con detalle de productos.
 
+### Reabrir orden *(index.html — s-home + s-pick)*
+Botón "🔓 Reabrir" visible solo para `super` en tarjeta home y en banner de s-pick.
+Revierte `dispatched` / `dispatched_incomplete` / `done` → `active`.
+Limpia `completedAt`, `dispatchedAt`, `incompleteItems`. Conserva checks de picking.
+
+### Fotos de preparación *(index.html + moto.html)*
+Sección "📷 Fotos de preparación" al final de s-pick. Botones Cámara y Galería.
+Máximo 5 fotos por orden. Solo disponible en órdenes `active` o `done` y sin modo lectura.
+Storage path: `despachos/{id}/fotos/{timestamp}_{name}.ext`.
+Modal de celebración incluye botón "📷 Documentar preparación".
+`moto.html`: tarjeta de vuelta muestra thumbnails del despacho vinculado (prefetch async con cache `despachoPhotosCache`).
+
 ### Módulo 8 — Domicilios (Entregas a clientes)
 `ops.html` → tab Entregas en s-vueltas. Import XLS de domicilios → Firestore. Estados: pendiente / en_camino / entregado / no_entregado. Editar, eliminar, reagendar, reasignar individualmente. GPS en inicio y fin. Fotos por entrega. Arrastres de días anteriores (últimos 30 días). Integrado en cierre de jornada y métricas.
 
@@ -176,18 +191,13 @@ Collaborator ve solo sus órdenes. "Esperando que me den" si no hay órdenes asi
 
 ### 🔧 Deuda técnica
 
-**Código PIN legacy en index.html**
-`s-pin`, `loadPinScreen`, `doPinLogin`, `showSuperPin` siguen en el código pero nunca se activan — el flujo real usa Firebase Auth. Candidato a limpiar en próxima sesión de refactor.
-
 **`config/team` escrito por ops.html**
-Al modificar usuarios desde `s-equipo` en ops.html, se reescribe el array `config/team.members` completo, lo que puede borrar campos no contemplados. Riesgo bajo en producción actual ya que config/team está deprecado como fuente de usuarios, pero conviene revisar si ops.html aún escribe ahí.
+Al modificar usuarios desde `s-equipo` en ops.html, se reescribe el array `config/team.members` completo, lo que puede borrar `fcmToken` de Anderson. Riesgo bajo pero pendiente de revisar. Si Anderson pierde notificaciones FCM, debe cerrar sesión y volver a entrar para re-registrar el token.
 
 ---
 
 ### 🔲 Features próximos
 
-**Reabrir orden** *(index.html — s-pick)*
-Botón visible solo para `super` que revierte `dispatched` → `pending`. Previene errores operativos al despachar por accidente. Acordado en sesión 30/05/2026.
 
 **Búsqueda de productos en picking** *(index.html — s-pick)*
 Input de búsqueda por nombre o código. Útil en órdenes de 50+ productos para evitar scroll.
@@ -266,4 +276,4 @@ Al abrir una sesión de implementación:
 
 ---
 
-*Última actualización: Mayo 2026*
+*Última actualización: 02 Junio 2026*
