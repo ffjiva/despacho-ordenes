@@ -1248,6 +1248,8 @@ let repMode           = 'stock';
 let repCompraProducts = [];
 let repCompraData     = {};
 let repCompraFiles    = [];
+let repRedistData     = {}; // { 'M01->S02': { code: qty } }
+let repRedistActiveOrig = 'M01';
 let repCompraTouched  = {}; // { code: Set<sucId> } — sucursales editadas manualmente por producto
 let repDisplayLimit   = 300;
 
@@ -3878,7 +3880,7 @@ const REP_SNAMES = {
   'ZONA DIGITAL SOYAPANGO':    'S04',
   'ZONA DIGITAL USULUTAN':     'S07',
 };
-const REP_DESTS    = ['M01','S02','S03','S04','S06','S07'];
+const REP_DESTS    = ['M01','S02','S04','S03','S07','S06'];
 const REP_LBLS     = { M01:'M01 Merliot', S02:'S02 Sv', S03:'S03 S.Miguel',
                        S04:'S04 Soya.',   S06:'S06 Zoditech', S07:'S07 Usulután' };
 const REP_FNAMES   = { M01:'Merliot', S02:'SanSalvador', S03:'SanMiguel',
@@ -4133,10 +4135,16 @@ window.clearRepSession = () => {
   repCompraFiles    = [];
   repCompraTouched  = {};
   repDisplayLimit   = 300;
+  repRedistData       = {};
+  repRedistActiveOrig = 'M01';
   const compraPanel = $('rep-compra-panel');
   if (compraPanel) compraPanel.style.display = 'none';
+  const redistPanel = $('rep-redist-panel');
+  if (redistPanel) redistPanel.style.display = 'none';
   const btnCompra = $('btn-compra-mode');
   if (btnCompra) btnCompra.style.display = '';
+  const btnRedist = $('btn-redist-mode');
+  if (btnRedist) btnRedist.style.display = '';
   showRepState('empty');
   $('rep-err').style.display = 'none';
   // Resetear parámetros a valores por defecto
@@ -4458,6 +4466,7 @@ function renderRepFileList() {
 }
 
 function renderRepTabs() {
+  if (repMode === 'redist') { renderRedistTabs(); return; }
   const _tabSrc = repMode === 'compra' ? repCompraData : repSendData;
   $('rep-tabs').innerHTML = REP_DESTS.map(id => {
     const n     = Object.values(_tabSrc[id] || {}).filter(v => v > 0).length;
@@ -4513,6 +4522,7 @@ function renderRepFilters() {
 
 function renderRepTable() {
   if (repMode === 'compra') { renderCompraTable(); return; }
+  if (repMode === 'redist') { renderRedistTable(); return; }
   const sucId    = repActiveTab;
   const send     = repSendData[sucId] || {};
   const hasBrand = repProducts.some(p => p.brand);
@@ -4755,6 +4765,7 @@ window.onRepQtyInput = inp => {
 
 window.generateActiveRepXLS = () => {
   if (repMode === 'compra') { generateCompraRepXLS(repActiveTab); return; }
+  if (repMode === 'redist') { generateRedistXLS(repRedistActiveOrig); return; }
   generateRepXLS(repActiveTab);
 };
 
@@ -5142,6 +5153,247 @@ function redistributeCompraPool(code) {
     // Limpiar aviso si ya no hay deficit
     if (summaryEl.innerHTML.includes('Asignado supera')) summaryEl.innerHTML = '';
   }
+}
+
+// ── MODO REDISTRIBUCIÓN ──────────────────────────────────────────────────────
+
+window.enterRedistMode = () => {
+  repMode = 'redist';
+  $('rep-redist-panel').style.display = '';
+  $('rep-compra-panel').style.display = 'none';
+  $('rep-global-totals').style.display = 'none';
+  const btnCompra = $('btn-compra-mode');
+  if (btnCompra) btnCompra.style.display = 'none';
+  const btnRedist = $('btn-redist-mode');
+  if (btnRedist) btnRedist.style.display = 'none';
+  computeRedistSuggestions();
+  renderRepFull();
+};
+
+window.exitRedistMode = () => {
+  repMode = 'stock';
+  $('rep-redist-panel').style.display = 'none';
+  const btnCompra = $('btn-compra-mode');
+  if (btnCompra) btnCompra.style.display = '';
+  const btnRedist = $('btn-redist-mode');
+  if (btnRedist) btnRedist.style.display = '';
+  repRedistData       = {};
+  repRedistActiveOrig = 'M01';
+  renderRepFull();
+  renderRepGlobalTotals();
+};
+
+function computeRedistSuggestions() {
+  repRedistData = {};
+  // Para cada producto, detectar sucursales con sobrestock y sucursales con déficit
+  repProducts.forEach(p => {
+    REP_DESTS.forEach(orig => {
+      const stockOrig = p.stock[orig] || 0;
+      const topeOrig  = REP_MAXIMUMS[orig] || 999;
+      const excedente = stockOrig - topeOrig;
+      if (excedente <= 0) return; // no tiene sobrestock
+      let restante = excedente;
+      // Distribuir excedente a sucursales con déficit en orden de prioridad
+      for (const dest of REP_PRIORITY_ORDER) {
+        if (dest === orig) continue;
+        if (restante <= 0) break;
+        const stockDest = p.stock[dest] || 0;
+        const minDest   = REP_MINIMUMS[dest] || 0;
+        const deficit   = minDest - stockDest;
+        if (deficit <= 0) continue;
+        const mover = Math.min(deficit, restante);
+        const key   = `${orig}->${dest}`;
+        if (!repRedistData[key]) repRedistData[key] = {};
+        repRedistData[key][p.code] = mover;
+        restante -= mover;
+      }
+    });
+  });
+}
+
+function getRedistOrigenes() {
+  // Sucursales que tienen al menos un producto para redistribuir
+  return REP_DESTS.filter(orig =>
+    Object.keys(repRedistData).some(key => key.startsWith(`${orig}->`) &&
+      Object.values(repRedistData[key]).some(v => v > 0))
+  );
+}
+
+function renderRedistTabs() {
+  const origenes = getRedistOrigenes();
+  if (!origenes.length) {
+    $('rep-tabs').innerHTML = `<span style="font-size:.63rem;color:var(--muted);padding:5px 8px">
+      Sin excedentes detectados entre sucursales.</span>`;
+    return;
+  }
+  if (!origenes.includes(repRedistActiveOrig)) repRedistActiveOrig = origenes[0];
+  $('rep-tabs').innerHTML = origenes.map(id => {
+    const total = Object.keys(repRedistData)
+      .filter(k => k.startsWith(`${id}->`))
+      .reduce((s, k) => s + Object.values(repRedistData[k]).filter(v => v > 0).length, 0);
+    const badge = total ? `<span class="rtab-badge">${total}</span>` : '';
+    return `<button class="rtab${id === repRedistActiveOrig ? ' on' : ''}"
+      onclick="switchRedistTab('${id}')">${REP_LBLS[id]}${badge}</button>`;
+  }).join('');
+}
+
+window.switchRedistTab = id => {
+  repRedistActiveOrig = id;
+  renderRedistTabs();
+  renderRedistTable();
+};
+
+function renderRedistTable() {
+  const orig    = repRedistActiveOrig;
+  const origenes = getRedistOrigenes();
+
+  if (!origenes.length) {
+    $('rep-filters').innerHTML = '';
+    $('rep-table-wrap').innerHTML = `
+      <div style="text-align:center;padding:3rem 1rem;font-size:.7rem;color:var(--muted)">
+        ✓ No hay excedentes detectados entre sucursales con la configuración actual.
+      </div>`;
+    return;
+  }
+
+  // Filtro de búsqueda
+  $('rep-filters').innerHTML = `
+    <input type="search" class="rep-search" placeholder="Buscar código o producto…"
+      value="${escHtml(repSearch)}" oninput="onRepSearch(this.value)"/>`;
+
+  // Destinos que reciben desde este origen
+  const destinos = REP_PRIORITY_ORDER.filter(dest => {
+    if (dest === orig) return false;
+    const key = `${orig}->${dest}`;
+    return repRedistData[key] && Object.values(repRedistData[key]).some(v => v > 0);
+  });
+
+  // Productos con movimiento desde este origen
+  const normSearch = s => String(s).toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]/g, '');
+
+  const productCodes = [...new Set(
+    Object.keys(repRedistData)
+      .filter(k => k.startsWith(`${orig}->`))
+      .flatMap(k => Object.keys(repRedistData[k]))
+  )].filter(code => {
+    if (!repSearch) return true;
+    const p = repProductMap.get(code);
+    if (!p) return false;
+    const terms = repSearch.trim().split(/\s+/).filter(Boolean).map(normSearch);
+    const nameN = normSearch(p.name);
+    const codeN = normSearch(p.code);
+    return terms.every(t => nameN.includes(t) || codeN.includes(t));
+  });
+
+  if (!productCodes.length) {
+    $('rep-table-wrap').innerHTML = `
+      <div style="text-align:center;padding:2rem 1rem;font-size:.7rem;color:var(--muted)">
+        Sin productos para mostrar.</div>`;
+    return;
+  }
+
+  const stockOrig = sid => {
+    const p = repProductMap.get(sid);
+    return p ? (p.stock[orig] || 0) : 0;
+  };
+
+  // Cabeceras de destinos con stock actual
+  const destHeaders = destinos.map(dest =>
+    `<th title="Mover a ${REP_LBLS[dest]}" style="min-width:90px">
+      ${REP_LBLS[dest].split(' ')[0]}<br/>
+      <span style="font-size:.55rem;color:var(--muted);font-weight:400">destino</span>
+    </th>`
+  ).join('');
+
+  const rows = productCodes.map(code => {
+    const p        = repProductMap.get(code);
+    if (!p) return '';
+    const stkOrig  = p.stock[orig] || 0;
+    const topeOrig = REP_MAXIMUMS[orig] || 999;
+    const excedente = Math.max(0, stkOrig - topeOrig);
+
+    const destCells = destinos.map(dest => {
+      const key     = `${orig}->${dest}`;
+      const qty     = (repRedistData[key] || {})[code] || 0;
+      const stkDest = p.stock[dest] || 0;
+      const minDest = REP_MINIMUMS[dest] || 0;
+      return `<td class="td-send">
+        <div style="font-size:.55rem;color:var(--muted);margin-bottom:2px;text-align:center">
+          stk:${stkDest} min:${minDest}
+        </div>
+        <input type="number" min="0" step="1" value="${qty || ''}"
+          class="rep-qty${qty > 0 ? ' has-qty' : ''}"
+          data-code="${escAttr(code)}" data-orig="${escAttr(orig)}" data-dest="${escAttr(dest)}"
+          data-mode="redist"
+          placeholder="0" oninput="onRedistQtyInput(this)"/>
+      </td>`;
+    }).join('');
+
+    return `<tr>
+      <td class="td-code">${escHtml(code)}</td>
+      <td class="td-name">${escHtml(p.name)}</td>
+      <td class="td-stk ${stkCls(stkOrig)}">${stkOrig}</td>
+      <td class="td-stk" style="color:var(--warn-tx);font-weight:700">+${excedente}</td>
+      ${destCells}
+    </tr>`;
+  }).join('');
+
+  $('rep-table-wrap').innerHTML = `
+    <table class="rep-table">
+      <thead><tr>
+        <th>Código</th>
+        <th>Producto</th>
+        <th title="Stock en ${REP_LBLS[orig]}">Stock</th>
+        <th title="Excedente sobre tope">Excedente</th>
+        ${destHeaders}
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+window.onRedistQtyInput = inp => {
+  const v    = parseInt(inp.value, 10);
+  const code = inp.dataset.code;
+  const orig = inp.dataset.orig;
+  const dest = inp.dataset.dest;
+  const key  = `${orig}->${dest}`;
+  if (!repRedistData[key]) repRedistData[key] = {};
+  if (v > 0) { repRedistData[key][code] = v; inp.classList.add('has-qty'); }
+  else        { delete repRedistData[key][code]; inp.classList.remove('has-qty'); }
+  renderRedistTabs();
+  saveRepSessionDebounced();
+};
+
+function generateRedistXLS(orig) {
+  if (typeof XLSX === 'undefined') return;
+  const fecha = new Date().toISOString().slice(0, 10);
+  const destinos = REP_PRIORITY_ORDER.filter(dest => {
+    if (dest === orig) return false;
+    const key = `${orig}->${dest}`;
+    return repRedistData[key] && Object.values(repRedistData[key]).some(v => v > 0);
+  });
+  if (!destinos.length) { alert(`Sin cantidades para redistribuir desde ${REP_LBLS[orig]}.`); return; }
+  let delay = 0;
+  destinos.forEach(dest => {
+    setTimeout(() => {
+      const key  = `${orig}->${dest}`;
+      const send = repRedistData[key] || {};
+      const rows = Object.entries(send).filter(([,v]) => v > 0).map(([code, qty]) => [code, qty]);
+      if (!rows.length) return;
+      const ws = XLSX.utils.aoa_to_sheet([['Código', 'Cantidad'], ...rows]);
+      ws['!cols'] = [{ wch: 22 }, { wch: 10 }];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Redistribucion');
+      XLSX.writeFile(wb,
+        `Redistribucion_${REP_FNAMES[orig]}_${REP_FNAMES[dest]}_${fecha}.xls`,
+        { bookType: 'biff8' }
+      );
+      saveReposicionRecord(orig, dest, send, fecha);
+    }, delay);
+    delay += 450;
+  });
 }
 
 window.enterCompraMode = () => {
@@ -5636,6 +5888,10 @@ document.addEventListener('DOMContentLoaded', init);
         onclick="enterCompraMode()">
         📦 Dist. Compra
       </button>
+      <button class="btn btn-outline" id="btn-redist-mode" style="font-size:.6rem"
+        onclick="enterRedistMode()">
+        ⇄ Redistribuir
+      </button>
       <button class="btn btn-outline" style="font-size:.6rem;color:var(--err-tx)"
         onclick="clearRepSession()">
         ⊘ Limpiar todo
@@ -5662,6 +5918,16 @@ document.addEventListener('DOMContentLoaded', init);
         </div>
       </div>
       <div id="rep-compra-filelist" class="rep-filelist" style="display:none"></div>
+    </div>
+    <div id="rep-redist-panel" style="display:none;border-bottom:1px solid var(--border2)">
+      <div style="margin:.6rem .875rem;padding:.55rem .875rem;border-radius:var(--r);
+        background:var(--info-bg);border:1px solid var(--info-bd);color:var(--info-tx);
+        font-size:.67rem;line-height:1.6;display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+        <span>⇄ <strong>MODO REDISTRIBUCIÓN</strong> — Mover excedentes entre sucursales.
+          Cada pestaña es una sucursal origen con sobrestock.</span>
+        <button class="btn btn-outline" style="font-size:.58rem;color:var(--info-tx);border-color:var(--info-bd);margin-left:auto"
+          onclick="exitRedistMode()">← Volver a reposición normal</button>
+      </div>
     </div>
     <div class="rep-tabs" id="rep-tabs"></div>
     <div class="rep-filters" id="rep-filters"></div>
