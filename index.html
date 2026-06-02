@@ -1589,7 +1589,7 @@ function renderDash(list) {
 
   let html = '';
   if (!activas.length) {
-    const isCollab = currentUser?.role === 'collaborator';
+    const isCollab = ['collaborator','motorista'].includes(currentUser?.role);
     const noAssigned = isCollab && list.length === 0;
     const filteredEmpty = isCollab && list.length > 0 && homeFilter !== 'all';
     html += noAssigned
