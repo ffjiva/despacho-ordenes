@@ -731,6 +731,23 @@ body:not(.dark) input[type="time"] {
     <div class="sort-divider"></div>
     <button class="fbtn on" id="sort-alpha" onclick="setSort('alpha')">A–Z</button>
     <button class="fbtn" id="sort-cat" onclick="setSort('category')">Categorías</button>
+    <div class="sort-divider"></div>
+    <input type="search" id="pick-search-input"
+      placeholder="Buscar…"
+      value=""
+      oninput="onPickSearch(this.value)"
+      style="
+        background: var(--surface2);
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        color: var(--text);
+        font-family: var(--mono);
+        font-size: .63rem;
+        padding: 3px 10px;
+        outline: none;
+        width: 130px;
+        flex-shrink: 0;
+      "/>
   </div>
 
   <div class="pick-list" id="pick-list"></div>
@@ -792,6 +809,7 @@ let unsub = null, homeUnsub = null;
 let parsedProducts = [];
 let pendingOriginalFile = null;
 let pickFilter = 'all';
+let pickSearch = '';
 let homeFilter = 'all';
 let supUserFilter = '';
 let supDestFilter = '';
@@ -2018,6 +2036,7 @@ async function doOpenDespachoReadOnly(id, data) {
   isReadOnly = true;
   pickFilter = 'all';
   pickSort   = 'alpha';
+  pickSearch = '';
 
   $('filter-all').classList.add('on');
   $('filter-pending').classList.remove('on');
@@ -2049,7 +2068,8 @@ async function doOpenDespacho(id, readOnly = false, lockedBy = '') {
   lockSet = false;
   isReadOnly = readOnly;
   pickFilter = 'all';
-  pickSort = 'alpha';
+  pickSort   = 'alpha';
+  pickSearch = '';
 
   // Reset filter buttons
   $('filter-all').classList.add('on');
@@ -2163,6 +2183,23 @@ function renderPick() {
   let fl = products;
   if (pickFilter === 'done')    fl = products.filter(p => checked[p.id]?.done);
   if (pickFilter === 'pending') fl = products.filter(p => !checked[p.id]?.done);
+
+  // Apply search
+  if (pickSearch.trim()) {
+    const normSearch = s => String(s).toLowerCase()
+      .normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .replace(/[^a-z0-9]/g, '');
+    const terms = pickSearch.trim().split(/\s+/).filter(Boolean).map(normSearch);
+    fl = fl.filter(p => {
+      const nameN = normSearch(p.name || '');
+      const codeN = normSearch(p.code || '');
+      return terms.every(t => nameN.includes(t) || codeN.includes(t));
+    });
+  }
+
+  // Sync input value (in case renderPick is called programmatically)
+  const searchInp = $('pick-search-input');
+  if (searchInp && searchInp.value !== pickSearch) searchInp.value = pickSearch;
 
   if (!fl.length) {
     $('pick-list').innerHTML = `<div class="empty-state">${
@@ -2393,6 +2430,12 @@ window.setSort = mode => {
   $('sort-alpha').classList.toggle('on', mode === 'alpha');
   $('sort-cat').classList.toggle('on', mode === 'category');
   renderPick();
+};
+
+let _pickSearchTimer = null;
+window.onPickSearch = val => {
+  clearTimeout(_pickSearchTimer);
+  _pickSearchTimer = setTimeout(() => { pickSearch = val.trim(); renderPick(); }, 200);
 };
 
 /* ═══════════════════════════════════════
