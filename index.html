@@ -2462,7 +2462,8 @@ window.duplicateDespacho = async id => {
   await dbSave({
     name: `${src.name} (copia)`,
     assignedTo: src.assignedTo || '',
-    createdBy: currentUser?.name ?? '',
+    createdBy:     currentUser?.uid  ?? '',
+    createdByName: currentUser?.name ?? '',
     products: src.products || [],
     checked: {},
     createdAt: Date.now()
@@ -2662,7 +2663,7 @@ function openModal(title, sub, content, btns) {
 }
 
 window.closeModal = e => {
-  if (!e || e.target === $('modal-overlay')) {
+  if (!e || e.target === $('modal-overlay') || e.currentTarget?.tagName === 'BUTTON') {
     $('modal-overlay').classList.remove('on');
   }
 };

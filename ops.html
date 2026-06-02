@@ -1603,7 +1603,7 @@ window.saveNew = async () => {
     } else {
       await fbMod.addDoc(fbMod.collection(db, COLLECTION), {
         ...payload, done: false, doneAt: null, doneBy: null,
-        createdBy: currentUser?.name || '', createdAt: Date.now()
+        createdBy: currentUser?.uid || '', createdByName: currentUser?.name || '', createdAt: Date.now()
       });
     }
     $('modal-new').classList.remove('on');
@@ -2149,7 +2149,8 @@ window.createVuelta = async () => {
       linkedOrderIds,
       status:         'pending',
       paradero:       '',
-      createdBy:      currentUser?.name || '',
+      createdBy:      currentUser?.uid  || '',
+      createdByName:  currentUser?.name || '',
       createdAt:      Date.now(),
       completedAt:    null,
       photos:         []
@@ -2609,7 +2610,7 @@ window.handleXLSFile = async inputEl => {
 
 async function showImportPreview(domicilios, dupCount = 0) {
   const members   = await loadTeamMembers();
-  const motorOpts = members.map(m => `<option value="${escHtml(m)}">${escHtml(m)}</option>`).join('');
+  const motorOpts = members.map(m => `<option value="${escHtml(m.uid)}">${escHtml(m.name)}</option>`).join('');
 
   const shown = domicilios.slice(0, 25);
   const rows  = shown.map(d => `
