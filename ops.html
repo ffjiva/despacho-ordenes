@@ -1249,7 +1249,8 @@ let repCompraProducts = [];
 let repCompraData     = {};
 let repCompraFiles    = [];
 let repRedistData     = {}; // { 'M01->S02': { code: qty } }
-let repRedistActiveOrig = 'M01';
+let repRedistActiveOrig  = 'M01';
+let repRedistDestFilter  = null;
 let repCompraTouched  = {}; // { code: Set<sucId> } — sucursales editadas manualmente por producto
 let repDisplayLimit   = 300;
 
@@ -5173,6 +5174,7 @@ window.exitRedistMode = () => {
   if (btnRedist) btnRedist.style.display = '';
   repRedistData       = {};
   repRedistActiveOrig = 'M01';
+  repRedistDestFilter = null;
   renderRepFull();
   renderRepGlobalTotals();
 };
@@ -5231,8 +5233,14 @@ function renderRedistTabs() {
   }).join('');
 }
 
+window.toggleRedistDestFilter = dest => {
+  repRedistDestFilter = repRedistDestFilter === dest ? null : dest;
+  renderRedistTable();
+};
+
 window.switchRedistTab = id => {
   repRedistActiveOrig = id;
+  repRedistDestFilter = null;
   renderRedistTabs();
   renderRedistTable();
 };
@@ -5288,15 +5296,28 @@ function renderRedistTable() {
     return;
   }
 
-  // Cabeceras de destinos con stock actual
-  const destHeaders = destinos.map(dest =>
-    `<th title="Mover a ${REP_LBLS[dest]}" style="min-width:90px">
-      ${REP_LBLS[dest].split(' ')[0]}<br/>
-      <span style="font-size:.55rem;color:var(--muted);font-weight:400">destino</span>
-    </th>`
-  ).join('');
+  // Aplicar filtro de columna si está activo
+  const productCodesFil = repRedistDestFilter
+    ? productCodes.filter(code => {
+        const key = `${orig}->${repRedistDestFilter}`;
+        return (repRedistData[key] || {})[code] > 0;
+      })
+    : productCodes;
 
-  const rows = productCodes.map(code => {
+  const destHeaders = destinos.map(dest => {
+    const isActive = repRedistDestFilter === dest;
+    return `<th title="${isActive ? 'Quitar filtro' : 'Filtrar por ' + REP_LBLS[dest]}"
+      style="min-width:90px;cursor:pointer;user-select:none;
+        ${isActive ? 'background:var(--done-bg);color:var(--done-tx);border-bottom:2px solid var(--done-tx)' : ''}"
+      onclick="toggleRedistDestFilter('${dest}')">
+      ${REP_LBLS[dest].split(' ')[0]}${isActive ? ' ▲' : ''}<br/>
+      <span style="font-size:.55rem;color:${isActive ? 'var(--done-tx)' : 'var(--muted)'};font-weight:400">
+        ${isActive ? 'filtrado' : 'destino'}
+      </span>
+    </th>`;
+  }).join('');
+
+  const rows = productCodesFil.map(code => {
     const p        = repProductMap.get(code);
     if (!p) return '';
     const stkOrig  = p.stock[orig] || 0;
