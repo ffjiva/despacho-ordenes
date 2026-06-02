@@ -4221,7 +4221,7 @@ function detectRepBrand(filename) {
     if (cuNorm === norm(b)) return b;
     if (cuNorm.includes(norm(b)) && norm(b).length >= 3) return b;
   }
-  return candidate.trim() || '';
+  return '';
 }
 
 function parseRepXLS(workbook, brand) {
