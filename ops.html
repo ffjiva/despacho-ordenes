@@ -895,7 +895,8 @@ body:not(.dark) input[type="time"] {
   padding: 1.25rem; text-align: center; cursor: pointer;
   background: transparent; transition: background .15s;
 }
-.inv-dropzone:hover { background: var(--inv-bg); }
+.inv-dropzone:hover  { background: var(--inv-bg); }
+.inv-dropzone-over   { background: var(--inv-bg); border-color: var(--done-tx); border-style: solid; }
 .inv-dropzone-txt { font-size: .78rem; color: var(--accent); margin-top: .35rem; }
 .inv-preview-ok {
   background: var(--done-bg); border: 1px solid var(--done-bd);
@@ -915,6 +916,74 @@ body:not(.dark) input[type="time"] {
 .inv-hist-detail.open { display: block; }
 .inv-hist-row { font-size: .72rem; color: var(--muted); padding: .15rem 0; }
 .inv-hist-row span { color: #f08080; font-weight: 600; }
+
+/* ── MÓDULO 8b — MODAL CELEBRACIÓN ── */
+@keyframes inv-confetti-fall {
+  0%   { transform: translateY(-10px) rotate(0deg);   opacity: 1; }
+  100% { transform: translateY(420px) rotate(720deg); opacity: 0; }
+}
+@keyframes inv-box-drop {
+  0%   { transform: translateY(0px);  }
+  60%  { transform: translateY(2px);  }
+  80%  { transform: translateY(-3px); }
+  100% { transform: translateY(0px);  }
+}
+@keyframes inv-modal-in {
+  0%   { opacity: 0; transform: scale(.92); }
+  100% { opacity: 1; transform: scale(1);   }
+}
+.inv-cel-overlay {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.72);
+  z-index: 300;
+  align-items: center; justify-content: center;
+  padding: 1rem;
+}
+.inv-cel-overlay.on { display: flex; }
+.inv-cel-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 2rem 1.5rem 1.5rem;
+  width: 100%; max-width: 320px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+  animation: inv-modal-in .25s ease both;
+}
+.inv-cel-title {
+  font-size: 1.15rem; font-weight: 700;
+  color: var(--text); margin: 1rem 0 .25rem;
+}
+.inv-cel-sub {
+  font-size: .78rem; color: var(--muted);
+  margin-bottom: 1rem; line-height: 1.5;
+}
+.inv-cel-disc {
+  display: inline-block;
+  background: var(--inv-bg); color: var(--inv-tx);
+  border: 1px solid var(--inv-bd);
+  font-size: .72rem; padding: 3px 10px;
+  border-radius: 10px; margin-bottom: 1.25rem;
+}
+.inv-cel-btn {
+  width: 100%; padding: .65rem;
+  border-radius: var(--r);
+  background: var(--accent); color: #fff;
+  font-size: .85rem; font-weight: 600;
+  border: none; cursor: pointer;
+}
+.inv-confetti-piece {
+  position: absolute;
+  border-radius: 1px;
+  animation: inv-confetti-fall linear forwards;
+  pointer-events: none;
+}
+.inv-pixel-wrap {
+  animation: inv-box-drop .6s ease .3s both;
+  display: inline-block;
+}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
@@ -4323,6 +4392,42 @@ window.closeInvModal = () => {
   window._invParsedProducts = null;
 };
 
+// ── Drag & drop en dropzone de inventario ──
+(function setupInvDragDrop() {
+  function getZone() { return $('inv-dropzone'); }
+
+  document.addEventListener('dragover', e => {
+    if (!getZone()) return;
+    e.preventDefault();
+  });
+
+  document.addEventListener('drop', e => {
+    const zone = getZone();
+    if (!zone) return;
+    e.preventDefault();
+    zone.classList.remove('inv-dropzone-over');
+    const files = Array.from(e.dataTransfer.files)
+      .filter(f => /\.(xls|xlsx)$/i.test(f.name));
+    if (!files.length) return;
+    // Inyectar en el input para reusar onInvFilesChange
+    const dt = new DataTransfer();
+    files.forEach(f => dt.items.add(f));
+    const input = $('inv-modal-files');
+    input.files = dt.files;
+    onInvFilesChange(input);
+  });
+
+  document.addEventListener('dragenter', e => {
+    const zone = getZone();
+    if (zone && zone.contains(e.target)) zone.classList.add('inv-dropzone-over');
+  });
+
+  document.addEventListener('dragleave', e => {
+    const zone = getZone();
+    if (zone && !zone.contains(e.relatedTarget)) zone.classList.remove('inv-dropzone-over');
+  });
+})();
+
 window.onInvFilesChange = async (input) => {
   const preview = $('inv-modal-preview');
   preview.innerHTML = '<span style="color:var(--muted);font-size:.75rem">Procesando archivos…</span>';
@@ -4572,6 +4677,87 @@ window.finalizarConteo = async () => {
     status: 'completado',
     completadoAt: Date.now()
   });
+
+  showInvCelebration(
+    d.sucursalNombre || d.sucursal || '',
+    d.titulo || 'Conteo',
+    d.resumen?.total || 0,
+    d.resumen?.discrepancias || 0
+  );
+};
+
+function drawInvPixelArt() {
+  const canvas = $('inv-pixel-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const S = 6;
+  function px(x, y, c) { ctx.fillStyle = c; ctx.fillRect(x*S, y*S, S, S); }
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const skin='#F5C5A3', hair='#3B2A1A', shirt='#534AB7', pants='#2C2C2A',
+        shoe='#1A1A1A', box='#EF9F27', boxD='#BA7517', boxL='#FAEEDA';
+  const bx=4;
+
+  px(bx+1,0,hair); px(bx+2,0,hair); px(bx+3,0,hair);
+  px(bx,1,hair); px(bx+1,1,skin); px(bx+2,1,skin); px(bx+3,1,skin); px(bx+4,1,hair);
+  px(bx,2,skin); px(bx+1,2,'#3B2A1A'); px(bx+2,2,skin); px(bx+3,2,'#3B2A1A'); px(bx+4,2,skin);
+  px(bx,3,skin); px(bx+1,3,'#CC7055'); px(bx+2,3,skin); px(bx+3,3,'#CC7055'); px(bx+4,3,skin);
+  for(let r=4;r<=6;r++){
+    px(bx,r,shirt); px(bx+1,r,shirt); px(bx+2,r,shirt); px(bx+3,r,shirt); px(bx+4,r,shirt);
+  }
+  px(bx-1,4,skin); px(bx-1,5,skin); px(bx-1,6,skin);
+  px(bx+5,4,skin); px(bx+5,5,skin); px(bx+5,6,skin);
+  const by=3;
+  px(2,by,boxL); px(3,by,boxL); px(4,by,boxL); px(5,by,box); px(6,by,box); px(7,by,box);
+  for(let r=1;r<=3;r++){
+    px(2,by+r,boxD); px(3,by+r,box); px(4,by+r,box);
+    px(5,by+r,box);  px(6,by+r,box); px(7,by+r,boxD);
+  }
+  px(4,by+1,boxL); px(4,by+2,boxL); px(4,by+3,boxL);
+  px(bx+1,7,pants); px(bx+3,7,pants);
+  px(bx+1,8,pants); px(bx+3,8,pants);
+  px(bx+1,9,shoe);  px(bx+3,9,shoe);
+}
+
+function spawnInvConfetti() {
+  const card = $('inv-cel-card');
+  if (!card) return;
+  const colors = ['#534AB7','#EF9F27','#4CAF7D','#E24B4A','#185FA5','#D4537E'];
+  const shapes = ['2px','50%','0'];
+  for (let i = 0; i < 28; i++) {
+    const el = document.createElement('div');
+    el.className = 'inv-confetti-piece';
+    el.style.left   = (10 + Math.random() * 80) + '%';
+    el.style.top    = '-8px';
+    el.style.background   = colors[Math.floor(Math.random() * colors.length)];
+    el.style.borderRadius = shapes[Math.floor(Math.random() * shapes.length)];
+    el.style.width  = (5 + Math.random() * 7) + 'px';
+    el.style.height = (5 + Math.random() * 7) + 'px';
+    el.style.animationDuration = (0.9 + Math.random() * 1.2) + 's';
+    el.style.animationDelay   = (Math.random() * 0.6) + 's';
+    card.appendChild(el);
+    el.addEventListener('animationend', () => el.remove());
+  }
+}
+
+function showInvCelebration(sucursalNombre, titulo, total, discrepancias) {
+  $('inv-cel-sub').innerHTML = `${sucursalNombre} — ${titulo}<br>${total} producto${total !== 1 ? 's' : ''} verificado${total !== 1 ? 's' : ''}`;
+  const discEl = $('inv-cel-disc');
+  if (discrepancias > 0) {
+    discEl.textContent = `⚠ ${discrepancias} discrepancia${discrepancias !== 1 ? 's' : ''} registrada${discrepancias !== 1 ? 's' : ''}`;
+    discEl.style.display = 'inline-block';
+  } else {
+    discEl.style.display = 'none';
+  }
+  $('inv-cel-overlay').classList.add('on');
+  drawInvPixelArt();
+  spawnInvConfetti();
+  setTimeout(spawnInvConfetti, 900);
+  setTimeout(spawnInvConfetti, 1700);
+}
+
+window.closeInvCelebration = () => {
+  $('inv-cel-overlay').classList.remove('on');
 };
 
 // ── Historial ────────────────────────
@@ -4632,7 +4818,7 @@ async function initInvHistorial() {
 }
 
 window.toggleHistDet = id => {
-  const el = $(`hist-det-${id}`);
+  const el = document.getElementById(`hist-det-${id}`);
   if (el) el.classList.toggle('open');
 };
 
@@ -6650,10 +6836,11 @@ document.addEventListener('DOMContentLoaded', init);
     </select>
 
     <label style="font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Archivos XLS</label>
-    <div class="inv-dropzone" style="margin:.3rem 0 .5rem" onclick="$('inv-modal-files').click()">
+    <label for="inv-modal-files" id="inv-dropzone"
+      class="inv-dropzone" style="margin:.3rem 0 .5rem;display:block;cursor:pointer">
       <div style="font-size:1.5rem">📂</div>
-      <div class="inv-dropzone-txt">Toca para subir uno o varios XLS<br><span style="font-size:.7rem;opacity:.7">Reporte de Inventario de Existencias</span></div>
-    </div>
+      <div class="inv-dropzone-txt">Arrastrá o tocá para subir uno o varios XLS<br><span style="font-size:.7rem;opacity:.7">Reporte de Inventario de Existencias</span></div>
+    </label>
     <input id="inv-modal-files" type="file" accept=".xls,.xlsx" multiple style="display:none" onchange="onInvFilesChange(this)"/>
     <div id="inv-modal-preview"></div>
 
@@ -6711,6 +6898,19 @@ document.addEventListener('DOMContentLoaded', init);
       style="font-size:.72rem;padding:4px 8px;border:1px solid var(--border);border-radius:var(--r);background:var(--surface);color:var(--text)"/>
   </div>
   <div id="inv-hist-list" style="padding:.75rem .875rem 5rem"></div>
+</div>
+
+<!-- ── MÓDULO 8b — MODAL CELEBRACIÓN ── -->
+<div class="inv-cel-overlay" id="inv-cel-overlay" onclick="closeInvCelebration()">
+  <div class="inv-cel-card" id="inv-cel-card" onclick="event.stopPropagation()">
+    <div class="inv-pixel-wrap">
+      <canvas id="inv-pixel-canvas" width="96" height="80" style="display:block;margin:0 auto"></canvas>
+    </div>
+    <div class="inv-cel-title">¡Conteo completado!</div>
+    <div class="inv-cel-sub" id="inv-cel-sub"></div>
+    <div class="inv-cel-disc" id="inv-cel-disc" style="display:none"></div>
+    <button class="inv-cel-btn" onclick="closeInvCelebration()">Cerrar</button>
+  </div>
 </div>
 </body>
 </html>
