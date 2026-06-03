@@ -185,6 +185,12 @@ Modal de celebración incluye botón "📷 Documentar preparación".
 ### Módulo 8 — Domicilios (Entregas a clientes)
 `ops.html` → tab Entregas en s-vueltas. Import XLS de domicilios → Firestore. Estados: pendiente / en_camino / entregado / no_entregado. Editar, eliminar, reagendar, reasignar individualmente. GPS en inicio y fin. Fotos por entrega. Arrastres de días anteriores (últimos 30 días). Integrado en cierre de jornada y métricas.
 
+### Búsqueda en picking *(index.html — s-pick)*
+Input de búsqueda por nombre o código en la barra de filtros de s-pick. Filtra productos en tiempo real. Útil en órdenes de 50+ productos para evitar scroll excesivo.
+
+### Módulo 6d — Puente motorista↔bodeguero *(index.html)*
+El rol `motorista` ahora puede acceder a `index.html` y ver solo sus órdenes asignadas, igual que `collaborator`. Tres ajustes en goHome() y renderDash(): query filtrado por UID, filtros ocultos, título "📦 Mis Órdenes". Anderson De Sousa validado en producción.
+
 ---
 
 ## Pendientes
@@ -199,14 +205,8 @@ Al modificar usuarios desde `s-equipo` en ops.html, se reescribe el array `confi
 ### 🔲 Features próximos
 
 
-**Búsqueda de productos en picking** *(index.html — s-pick)*
-Input de búsqueda por nombre o código. Útil en órdenes de 50+ productos para evitar scroll.
-
 **Modo escáner de código de barras** *(index.html — s-pick)*
 Abrir cámara, escanear código del producto → marcarlo automáticamente. Requiere librería de lectura de códigos (ZXing o similar).
-
-**Módulo 6d — Puente identidades motorista↔bodeguero**
-Si Anderson necesita hacer picking desde index.html, requiere vincular su cuenta `motorista` con acceso a despachos. Pendiente de confirmar con Anderson: ¿usa index.html? ¿desde qué dispositivo? No implementar hasta confirmar el flujo real.
 
 ---
 
@@ -239,6 +239,9 @@ Esquema Firestore propuesto:
 productos_ubicacion/{productCode}
 code, name, bodega
 zona (ej. "B-3"), updatedAt
+
+**Rol `operador` — pendiente de definir**
+Nuevo rol en consideración. Aún sin definir: archivos a los que tendrá acceso, acciones permitidas vs solo lectura, y qué miembros del equipo lo usarán.
 
 ---
 

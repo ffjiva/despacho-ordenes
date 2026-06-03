@@ -500,6 +500,7 @@ body:not(.dark) input[type="time"] {
   color-scheme: light;
 }
 </style>
+<script src="https://unpkg.com/@zxing/browser@0.1.4/umd/index.min.js"></script>
 </head>
 <body>
 
@@ -760,6 +761,7 @@ body:not(.dark) input[type="time"] {
         width: 130px;
         flex-shrink: 0;
       "/>
+    <button id="btn-scanner" class="btn btn-outline" style="font-size:.7rem;padding:5px 12px" onclick="openScanner()">📷 Escanear</button>
   </div>
 
   <div class="pick-list" id="pick-list"></div>
@@ -1325,6 +1327,7 @@ function dbListen(id, cb) {
    HOME  —  real-time listener
 ═══════════════════════════════════════ */
 window.goHome = async () => {
+  closeScanner();
   const co = $('celebr-overlay');
   if (co) co.classList.remove('on');
   // Clear lock if we set it
@@ -1354,9 +1357,9 @@ window.goHome = async () => {
   if (fab) fab.style.display = isSuper ? 'flex' : 'none';
   // Ajustes para collaborator
   const filterBar = $('home-filter-bar');
-  if (filterBar) filterBar.style.display = currentUser?.role === 'collaborator' ? 'none' : 'flex';
+  if (filterBar) filterBar.style.display = ['collaborator', 'motorista'].includes(currentUser?.role) ? 'none' : 'flex';
   const topTitle = document.querySelector('#s-home .topbar-title');
-  if (topTitle) topTitle.textContent = currentUser?.role === 'collaborator' ? '📦 Mis Órdenes' : '📦 Despachos';
+  if (topTitle) topTitle.textContent = ['collaborator', 'motorista'].includes(currentUser?.role) ? '📦 Mis Órdenes' : '📦 Despachos';
   updateThemeBtn();
 
   startHomeListener();
@@ -1374,7 +1377,7 @@ function startHomeListener() {
   if (homeUnsub) { homeUnsub(); homeUnsub = null; }
 
   try {
-    const isCollaborator = currentUser?.role === 'collaborator';
+    const isCollaborator = ['collaborator', 'motorista'].includes(currentUser?.role);
     const q = isCollaborator
       ? fbMod.query(fbMod.collection(db,'despachos'), fbMod.where('assignedTo','==',currentUser?.uid ?? ''), fbMod.orderBy('createdAt','desc'))
       : fbMod.query(fbMod.collection(db,'despachos'), fbMod.orderBy('createdAt','desc'));
@@ -2150,9 +2153,7 @@ async function doOpenDespacho(id, readOnly = false, lockedBy = '') {
       isReadOnly = readOnly || !!(
         data.assignedTo &&
         currentUser?.role !== 'super' &&
-        data.assignedTo !== currentUser?.name &&
         data.assignedTo !== currentUser?.uid &&
-        data.createdBy  !== currentUser?.name &&
         data.createdBy  !== currentUser?.uid
       );
       const banner = $('readonly-banner');
@@ -2232,6 +2233,9 @@ function renderPick() {
   // Sync input value (in case renderPick is called programmatically)
   const searchInp = $('pick-search-input');
   if (searchInp && searchInp.value !== pickSearch) searchInp.value = pickSearch;
+
+  const scanBtn = document.getElementById('btn-scanner');
+  if (scanBtn) scanBtn.style.display = isReadOnly ? 'none' : '';
 
   if (!fl.length) {
     $('pick-list').innerHTML = `<div class="empty-state">${
@@ -3018,6 +3022,167 @@ window.printEtiquetas = () => {
   setTimeout(() => { w.focus(); w.print(); }, 400);
 };
 
+/* ═══════════════════════════════════════
+   ESCÁNER DE CÓDIGO DE BARRAS
+═══════════════════════════════════════ */
+let scannerActive = false;
+let zxingReader = null;
+let scannerCooldown = false;
+
+function openScanner() {
+  if (!curData?.products?.length) return;
+  const modal = document.getElementById('scanner-modal');
+  modal.style.display = 'flex';
+  document.getElementById('scanner-continuous').checked = false;
+  setScannerMsg('neutral', 'Apunta al código del producto...');
+  startScanner();
+}
+
+function closeScanner() {
+  stopScanner();
+  const modal = document.getElementById('scanner-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+function setScannerMsg(type, text) {
+  const el = document.getElementById('scanner-msg');
+  if (!el) return;
+  const colors = {
+    neutral: '#aaa',
+    success: 'var(--done-tx)',
+    error:   'var(--err-tx)',
+    warn:    'var(--warn-tx)'
+  };
+  el.style.color = colors[type] || '#aaa';
+  el.textContent = text;
+}
+
+async function startScanner() {
+  if (scannerActive) return;
+  scannerActive = true;
+  try {
+    const hints = new Map();
+    const formats = [
+      ZXingBrowser.BarcodeFormat?.EAN_13,
+      ZXingBrowser.BarcodeFormat?.EAN_8,
+      ZXingBrowser.BarcodeFormat?.CODE_128,
+      ZXingBrowser.BarcodeFormat?.CODE_39,
+      ZXingBrowser.BarcodeFormat?.UPC_A,
+      ZXingBrowser.BarcodeFormat?.UPC_E,
+      ZXingBrowser.BarcodeFormat?.QR_CODE,
+    ].filter(Boolean);
+    if (formats.length) hints.set(ZXingBrowser.DecodeHintType?.POSSIBLE_FORMATS, formats);
+
+    zxingReader = new ZXingBrowser.BrowserMultiFormatReader(hints);
+    const video = document.getElementById('scanner-video');
+
+    await zxingReader.decodeFromConstraints(
+      { video: { facingMode: 'environment' } },
+      video,
+      (result, err) => {
+        if (!result) return;
+        if (scannerCooldown) return;
+        handleScan(result.getText());
+      }
+    );
+  } catch(e) {
+    setScannerMsg('error', 'No se pudo acceder a la cámara. Verifica los permisos.');
+    scannerActive = false;
+  }
+}
+
+function stopScanner() {
+  scannerActive = false;
+  if (zxingReader) {
+    try { zxingReader.reset(); } catch(e) {}
+    zxingReader = null;
+  }
+  const video = document.getElementById('scanner-video');
+  if (video?.srcObject) {
+    video.srcObject.getTracks().forEach(t => t.stop());
+    video.srcObject = null;
+  }
+}
+
+async function handleScan(code) {
+  if (!code || !curData?.products) return;
+  const isContinuous = document.getElementById('scanner-continuous').checked;
+
+  const product = curData.products.find(p =>
+    String(p.code || '').trim() === String(code).trim()
+  );
+
+  if (!product) {
+    if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+    setScannerMsg('error', '❌ Este código no va muñeco, revise bien');
+    scannerCooldown = true;
+    setTimeout(() => {
+      scannerCooldown = false;
+      if (isContinuous) setScannerMsg('neutral', 'Apunta al código del producto...');
+    }, 2000);
+    return;
+  }
+
+  const alreadyDone = curData.checked?.[product.id]?.done === true;
+  if (alreadyDone) {
+    if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+    setScannerMsg('warn', '⚠️ Ya lo habias puesto');
+    scannerCooldown = true;
+    setTimeout(() => {
+      scannerCooldown = false;
+      if (isContinuous) setScannerMsg('neutral', 'Apunta al código del producto...');
+    }, 2000);
+    if (!isContinuous) { setTimeout(closeScanner, 2000); }
+    return;
+  }
+
+  if (navigator.vibrate) navigator.vibrate(100);
+  setScannerMsg('success', `✅ ${product.name || product.code}`);
+  await markItemFromScanner(product.id);
+
+  scannerCooldown = true;
+  setTimeout(() => {
+    scannerCooldown = false;
+    if (isContinuous) {
+      setScannerMsg('neutral', 'Apunta al código del producto...');
+    } else {
+      closeScanner();
+    }
+  }, 1500);
+}
+
+async function markItemFromScanner(pid) {
+  if (isReadOnly || !curData) return;
+  const ck = { ...(curData.checked || {}) };
+  ck[pid] = { done: true, time: fmtTime(), note: ck[pid]?.note || '' };
+  await applyUpdate({ checked: ck });
+
+  const prods = curData.products || [];
+  const tot   = prods.length;
+  const done  = Object.values(curData.checked || {}).filter(c => c.done).length;
+  if (tot > 0 && done === tot) {
+    await applyUpdate({ status: 'done', completedAt: Date.now() });
+    closeScanner();
+    showCelebrationModal();
+  }
+}
+
 </script>
+
+<div id="scanner-modal" style="display:none;position:fixed;inset:0;z-index:9999;background:#000;flex-direction:column;align-items:center;justify-content:flex-start;">
+  <div style="width:100%;max-width:480px;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;background:rgba(0,0,0,.7)">
+    <div style="font-family:var(--mono);font-size:.75rem;font-weight:700;color:#fff;letter-spacing:.08em">📷 ESCÁNER</div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <label style="display:flex;align-items:center;gap:6px;font-size:.68rem;color:#fff;font-family:var(--mono);cursor:pointer">
+        <span>Modo continuo</span>
+        <input type="checkbox" id="scanner-continuous" style="width:16px;height:16px;cursor:pointer"/>
+      </label>
+      <button onclick="closeScanner()" style="background:transparent;border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:6px;padding:5px 12px;font-size:.75rem;cursor:pointer">✕ Cerrar</button>
+    </div>
+  </div>
+  <video id="scanner-video" style="width:100%;max-width:480px;height:60vw;max-height:320px;object-fit:cover;background:#111"></video>
+  <div id="scanner-msg" style="width:100%;max-width:480px;padding:14px 16px;font-family:var(--mono);font-size:.8rem;text-align:center;min-height:48px;color:#aaa">Apunta al código del producto...</div>
+</div>
+
 </body>
 </html>
