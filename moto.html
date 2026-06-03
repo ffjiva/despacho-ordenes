@@ -403,12 +403,19 @@ async function init() {
     console.error('Firebase init error:', e);
   }
 
+  if (!authMod || !auth) {
+    showScreen('s-login');
+    $('moto-login-err').textContent = 'Error al conectar con el servidor. Recarga la página.';
+    $('moto-login-err').style.display = 'block';
+    return;
+  }
+
   // Firebase Auth maneja la persistencia de sesión automáticamente
   authMod.onAuthStateChanged(auth, async (firebaseUser) => {
     if (firebaseUser) {
       try {
         const snap = await fbMod.getDoc(fbMod.doc(db, 'users', firebaseUser.uid));
-        if (!snap.exists() || snap.data().active === false) {
+        if (!snap.exists() || snap.data().active !== true) {
           await authMod.signOut(auth);
           showScreen('s-login');
           return;
@@ -726,7 +733,9 @@ async function prefetchDespachoPhotos(list) {
       despachoPhotosCache.set(oid, snap.exists() ? (snap.data().photos || []) : []);
     } catch { despachoPhotosCache.set(oid, []); }
   }));
-  renderCombined();
+  // Solo re-renderizar si alguna foto nueva fue encontrada
+  const hasPhotos = [...ids].some(oid => (despachoPhotosCache.get(oid) || []).length > 0);
+  if (hasPhotos) renderCombined();
 }
 
 function renderList(list) {
@@ -1172,7 +1181,9 @@ function buildDomCard(d) {
           : ''}
         ${isCam
           ? `<button class="btn btn-done-action"
-               onclick="acabeDomicilio('${d.id}')">✓ ACABÉ</button>`
+               onclick="acabeDomicilio('${d.id}')">✓ ACABÉ</button>
+             <button class="btn btn-danger"
+               onclick="noPudeEntregar('${d.id}')">✕ No pude</button>`
           : ''}
       </div>` : ''}
       ${isNoEnt ? `
@@ -1184,8 +1195,9 @@ function buildDomCard(d) {
 }
 
 window.toggleComentario = id => {
-  const box  = $(`com-box-${id}`);
-  const btn  = $(`btn-com-${id}`);
+  const box = $(`com-box-${id}`);
+  const btn = $(`btn-com-${id}`);
+  if (!box || !btn) return;
   const open = box.style.display === 'none';
   box.style.display = open ? '' : 'none';
   btn.innerHTML = btn.innerHTML.replace(/[▾▴]/, open ? '▴' : '▾');
@@ -1319,8 +1331,10 @@ window.uploadFoto = async input => {
   const file = input.files[0];
   if (!file || !fotoVueltaId) return;
   const id  = fotoVueltaId;
-  const btn = document.querySelector(`#mc-${id} .btn-foto`);
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ Subiendo…'; }
+  fotoVueltaId = null;
+  const btns = Array.from(document.querySelectorAll(`#mc-${id} .btn-foto`));
+  btns.forEach(b => { b.disabled = true; });
+  if (btns[0]) btns[0].textContent = '⏳ Subiendo…';
   try {
     const path    = `vueltas/${id}/${Date.now()}_${currentDriver}.jpg`;
     const storRef = storageMod.ref(storage, path);
@@ -1332,7 +1346,10 @@ window.uploadFoto = async input => {
   } catch(e) {
     console.error(e);
     alert('Error al subir la foto. Intenta de nuevo.');
-    if (btn) { btn.disabled = false; btn.textContent = '📷 Foto'; }
+    const resBtns = Array.from(document.querySelectorAll(`#mc-${id} .btn-foto`));
+    resBtns.forEach(b => { b.disabled = false; });
+    if (resBtns[0]) resBtns[0].textContent = '📷 Cámara';
+    if (resBtns[1]) resBtns[1].textContent = '🖼 Galería';
   }
 };
 
@@ -1447,7 +1464,7 @@ window.confirmarNoEntrega = async () => {
 };
 
 window.closeNoEntregaModal = (e) => {
-  if (e && e.target !== $('modal-noentrega')) return;
+  if (e && e.target !== e.currentTarget) return;
   $('modal-noentrega').style.display = 'none';
   noEntregaId = null; noEntregaMotivo = '';
 };
@@ -1484,8 +1501,10 @@ window.uploadFotoDom = async input => {
   const file = input.files[0];
   if (!file || !fotoDomId) return;
   const id  = fotoDomId;
-  const btn = document.querySelector(`#mc-${id} .btn-foto`);
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ Subiendo…'; }
+  fotoDomId = null;
+  const btns = Array.from(document.querySelectorAll(`#mc-${id} .btn-foto`));
+  btns.forEach(b => { b.disabled = true; });
+  if (btns[0]) btns[0].textContent = '⏳ Subiendo…';
   try {
     const path    = `domicilios/${id}/${Date.now()}_${currentDriver}.jpg`;
     const storRef = storageMod.ref(storage, path);
@@ -1495,7 +1514,10 @@ window.uploadFotoDom = async input => {
   } catch(e) {
     console.error(e);
     alert('Error al subir la foto. Intenta de nuevo.');
-    if (btn) { btn.disabled = false; btn.textContent = '📷 Foto'; }
+    const resBtns = Array.from(document.querySelectorAll(`#mc-${id} .btn-foto`));
+    resBtns.forEach(b => { b.disabled = false; });
+    if (resBtns[0]) resBtns[0].textContent = '📷 Cámara';
+    if (resBtns[1]) resBtns[1].textContent = '🖼 Galería';
   }
 };
 
@@ -1507,7 +1529,13 @@ window.toggleDir = el => el.classList.toggle('open');
 function esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
-function escAttr(s) { return String(s).replace(/'/g,"\\'"); }
+function escAttr(s) {
+  return String(s)
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,"\\'");
+}
 
 /* ═══════════════════════════════════
    START

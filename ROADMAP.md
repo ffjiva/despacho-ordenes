@@ -152,7 +152,7 @@ Firebase Auth email/password en los 3 archivos. `users/{uid}` con name, email, r
 Roles `super`, `collaborator`, `motorista`. UI diferenciada según rol. Panel "👥 Equipo" en index.html para crear/desactivar usuarios. Firestore Rules aplicadas.
 
 ### Módulo 3 — Asignación de órdenes
-Asignación al crear orden. `assignedTo` (nombre) + `assignedToUid` (uid). Collaborator ve solo sus órdenes. Botón Reasignar solo para super.
+Asignación al crear orden. `assignedTo` (uid) + `assignedToName` (nombre para display). Collaborator ve solo sus órdenes. Botón Reasignar solo para super.
 
 ### Módulo 4 — Vista Supervisor
 Filtros en s-home: Todas / Pendientes / En proceso / Completadas. Badge "🔒 En uso por X" (lock TTL 30 min). Badge "Tú". Generador de etiquetas de caja 4x6": destino grande, número de orden, "CAJA X DE Y", logo ZD base64, selector de diseño de logo (ícono / texto / completo).
@@ -162,10 +162,6 @@ Collaborator ve solo sus órdenes. "Esperando que me den" si no hay órdenes asi
 
 ### Módulo 6c — Generador de Órdenes de Reposición
 `ops.html` → pantalla `s-reposicion`. Parser SheetJS local + sugerencias IA. Algoritmo 2 fases (mínimos por prioridad + excedente proporcional). Panel ⚙ PARÁMETROS. Opción "Completar al tope". Modo Compra: sube GerencialTotal.xls + archivo de compra → sugiere distribución respetando topes por sucursal. Genera XLS biff8 por par Origen→Destino. Persistencia sessionStorage.
-
-**Feature B — Pendiente:**
-- Umbrales por categoría (en lugar de mínimos/topes planos)
-- Redistribución sucursal→sucursal
 
 ### Módulo 7 — Trazabilidad de Reposiciones
 `ops.html` → pantalla `s-trazabilidad`. Registro automático en Firestore al generar XLS. Filtros por origen, destino, fecha. Cards expandibles con detalle de productos.
@@ -191,29 +187,75 @@ Input de búsqueda por nombre o código en la barra de filtros de s-pick. Filtra
 ### Módulo 6d — Puente motorista↔bodeguero *(index.html)*
 El rol `motorista` ahora puede acceder a `index.html` y ver solo sus órdenes asignadas, igual que `collaborator`. Tres ajustes en goHome() y renderDash(): query filtrado por UID, filtros ocultos, título "📦 Mis Órdenes". Anderson De Sousa validado en producción.
 
+### Escáner de código de barras *(index.html — s-pick)*
+Implementado con html5-qrcode@2.3.8. Modal con visor de cámara trasera, modo único y modo continuo (switch). Marca productos automáticamente por coincidencia de campo `code`. Feedback: sonido vía Web Audio API (tono ascendente en éxito, grave en error), vibración en Android. Mensajes: "Este código no va muñeco, revise bien" / "Ya lo habias puesto" / "✅ [nombre producto]". Validado en iOS Safari y Chrome Windows.
+
+### Fix isReadOnly — comparación por UID únicamente *(index.html)*
+Eliminadas comparaciones legacy por `currentUser.name` en el bloque isReadOnly. Ahora solo compara por `currentUser.uid`, consistente con el modelo Auth actual.
+
+### Layout barra filtros móvil *(index.html — s-pick)*
+Media query `@media (max-width: 600px)` aplica `flex-wrap: wrap` a `.filter-bar`. Buscador y botón escáner ocupan fila completa en móvil, con input expandible y botón fijo a la derecha. Sin cambios en escritorio.
+
+### Corrección de bugs — sesión 03 Jun 2026 *(index.html + ops.html + moto.html)*
+Revisión minuciosa de los tres archivos. 25 bugs corregidos en total.
+
+**Alto riesgo (12 bugs):**
+- `index.html` — Filtro "Pendientes" mostraba órdenes activas (`'active'` → `'pending'`)
+- `index.html` — `applyUpdate`: errores de Firestore silenciosos → ahora muestra banner `pick-save-err` por 5s
+- `index.html` — `dbListen`: sin error handler → ahora muestra "Conexión perdida" en s-pick
+- `index.html` — `getOrCreateUserProfile`: race condition asignaba rol `super` a múltiples usuarios simultáneos → siempre `collaborator`, super se asigna manualmente
+- `ops.html` — `createVuelta` / `saveVueltaEdit`: `members` fuera de scope → crash en cada creación de vuelta; corregido con texto del `<option>` seleccionado
+- `ops.html` — `initVueltasScreen` / `openNewVueltaModal`: selects de motorista con `value="[object Object]"` → corregido a `m.uid` / `m.name`
+- `ops.html` — `markVueltaDone`: sobreescribía `date` de la vuelta al completar → campo eliminado del update
+- `ops.html` — `saveAgendaEvent` / `deleteAgendaEvent`: `setDoc({events})` borraba el campo `eventos` completo → `setDoc(..., {merge:true})`
+- `moto.html` — `init()`: sin guardia post-fallo de Firebase → pantalla de login bloqueada sin mensaje
+- `moto.html` — `buildDomCard`: flujo "No pude entregar" sin botón en UI → añadido "✕ No pude" visible en estado `en_camino`
+- `moto.html` — `escAttr`: solo escapaba `'`; ahora escapa también `<`, `>`, `"`
+- `moto.html` — `active === false`: permitía entrada a usuarios con campo `active` ausente/null → cambiado a `active !== true`
+
+**Riesgo medio (9 bugs):**
+- `index.html` — `toggleItem` + `markItemFromScanner`: celebración podía dispararse dos veces → guarda `status !== 'done'`
+- `index.html` — XSS stored en `innerHTML`: `p.name`, `p.code`, `p.family`, `d.name`, `d.assignedToName` → función `esc()` añadida y aplicada
+- `index.html` — Auto-archivado en `renderDash`: podía generar ráfaga de escrituras por snapshot → `_archiveQueued` Set
+- `ops.html` — `openEditDomModal`: sin try/catch → `editingDomId` podía quedar apuntando a orden incorrecta
+- `ops.html` — `getYesterdaySV`: mezclaba zonas horarias → usa `toLocaleDateString('en-CA', {timeZone:'America/El_Salvador'})`
+- `ops.html` — `buildCierreResumen`: `startOfDay` en zona local del browser → fijo a `T00:00:00-06:00`
+- `ops.html` — `confirmImport`: sin límite de batch Firestore (max 500) → chunking de 499
+- `moto.html` — `prefetchDespachoPhotos`: re-renderizaba toda la lista aunque no hubiese fotos nuevas
+- `moto.html` — `uploadFoto`/`uploadFotoDom`: globals `fotoVueltaId`/`fotoDomId` con race condition + botón incorrecto deshabilitado
+
+**Riesgo bajo (4 bugs):**
+- `index.html` — Banner MODO LECTURA usaba variable `d` indefinida; modal "en uso" mostraba UID en vez de nombre
+- `ops.html` — `setFilter`/`toggleDone`: recreaban listener Firestore en cada clic → ahora filtran `_allPendientes` en memoria
+- `ops.html` — `repRedistData` no se persistía en sessionStorage al guardar sesión de reposición
+- `moto.html` — `closeNoEntregaModal`: `e.target` → `e.currentTarget`; `toggleComentario`/`guardarComentario` sin null guards
+
 ---
 
 ## Pendientes
 
 ### 🔧 Deuda técnica
 
-**`config/team` escrito por ops.html**
-Al modificar usuarios desde `s-equipo` en ops.html, se reescribe el array `config/team.members` completo, lo que puede borrar `fcmToken` de Anderson. Riesgo bajo pero pendiente de revisar. Si Anderson pierde notificaciones FCM, debe cerrar sesión y volver a entrar para re-registrar el token.
 
 ---
 
 ### 🔲 Features próximos
 
-
-**Modo escáner de código de barras** *(index.html — s-pick)*
-Abrir cámara, escanear código del producto → marcarlo automáticamente. Requiere librería de lectura de códigos (ZXing o similar).
+**Módulo 8b — Validación de Inventario Físico** *(ops.html)*
+Sube reporte XLS de inventario de bodega/sucursal (uno o varios archivos simultáneos).
+Parser SheetJS extrae productos con código, nombre, familia, Disponib. y E/Pedid.
+Lista de conteo agrupada por familia. Input numérico por producto. Estados: pendiente / contado / discrepancia.
+Progreso persistido en Firestore — puede salir y retomar sin perder avance.
+Finalización habilitada solo cuando todos los ítems tienen valor numérico ingresado.
+Si hay discrepancias al finalizar → modal de confirmación con conteo de diferencias.
+Resultado guardado en Firestore con historial consultable por sucursal y mes.
+Asignable a cualquier colaborador con notificación FCM al asignar.
+Navegación: botón en topbar desktop + entrada en drawer móvil "⋯".
+Prioridad: alta — visita bodega B03 el jueves 05 Jun 2026.
 
 ---
 
 ### 🔭 Ideas a futuro (diseñadas, sin fecha)
-
-**Módulo 8b — Validación de Inventario Físico** *(ops.html)*
-Sube reporte XLS de inventario de bodega/sucursal. Parser SheetJS extrae productos con código, nombre y cantidad del sistema. Lista para marcar ítem por ítem durante el conteo físico con cantidad contada y estado (pendiente / contado / discrepancia). Resultado guardado en Firestore para consulta posterior.
 
 **Módulo 9 — Base de datos de colaboradores** *(ops.html)*
 Directorio interno del equipo, diferente a `users/{uid}`. Campos: nombre, cargo, sucursal, fecha de ingreso, contacto, evaluación, fotografía. Futura relación con `users/{uid}` para vincular colaboradores que usen la app con los que no.
@@ -253,6 +295,7 @@ Mejoras menores para implementar cuando haya espacio:
 - **Imagen en viñetas de vueltas** — foto adjunta en cards de vueltas (ops.html)
 - **GPS picking** — registrar coordenadas al iniciar y completar una orden de bodega (index.html)
 - **Agente WhatsApp** — notificaciones o comandos por WhatsApp (largo plazo)
+- **Rediseño home ops.html** — revisión estética del layout de navegación principal. Dos conceptos bocetados en sesión 03 Jun 2026: (A) home con botones por módulo agrupados por sección, (B) tabs superiores por módulo. Pendiente de evaluar cuando haya espacio.
 
 ---
 
@@ -279,4 +322,4 @@ Al abrir una sesión de implementación:
 
 ---
 
-*Última actualización: 02 Junio 2026*
+*Última actualización: 03 Junio 2026 (bugs)*

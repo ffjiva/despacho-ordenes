@@ -1195,6 +1195,7 @@ let authReady = false;
 let authDetermined = false;
 let activeFilter = 'all';
 let showDone = false;
+let _allPendientes = [];
 let selectedType = '';
 let selectedUrgency = 'normal';
 let homeUnsub = null;
@@ -1388,7 +1389,10 @@ function startListener() {
     fbMod.orderBy('createdAt', 'desc')
   );
   homeUnsub = fbMod.onSnapshot(q,
-    snap => renderList(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
+    snap => {
+      _allPendientes = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      renderList(_allPendientes);
+    },
     err  => {
       $('pend-list').innerHTML = `<div class="empty-state" style="color:var(--err-tx)">Error al cargar. Verifica tu conexión.</div>`;
     }
@@ -1477,13 +1481,13 @@ window.setFilter = (f, btn) => {
   activeFilter = f;
   document.querySelectorAll('.fbtn').forEach(b => b.classList.remove('on'));
   btn.classList.add('on');
-  startListener();
+  renderList(_allPendientes);
 };
 
 window.toggleDone = () => {
   showDone = !showDone;
   $('toggle-done-lbl').textContent = showDone ? ' Ocultar resueltos' : ' Ver resueltos';
-  startListener();
+  renderList(_allPendientes);
 };
 
 /* ═══════════════════════════════════
@@ -1719,9 +1723,16 @@ window.goBackFromVueltas = () => {
 ═══════════════════════════════════ */
 window.openEditDomModal = async id => {
   editingDomId = id;
-  const snap = await fbMod.getDoc(fbMod.doc(db, 'domicilios', id));
-  if (!snap.exists()) return;
-  const d = snap.data();
+  let snap, d;
+  try {
+    snap = await fbMod.getDoc(fbMod.doc(db, 'domicilios', id));
+    if (!snap.exists()) { editingDomId = null; return; }
+    d = snap.data();
+  } catch(e) {
+    editingDomId = null;
+    console.error('openEditDomModal:', e);
+    return;
+  }
   $('ed-cliente').value = d.cliente || '';
   $('ed-tel').value     = d.telefono || '';
   $('ed-dir').value     = d.direccion || '';
@@ -1849,7 +1860,7 @@ window.initVueltasScreen = async () => {
     if (!sel) return;
     sel.innerHTML = '<option value="">Todos los motoristas</option>';
     members.forEach(m => {
-      sel.innerHTML += `<option value="${escHtml(m)}">${escHtml(m)}</option>`;
+      sel.innerHTML += `<option value="${escHtml(m.uid)}">${escHtml(m.name)}</option>`;
     });
   });
 
@@ -2090,7 +2101,7 @@ window.openNewVueltaModal = async () => {
   const sel = $('mv-motorista');
   sel.innerHTML = '<option value="">Sin asignar</option>';
   members.forEach(m => {
-    sel.innerHTML += `<option value="${escHtml(m)}">${escHtml(m)}</option>`;
+    sel.innerHTML += `<option value="${escHtml(m.uid)}">${escHtml(m.name)}</option>`;
   });
   fillOrdenCheckboxes('mv', despachos, todayVueltas);
   $('v-modal-date').value = date;
@@ -2144,7 +2155,7 @@ window.createVuelta = async () => {
       destination:    dest.toUpperCase(),
       description:    desc,
       assignedTo:     moto,
-      assignedToName: members.find(m => m.uid === moto)?.name || moto,
+      assignedToName: $('mv-motorista').options[$('mv-motorista').selectedIndex]?.text || moto,
       urgency:        newVueltaUrg,
       linkedOrderIds,
       status:         'pending',
@@ -2314,7 +2325,6 @@ window.markVueltaDone = async id => {
     await fbMod.updateDoc(fbMod.doc(db, 'vueltas', id), {
       status:      'done',
       completedAt: Date.now(),
-      date:        getTodaySV(),
       emergency:   false
     });
   } catch(e) { console.error(e); }
@@ -2374,7 +2384,7 @@ window.saveVueltaEdit = async () => {
       destination:    dest.toUpperCase(),
       description:    $('ve-desc').value.trim(),
       assignedTo:     editMotorista,
-      assignedToName: members.find(m => m.uid === editMotorista)?.name || editMotorista,
+      assignedToName: $('ve-motorista').options[$('ve-motorista').selectedIndex]?.text || editMotorista,
       urgency:        editingVueltaUrg,
       linkedOrderIds: editLinkedOrderIds,
       date:           $('ve-fecha').value
@@ -2672,33 +2682,37 @@ window.confirmImport = async () => {
   const now = Date.now();
 
   try {
-    const batch = fbMod.writeBatch(db);
-    pendingDomicilios.forEach(d => {
-      const ref = fbMod.doc(fbMod.collection(db, 'domicilios'));
-      batch.set(ref, {
-        type: 'domicilio',
-        date: importDate,
-        cliente: d.cliente,
-        telefono: d.telefono,
-        total: d.total || 0,
-        formaPago: d.formaPago || '',
-        direccion: d.direccion || '',
-        puntoReferencia: d.puntoReferencia || '',
-        departamento: d.departamento || '',
-        municipio: d.municipio || '',
-        empresaEnvio: d.empresaEnvio || 'Delivery Quiky',
-        assignedTo: motorista,
-        status: 'pendiente',
-        motivoNoEntrega: '',
-        fechaReagenda: '',
-        photos: [],
-        gpsInicio: null,
-        gpsFin: null,
-        createdAt: now,
-        completadoAt: null
+    const BATCH_SIZE = 499;
+    for (let i = 0; i < pendingDomicilios.length; i += BATCH_SIZE) {
+      const chunk = pendingDomicilios.slice(i, i + BATCH_SIZE);
+      const batch = fbMod.writeBatch(db);
+      chunk.forEach(d => {
+        const ref = fbMod.doc(fbMod.collection(db, 'domicilios'));
+        batch.set(ref, {
+          type: 'domicilio',
+          date: importDate,
+          cliente: d.cliente,
+          telefono: d.telefono,
+          total: d.total || 0,
+          formaPago: d.formaPago || '',
+          direccion: d.direccion || '',
+          puntoReferencia: d.puntoReferencia || '',
+          departamento: d.departamento || '',
+          municipio: d.municipio || '',
+          empresaEnvio: d.empresaEnvio || 'Delivery Quiky',
+          assignedTo: motorista,
+          status: 'pendiente',
+          motivoNoEntrega: '',
+          fechaReagenda: '',
+          photos: [],
+          gpsInicio: null,
+          gpsFin: null,
+          createdAt: now,
+          completadoAt: null
+        });
       });
-    });
-    await batch.commit();
+      await batch.commit();
+    }
     cancelImport();
   } catch(e) {
     alert('Error al guardar: ' + e.message);
@@ -3122,10 +3136,9 @@ window.goHomeFromNav = () => {
    MÓDULO 5 — CIERRE DE JORNADA
 ═══════════════════════════════════ */
 function getYesterdaySV() {
-  const now = new Date();
-  const sv  = new Date(now.toLocaleString('en-US', { timeZone: 'America/El_Salvador' }));
-  sv.setDate(sv.getDate() - 1);
-  return sv.toISOString().slice(0, 10);
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return d.toLocaleDateString('en-CA', { timeZone: 'America/El_Salvador' });
 }
 
 window.goCierre = () => {
@@ -3174,7 +3187,7 @@ async function buildCierreResumen(fecha) {
   ));
   const doms = domSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-  const startOfDay = new Date(fecha + 'T00:00:00').getTime();
+  const startOfDay = new Date(fecha + 'T00:00:00-06:00').getTime();
   const endOfDay   = startOfDay + 86399999;
   const pendSnap   = await fbMod.getDocs(fbMod.query(
     fbMod.collection(db, COLLECTION),
@@ -3842,7 +3855,7 @@ window.saveAgendaEvent = async () => {
     } else {
       events.push({ id: Date.now().toString(), titulo, dias: selectedDias.sort((a,b)=>a-b), activo: true });
     }
-    await fbMod.setDoc(ref, { events });
+    await fbMod.setDoc(ref, { events }, { merge: true });
     $('modal-agenda').classList.remove('on');
     editingAgendaId = null;
     selectedDias    = [];
@@ -3863,7 +3876,7 @@ window.deleteAgendaEvent = async (id, titulo) => {
     const ref  = fbMod.doc(db, 'config', 'agenda');
     const snap = await fbMod.getDoc(ref);
     const events = (snap.exists() ? snap.data().events || [] : []).filter(e => e.id !== id);
-    await fbMod.setDoc(ref, { events });
+    await fbMod.setDoc(ref, { events }, { merge: true });
     loadAgendaList();
     briefingLoaded = false;
   } catch(e) { console.error(e); alert('Error al eliminar.'); }
@@ -3962,6 +3975,7 @@ function saveRepSession() {
       compraProducts: repCompraProducts,
       compraData:     repCompraData,
       compraFiles:    repCompraFiles,
+      redistData:     repRedistData,
     }));
   } catch(e) { console.warn('saveRepSession:', e); }
 }
@@ -3993,6 +4007,7 @@ function loadRepSession() {
     repCompraProducts = d.compraProducts   || [];
     repCompraData     = d.compraData       || {};
     repCompraFiles    = d.compraFiles      || [];
+    repRedistData     = d.redistData       || {};
     repProductMap.clear();
     repProducts.forEach(p => repProductMap.set(p.code, p));
     return repProducts.length > 0;
@@ -4851,7 +4866,7 @@ function generateRepXLS(sucId) {
       ws['!cols'] = [{ wch: 22 }, { wch: 10 }];
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Reposicion');
-      const fecha = new Date().toISOString().slice(0, 10);
+      const fecha = getTodaySV();
       XLSX.writeFile(wb,
         `Reposicion_${REP_ORIGIN_NAMES[originId]}_${REP_FNAMES[sucId]}_${fecha}.xls`,
         { bookType: 'biff8' }
@@ -5380,7 +5395,7 @@ window.onRedistQtyInput = inp => {
 
 function generateRedistXLS(orig) {
   if (typeof XLSX === 'undefined') return;
-  const fecha = new Date().toISOString().slice(0, 10);
+  const fecha = getTodaySV();
   const destinos = REP_PRIORITY_ORDER.filter(dest => {
     if (dest === orig) return false;
     const key = `${orig}->${dest}`;
@@ -5494,7 +5509,7 @@ function generateCompraRepXLS(sucId) {
   ws['!cols'] = [{ wch: 22 }, { wch: 10 }];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Reposicion');
-  const fecha = new Date().toISOString().slice(0, 10);
+  const fecha = getTodaySV();
   XLSX.writeFile(wb,
     `Compra_${REP_ORIGIN_NAMES['B01']}_${REP_FNAMES[sucId]}_${fecha}.xls`,
     { bookType: 'biff8' }

@@ -739,6 +739,7 @@ body:not(.dark) input[type="time"] {
     </div>
   </div>
   <div id="readonly-banner" style="display:none;background:var(--warn-bg);color:var(--warn-tx);border-bottom:1px solid var(--warn-bd);padding:7px 12px;font-size:.65rem;font-weight:700;letter-spacing:.06em;text-align:center"></div>
+  <div id="pick-save-err" style="display:none;background:var(--err-bg);color:var(--err-tx);border-bottom:1px solid var(--err-bd);padding:7px 12px;font-size:.65rem;font-weight:700;letter-spacing:.06em;text-align:center"></div>
 
   <div class="filter-bar">
     <button class="fbtn on" id="filter-all" onclick="setFilter('all',this)">Todos</button>
@@ -904,6 +905,10 @@ function fmtDate(ts) {
   if (!ts) return '';
   return new Date(ts).toLocaleDateString('es-SV', {weekday:'long',day:'2-digit',month:'long',year:'numeric'}).toUpperCase();
 }
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
 function fmtShort(ts) {
   if (!ts) return '';
   return new Date(ts).toLocaleDateString('es-SV', {day:'2-digit',month:'short',year:'numeric'});
@@ -1322,9 +1327,14 @@ async function dbDelete(id) {
 
 function dbListen(id, cb) {
   if (isLocal) return () => {};
-  return fbMod.onSnapshot(fbMod.doc(db,'despachos',id), snap => {
-    if (snap.exists()) cb({id: snap.id, ...snap.data()});
-  });
+  return fbMod.onSnapshot(
+    fbMod.doc(db,'despachos',id),
+    snap => { if (snap.exists()) cb({id: snap.id, ...snap.data()}); },
+    err => {
+      console.error('dbListen error:', err);
+      $('pick-list').innerHTML = `<div class="empty-state" style="color:var(--err-tx)">Conexión perdida. Recarga la página.</div>`;
+    }
+  );
 }
 
 /* ═══════════════════════════════════════
@@ -1479,13 +1489,13 @@ function cardHtml(d, archived = false) {
       : '';
 
   const line1 = d.orderNumber
-    ? `<div class="dcard-name">ORDEN ${d.orderNumber}<span class="dcard-date">${d.orderDate || fmtShort(d.createdAt)}</span></div>`
-    : `<div class="dcard-name">${d.name||'Despacho sin nombre'}</div>`;
+    ? `<div class="dcard-name">ORDEN ${esc(d.orderNumber)}<span class="dcard-date">${esc(d.orderDate) || fmtShort(d.createdAt)}</span></div>`
+    : `<div class="dcard-name">${esc(d.name)||'Despacho sin nombre'}</div>`;
   const line2 = (d.origin || d.destination)
     ? `<div class="dcard-route">${ubicLabel(d.origin)||'—'} <span style="font-size:1.1rem;font-weight:700;color:var(--text);margin:0 2px">→</span> ${ubicLabel(d.destination)||'—'}</div>`
     : '';
   const assignStr = (d.assignedToName || d.assignedTo)
-    ? `<span class="dcard-assign">👤 ${d.assignedToName || d.assignedTo}</span>`
+    ? `<span class="dcard-assign">👤 ${esc(d.assignedToName || d.assignedTo)}</span>`
     : '';
 
   const badgeMap = {
@@ -1531,6 +1541,8 @@ function cardHtml(d, archived = false) {
   </div>`;
 }
 
+const _archiveQueued = new Set();
+
 function renderDash(list) {
   lastDashList = list;
 
@@ -1541,14 +1553,14 @@ function renderDash(list) {
       const prods = d.products || [];
       const done = Object.values(d.checked||{}).filter(c=>c.done).length;
       const completa = prods.length > 0 && done === prods.length;
-      if (!d.archived) {
+      if (!d.archived && !_archiveQueued.has(d.id)) {
         if (completa && d.completedAt) {
           const completadoEn = new Date(d.completedAt); completadoEn.setHours(0,0,0,0);
-          if (completadoEn < hoy) dbUpdate(d.id, { archived: true }).catch(() => {});
+          if (completadoEn < hoy) { _archiveQueued.add(d.id); dbUpdate(d.id, { archived: true }).catch(() => {}); }
         }
         if (d.status === 'dispatched' && d.dispatchedAt) {
           const despachado = new Date(d.dispatchedAt); despachado.setHours(0,0,0,0);
-          if (despachado < hoy) dbUpdate(d.id, { archived: true }).catch(() => {});
+          if (despachado < hoy) { _archiveQueued.add(d.id); dbUpdate(d.id, { archived: true }).catch(() => {}); }
         }
       }
     });
@@ -1587,7 +1599,7 @@ function renderDash(list) {
   let activas = list.filter(d => !d.archived);
 
   if (homeFilter === 'pending') {
-    activas = activas.filter(d => inferStatus(d) === 'active');
+    activas = activas.filter(d => inferStatus(d) === 'pending');
   } else if (homeFilter === 'done') {
     activas = activas.filter(d => inferStatus(d) === 'done');
   }
@@ -2050,7 +2062,7 @@ window.openDespacho = async id => {
           }
           openModal(
             '🔒 Orden en uso',
-            `Esta orden está siendo trabajada por "${d.lockedBy}" en este momento. No puedes abrirla.`,
+            `Esta orden está siendo trabajada por "${esc(d.lockedByName || d.lockedBy)}" en este momento. No puedes abrirla.`,
             '',
             [{ label: 'Volver', cls: 'btn-outline', fn: 'closeModal(event)' }]
           );
@@ -2117,7 +2129,7 @@ async function doOpenDespacho(id, readOnly = false, lockedBy = '') {
 
   const banner = $('readonly-banner');
   if (readOnly && banner) {
-    banner.innerHTML = `👁 MODO LECTURA — Orden en uso por ${d?.lockedByName || lockedBy}`;
+    banner.innerHTML = `👁 MODO LECTURA — Orden en uso por ${esc(lockedBy)}`;
     banner.style.display = '';
   } else if (banner) {
     banner.style.display = 'none';
@@ -2287,10 +2299,10 @@ function buildItem(p, ckData) {
       <div class="ic-main" ${isReadOnly ? 'style="cursor:default;opacity:.7"' : `onclick="toggleItem('${p.id}')"`}>
         <div class="chk"><span class="chkm">✓</span></div>
         <div class="ic-content">
-          <div class="ic-name">${p.name}</div>
+          <div class="ic-name">${esc(p.name)}</div>
           <div class="ic-tags">
-            ${p.code ? `<span class="tag tag-code">${p.code}</span>` : ''}
-            <span class="tag">${p.family}</span>
+            ${p.code ? `<span class="tag tag-code">${esc(p.code)}</span>` : ''}
+            <span class="tag">${esc(p.family)}</span>
           </div>
         </div>
         <div class="ic-qty-wrap">
@@ -2321,7 +2333,7 @@ window.toggleItem = async pid => {
   const prods = curData.products || [];
   const tot   = prods.length;
   const done  = Object.values(curData.checked || {}).filter(c => c.done).length;
-  if (tot > 0 && done === tot) {
+  if (tot > 0 && done === tot && curData.status !== 'done') {
     await applyUpdate({ status: 'done', completedAt: Date.now() });
     showCelebrationModal();
   }
@@ -2534,7 +2546,15 @@ async function applyUpdate(data) {
     const i = list.findIndex(d => d.id === curId);
     if (i >= 0) { list[i] = { ...list[i], ...data }; localSet(list); }
   } else {
-    try { await dbUpdate(curId, data); } catch(e) { console.error(e); }
+    try { await dbUpdate(curId, data); } catch(e) {
+      console.error(e);
+      const errEl = $('pick-save-err');
+      if (errEl) {
+        errEl.textContent = '⚠ Error al guardar. Verifica tu conexión.';
+        errEl.style.display = 'block';
+        setTimeout(() => { errEl.style.display = 'none'; }, 5000);
+      }
+    }
   }
   renderPick();
 }
@@ -2831,15 +2851,8 @@ async function getOrCreateUserProfile(firebaseUser) {
   let profile = await loadUserProfile(uid);
   if (profile) return profile;
 
-  // Primer login: determinar rol
-  let role = 'collaborator';
-  try {
-    const q = fbMod.query(fbMod.collection(db, 'users'), fbMod.limit(1));
-    const snap = await fbMod.getDocs(q);
-    if (snap.empty) role = 'super';
-  } catch{}
-
-  profile = { name: displayName || email.split('@')[0], email, role, createdAt: Date.now(), active: true };
+  // Primer login: siempre collaborator — super se asigna manualmente desde el panel
+  profile = { name: displayName || email.split('@')[0], email, role: 'collaborator', createdAt: Date.now(), active: true };
   try { await fbMod.setDoc(fbMod.doc(db, 'users', uid), profile); } catch{}
   return profile;
 }
@@ -3172,7 +3185,7 @@ async function markItemFromScanner(pid) {
   const prods = curData.products || [];
   const tot   = prods.length;
   const done  = Object.values(curData.checked || {}).filter(c => c.done).length;
-  if (tot > 0 && done === tot) {
+  if (tot > 0 && done === tot && curData.status !== 'done') {
     await applyUpdate({ status: 'done', completedAt: Date.now() });
     closeScanner();
     showCelebrationModal();
