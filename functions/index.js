@@ -149,6 +149,58 @@ exports.onVueltaAssigned = onDocumentWritten('vueltas/{vueltaId}', async (event)
     return null;
   });
 
+exports.onInventarioAsignado = onDocumentWritten('inventarios/{invId}', async (event) => {
+  const before = event.data.before.exists ? event.data.before.data() : null;
+  const after  = event.data.after.exists  ? event.data.after.data()  : null;
+  if (!after) return null;
+
+  const assignedBefore = before?.asignadoA || '';
+  const assignedAfter  = after.asignadoA   || '';
+
+  if (!assignedAfter || assignedAfter === assignedBefore) return null;
+
+  const alreadyNotified = after.lastNotifiedAsignadoA === assignedAfter;
+  if (alreadyNotified) return null;
+
+  const userSnap = await admin.firestore().doc(`users/${assignedAfter}`).get();
+  if (!userSnap.exists) {
+    console.log(`Usuario no encontrado: ${assignedAfter}`);
+    return null;
+  }
+  const userData = userSnap.data();
+  const tokens   = userData.fcmTokens || (userData.fcmToken ? [userData.fcmToken] : []);
+  if (!tokens.length) {
+    console.log(`Sin token FCM para ${userData.name || assignedAfter}`);
+    return null;
+  }
+  const token = tokens[tokens.length - 1];
+
+  const suc    = after.sucursalNombre || after.sucursal || '';
+  const titulo = after.titulo || 'Conteo';
+
+  const message = {
+    token,
+    notification: {
+      title: '📋 Conteo de inventario asignado',
+      body:  `${suc} — ${titulo}`
+    },
+    android: { priority: 'high' },
+    webpush: {
+      notification: { icon: 'https://despacho-ordenes.web.app/favicon.png' },
+      fcmOptions:   { link: 'https://despacho-ordenes.web.app/ops.html' }
+    }
+  };
+
+  try {
+    await admin.messaging().send(message);
+    console.log(`Notificación inventario enviada a ${assignedAfter}`);
+    await event.data.after.ref.update({ lastNotifiedAsignadoA: assignedAfter });
+  } catch(e) {
+    console.error('Error enviando notificación inventario:', e.message);
+  }
+  return null;
+});
+
 exports.parseDocument = functions.https.onRequest(
   { timeoutSeconds: 300, memory: '1GiB' },
   async (req, res) => {

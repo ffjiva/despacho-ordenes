@@ -810,6 +810,111 @@ body:not(.dark) input[type="time"] {
 .traz-prod-code { font-family: var(--mono); font-size: .62rem; color: var(--muted); min-width: 80px; }
 .traz-prod-name { font-size: .7rem; flex: 1; }
 .traz-prod-qty { font-family: var(--mono); font-size: .72rem; font-weight: 700; min-width: 28px; text-align: right; }
+
+/* ── MÓDULO 8b — INVENTARIO ── */
+.inv-fab {
+  position: fixed; bottom: 1.5rem; right: 1.25rem;
+  width: 3rem; height: 3rem; border-radius: 50%;
+  background: var(--accent); color: #fff;
+  font-size: 1.5rem; display: flex; align-items: center;
+  justify-content: center; cursor: pointer;
+  box-shadow: 0 4px 16px rgba(0,0,0,.4); z-index: 50;
+  border: none; transition: transform .15s;
+}
+.inv-fab:active { transform: scale(.93); }
+.inv-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r); padding: .75rem 1rem;
+  margin-bottom: .625rem; cursor: pointer;
+  transition: border-color .15s;
+}
+.inv-card:hover { border-color: var(--accent); }
+.inv-card-title { font-size: .85rem; font-weight: 600; color: var(--text); }
+.inv-card-sub { font-size: .72rem; color: var(--muted); margin-top: .2rem; }
+.inv-prog-wrap { height: 3px; background: var(--border); border-radius: 2px; margin: .5rem 0 .4rem; }
+.inv-prog-bar  { height: 3px; border-radius: 2px; background: var(--accent); transition: width .3s; }
+.inv-prog-bar.done { background: var(--done-tx); }
+.inv-card-row  { display: flex; align-items: center; justify-content: space-between; }
+.inv-pill { font-size: .68rem; padding: 2px 8px; border-radius: 10px; border: 1px solid; }
+.inv-pill.pend  { background: var(--inv-bg);  border-color: var(--inv-bd);  color: var(--inv-tx); }
+.inv-pill.prog  { background: var(--comp-bg); border-color: var(--comp-bd); color: var(--comp-tx); }
+.inv-pill.done  { background: var(--done-bg); border-color: var(--done-bd); color: var(--done-tx); }
+.inv-disc-badge { font-size: .68rem; color: #f08080; }
+.inv-familia-hdr {
+  font-size: .65rem; font-weight: 700; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--muted);
+  padding: .5rem .875rem .2rem; display: flex;
+  align-items: center; justify-content: space-between; cursor: pointer;
+}
+.inv-familia-hdr .inv-fam-prog { font-size: .65rem; color: var(--muted); font-weight: 400; }
+.inv-item {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r); padding: .6rem .75rem;
+  margin: 0 .875rem .45rem; transition: border-color .2s, background .2s;
+}
+.inv-item.contado     { border-color: var(--done-bd); background: var(--done-bg); }
+.inv-item.discrepancia { border-color: #8a2a22; background: #1a0a08; }
+.inv-item-name { font-size: .8rem; font-weight: 500; color: var(--text); line-height: 1.35; }
+.inv-item-code { font-size: .68rem; color: var(--muted); margin-top: .1rem; }
+.inv-item-stock { font-size: .72rem; color: var(--muted); margin-top: .35rem; }
+.inv-item-stock span { color: var(--comp-tx); font-weight: 600; }
+.inv-item-input-row { display: flex; align-items: center; gap: .5rem; margin-top: .4rem; }
+.inv-qty-input {
+  width: 3.5rem; background: var(--bg); border: 1px solid var(--border);
+  border-radius: 4px; padding: 4px 6px; font-size: .9rem;
+  color: var(--text); text-align: center;
+}
+.inv-qty-input:focus { outline: none; border-color: var(--accent); }
+.inv-qty-input.ok  { border-color: var(--done-bd); color: var(--done-tx); }
+.inv-qty-input.bad { border-color: #8a2a22; color: #f08080; }
+.inv-item-status      { font-size: .7rem; }
+.inv-item-status.ok   { color: var(--done-tx); }
+.inv-item-status.bad  { color: #f08080; }
+.inv-item-status.pend { color: var(--muted); }
+.inv-progress-banner {
+  background: var(--comp-bg); border: 1px solid var(--comp-bd);
+  border-radius: var(--r); padding: .5rem .875rem;
+  margin: .5rem .875rem; display: flex;
+  align-items: center; justify-content: space-between;
+}
+.inv-banner-txt { font-size: .75rem; color: var(--comp-tx); }
+.inv-banner-num { font-size: .85rem; font-weight: 700; color: var(--comp-tx); }
+.inv-fin-bar {
+  position: sticky; bottom: 0; padding: .625rem .875rem;
+  background: var(--surface); border-top: 1px solid var(--border);
+}
+.inv-fin-btn {
+  width: 100%; padding: .65rem; border-radius: var(--r);
+  background: var(--accent); color: #fff; font-size: .82rem;
+  font-weight: 600; border: none; cursor: pointer;
+}
+.inv-fin-btn:disabled { opacity: .35; cursor: not-allowed; }
+.inv-fin-btn.warn { background: #c8922a; }
+.inv-dropzone {
+  border: 2px dashed var(--accent); border-radius: var(--r);
+  padding: 1.25rem; text-align: center; cursor: pointer;
+  background: transparent; transition: background .15s;
+}
+.inv-dropzone:hover { background: var(--inv-bg); }
+.inv-dropzone-txt { font-size: .78rem; color: var(--accent); margin-top: .35rem; }
+.inv-preview-ok {
+  background: var(--done-bg); border: 1px solid var(--done-bd);
+  border-radius: var(--r); padding: .5rem .75rem; margin-top: .5rem;
+  font-size: .75rem; color: var(--done-tx);
+}
+.inv-hist-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r); padding: .75rem 1rem; margin-bottom: .625rem;
+}
+.inv-hist-card-title { font-size: .82rem; font-weight: 600; color: var(--text); }
+.inv-hist-card-sub { font-size: .7rem; color: var(--muted); margin-top: .15rem; }
+.inv-hist-detail {
+  margin-top: .5rem; padding-top: .5rem;
+  border-top: 1px solid var(--border); display: none;
+}
+.inv-hist-detail.open { display: block; }
+.inv-hist-row { font-size: .72rem; color: var(--muted); padding: .15rem 0; }
+.inv-hist-row span { color: #f08080; font-weight: 600; }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
@@ -859,6 +964,7 @@ body:not(.dark) input[type="time"] {
       <button class="btn btn-ghost" style="font-size:.65rem" onclick="goAgenda()">📅<span class="hide-mobile"> Agenda</span></button>
       <button class="btn btn-ghost" style="font-size:.65rem" onclick="window.open('https://despacho-ordenes.web.app','_blank')">📦<span class="hide-mobile"> Órdenes</span></button>
       <button id="btn-reposicion" class="btn btn-ghost" style="font-size:.65rem" onclick="goReposicion()">📊<span class="hide-mobile"> Reposición</span></button>
+      <button id="btn-inventario" class="btn btn-ghost" style="font-size:.65rem" onclick="goInventario()">📋<span class="hide-mobile"> Inventario</span></button>
       <button class="btn btn-ghost" style="font-size:.85rem;padding:5px 9px" onclick="toggleDark()" id="theme-btn" title="Modo oscuro">🌙</button>
       <button class="btn btn-ghost" id="btn-mob-menu" style="font-size:.85rem;padding:5px 9px" onclick="openMobDrawer()">⋯</button>
       <button class="btn btn-light" style="font-size:.65rem" onclick="doLogout()">Salir</button>
@@ -1199,6 +1305,9 @@ let _allPendientes = [];
 let selectedType = '';
 let selectedUrgency = 'normal';
 let homeUnsub = null;
+let invUnsub = null;
+let invDetalleUnsub = null;
+let currentInvId = null;
 let vueltasUnsub = null;
 let domiciliosUnsub = null;
 let activeVueltasTab = 'vueltas';
@@ -4045,6 +4154,488 @@ window.toggleRepConfig = () => {
   p.style.display = p.style.display === 'none' ? '' : 'none';
 };
 
+/* ═══════════════════════════════════
+   MÓDULO 8b — INVENTARIO FÍSICO
+═══════════════════════════════════ */
+
+// ── Navegación ──────────────────────
+window.goInventario = () => {
+  showScreen('s-inventario');
+  initInvScreen();
+};
+
+window.goBackFromInventario = () => {
+  if (invUnsub) { invUnsub(); invUnsub = null; }
+  showScreen('s-home');
+};
+
+window.goBackFromInvDetalle = () => {
+  if (invDetalleUnsub) { invDetalleUnsub(); invDetalleUnsub = null; }
+  currentInvId = null;
+  showScreen('s-inventario');
+  initInvScreen();
+};
+
+window.goInvHistorial = () => {
+  showScreen('s-inventario-historial');
+  initInvHistorial();
+};
+
+window.goBackFromInvHistorial = () => {
+  showScreen('s-inventario');
+  initInvScreen();
+};
+
+// ── Cargar pantalla lista ────────────
+async function initInvScreen() {
+  if (!db) return;
+  if (invUnsub) { invUnsub(); invUnsub = null; }
+
+  const list = $('inv-list');
+  list.innerHTML = '<p style="padding:.75rem 1rem;color:var(--muted);font-size:.8rem">Cargando…</p>';
+
+  const q = fbMod.query(
+    fbMod.collection(db, 'inventarios'),
+    fbMod.orderBy('creadoAt', 'desc'),
+    fbMod.limit(30)
+  );
+
+  invUnsub = fbMod.onSnapshot(q, snap => {
+    if (snap.empty) {
+      list.innerHTML = '<p style="padding:.75rem 1rem;color:var(--muted);font-size:.8rem">Sin conteos registrados.</p>';
+      return;
+    }
+    list.innerHTML = '';
+    snap.forEach(doc => {
+      const d = doc.data();
+      const total     = d.resumen?.total     || 0;
+      const contados  = d.resumen?.contados  || 0;
+      const discs     = d.resumen?.discrepancias || 0;
+      const pct       = total ? Math.round(contados / total * 100) : 0;
+      const statusLabel = { pendiente: 'Pendiente', en_progreso: 'En progreso', completado: 'Completado' };
+      const pillClass   = { pendiente: 'pend', en_progreso: 'prog', completado: 'done' };
+
+      const card = document.createElement('div');
+      card.className = 'inv-card';
+      card.onclick = () => openInvDetalle(doc.id);
+      card.innerHTML = `
+        <div class="inv-card-title">${d.sucursalNombre || d.sucursal} — ${d.titulo || 'Conteo'}</div>
+        <div class="inv-card-sub">${d.fecha || ''} · ${d.asignadoANombre || 'Sin asignar'}</div>
+        <div class="inv-prog-wrap">
+          <div class="inv-prog-bar${d.status === 'completado' ? ' done' : ''}" style="width:${pct}%"></div>
+        </div>
+        <div class="inv-card-row">
+          <span class="inv-pill ${pillClass[d.status] || 'pend'}">${statusLabel[d.status] || 'Pendiente'}</span>
+          <span style="font-size:.72rem;color:var(--muted)">${contados}/${total}
+            ${discs > 0 ? `<span class="inv-disc-badge"> · ${discs} disc.</span>` : ''}
+          </span>
+        </div>`;
+      list.appendChild(card);
+    });
+  });
+}
+
+// ── Parser XLS de inventario ─────────
+function parseInvXLS(workbook) {
+  const productos = [];
+  const vistos    = new Set();
+
+  workbook.SheetNames.forEach(sheetName => {
+    const sheet = workbook.Sheets[sheetName];
+    const rows  = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+
+    // Detectar fila header dinámicamente
+    let headerRow = -1;
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      const hasCode = String(r[1] || '').match(/^c[oó]digo$/i);
+      const hasDesc = String(r[3] || '').match(/^descripci/i);
+      if (hasCode && hasDesc) { headerRow = i; break; }
+    }
+    if (headerRow === -1) return; // hoja sin formato esperado
+
+    let familia = '';
+    for (let i = headerRow + 1; i < rows.length; i++) {
+      const row  = rows[i];
+      const col1 = String(row[1] ?? '').trim();
+      const col3 = String(row[3] ?? '').trim();
+      const col5 = row[5]; // Disponib.
+      const col7 = row[7]; // E/Pedid.
+
+      if (!col1) continue;
+
+      // Fila de familia/grupo: col1 tiene texto sin código numérico
+      if (!/^\d{8,}$/.test(col1) && !col3) {
+        // Descartar filas de total/subtotal (solo números)
+        if (/^[\d.,\s]+$/.test(col1)) continue;
+        familia = col1;
+        continue;
+      }
+
+      // Fila de producto: col1 es código numérico largo
+      if (/^\d{8,}$/.test(col1) && col3) {
+        if (vistos.has(col1)) continue; // deduplicar páginas repetidas
+        vistos.add(col1);
+
+        const disponib  = parseFloat(String(col5 ?? '0').replace(',', '.')) || 0;
+        const enPedido  = parseFloat(String(col7 ?? '0').replace(',', '.')) || 0;
+
+        productos.push({
+          codigo:   col1,
+          nombre:   col3,
+          familia:  familia || 'Sin familia',
+          disponib: Math.round(disponib),
+          enPedido: Math.round(enPedido),
+          stockFisico: null,
+          estado: 'pendiente'
+        });
+      }
+    }
+  });
+
+  return productos;
+}
+
+// ── Modal: crear nuevo conteo ────────
+window.openInvModal = async () => {
+  $('inv-modal-preview').innerHTML = '';
+  $('inv-modal-files').value = '';
+  $('inv-modal-titulo').value = '';
+  $('inv-modal-asignado').innerHTML = '<option value="">Cargando…</option>';
+
+  // Cargar todos los usuarios activos
+  try {
+    const snap = await fbMod.getDocs(
+      fbMod.query(fbMod.collection(db, 'users'), fbMod.where('active', '==', true))
+    );
+    const opts = snap.docs.map(d => {
+      const u = d.data();
+      return `<option value="${d.id}" data-name="${u.name || u.email}">${u.name || u.email}</option>`;
+    });
+    $('inv-modal-asignado').innerHTML = '<option value="">Sin asignar</option>' + opts.join('');
+  } catch { $('inv-modal-asignado').innerHTML = '<option value="">Error cargando usuarios</option>'; }
+
+  $('inv-modal').style.display = 'flex';
+};
+
+window.closeInvModal = () => {
+  $('inv-modal').style.display = 'none';
+  window._invParsedProducts = null;
+};
+
+window.onInvFilesChange = async (input) => {
+  const preview = $('inv-modal-preview');
+  preview.innerHTML = '<span style="color:var(--muted);font-size:.75rem">Procesando archivos…</span>';
+
+  if (typeof XLSX === 'undefined') {
+    preview.innerHTML = '<span style="color:#f08080;font-size:.75rem">SheetJS no cargado. Recargá la página.</span>';
+    return;
+  }
+
+  const files = Array.from(input.files);
+  if (!files.length) { preview.innerHTML = ''; return; }
+
+  let allProducts = [];
+  const nombres   = [];
+
+  for (const file of files) {
+    try {
+      const buf = await file.arrayBuffer();
+      const wb  = XLSX.read(buf, { type: 'array' });
+      const prods = parseInvXLS(wb);
+      allProducts = allProducts.concat(prods);
+      nombres.push(file.name);
+    } catch(e) {
+      preview.innerHTML = `<span style="color:#f08080;font-size:.75rem">Error leyendo ${file.name}: ${e.message}</span>`;
+      return;
+    }
+  }
+
+  // Deduplicar por código entre archivos
+  const seen = new Set();
+  allProducts = allProducts.filter(p => {
+    if (seen.has(p.codigo)) return false;
+    seen.add(p.codigo);
+    return true;
+  });
+
+  const familias = [...new Set(allProducts.map(p => p.familia))];
+  window._invParsedProducts = allProducts;
+
+  preview.innerHTML = `
+    <div class="inv-preview-ok">
+      ✓ ${allProducts.length} productos · ${familias.length} familia${familias.length !== 1 ? 's' : ''}<br>
+      <span style="font-size:.7rem;color:var(--muted)">${nombres.join(' · ')}</span>
+    </div>`;
+};
+
+window.crearConteoInv = async () => {
+  const sucursal = $('inv-modal-sucursal').value;
+  const titulo   = $('inv-modal-titulo').value.trim();
+  const selOpt   = $('inv-modal-asignado');
+  const asigUid  = selOpt.value;
+  const asigNom  = asigUid ? (selOpt.options[selOpt.selectedIndex]?.dataset.name || '') : '';
+
+  if (!sucursal) { alert('Seleccioná una sucursal.'); return; }
+  if (!window._invParsedProducts?.length) { alert('Subí al menos un archivo XLS válido.'); return; }
+
+  const SNAMES = {
+    B01:'B01 Hangar', B02:'B02 Zdt', M01:'M01 Merliot',
+    S02:'S02 San Salvador', S03:'S03 San Miguel',
+    S04:'S04 Soyapango', S06:'S06 Zoditech', S07:'S07 Usulután'
+  };
+
+  const docData = {
+    sucursal,
+    sucursalNombre: SNAMES[sucursal] || sucursal,
+    titulo:  titulo || 'Conteo',
+    fecha:   getTodaySV(),
+    asignadoA:      asigUid,
+    asignadoANombre: asigNom,
+    creadoPor:      currentUser?.uid || '',
+    creadoPorNombre: currentUser?.name || '',
+    status:  'pendiente',
+    productos: window._invParsedProducts,
+    resumen: {
+      total: window._invParsedProducts.length,
+      contados: 0, discrepancias: 0,
+      pendientes: window._invParsedProducts.length
+    },
+    creadoAt: Date.now(),
+    iniciadoAt: null,
+    completadoAt: null
+  };
+
+  try {
+    const ref = await fbMod.addDoc(fbMod.collection(db, 'inventarios'), docData);
+    closeInvModal();
+    openInvDetalle(ref.id);
+  } catch(e) {
+    alert('Error creando conteo: ' + e.message);
+  }
+};
+
+// ── Pantalla detalle / conteo ────────
+async function openInvDetalle(invId) {
+  currentInvId = invId;
+  showScreen('s-inventario-detalle');
+  renderInvDetalle(invId);
+}
+
+async function renderInvDetalle(invId) {
+  if (invDetalleUnsub) { invDetalleUnsub(); invDetalleUnsub = null; }
+
+  const detalle = $('inv-detalle-body');
+  detalle.innerHTML = '<p style="padding:.75rem 1rem;color:var(--muted);font-size:.8rem">Cargando…</p>';
+
+  invDetalleUnsub = fbMod.onSnapshot(fbMod.doc(db, 'inventarios', invId), snap => {
+    if (!snap.exists()) return;
+    const d = snap.data();
+
+    // Header info
+    $('inv-det-title').textContent  = `${d.sucursalNombre || d.sucursal} — ${d.titulo || 'Conteo'}`;
+    $('inv-det-fecha').textContent  = `${d.fecha || ''} · ${d.asignadoANombre || ''}`;
+
+    // Banner progreso
+    const total    = d.resumen?.total    || 0;
+    const contados = d.resumen?.contados || 0;
+    const discs    = d.resumen?.discrepancias || 0;
+    $('inv-det-banner-num').textContent = `${contados} / ${total}`;
+    $('inv-det-banner-disc').textContent = discs > 0 ? ` · ${discs} disc.` : '';
+
+    // Agrupar por familia
+    const familias = {};
+    (d.productos || []).forEach((p, idx) => {
+      if (!familias[p.familia]) familias[p.familia] = [];
+      familias[p.familia].push({ ...p, idx });
+    });
+
+    detalle.innerHTML = '';
+    Object.entries(familias).forEach(([fam, prods]) => {
+      const contadosFam = prods.filter(p => p.estado !== 'pendiente').length;
+
+      const famSection = document.createElement('div');
+      famSection.innerHTML = `
+        <div class="inv-familia-hdr" onclick="toggleInvFamilia(this)">
+          <span>${fam}</span>
+          <span class="inv-fam-prog">${contadosFam}/${prods.length}</span>
+        </div>
+        <div class="inv-fam-body">`;
+
+      prods.forEach(p => {
+        const sist  = p.disponib + p.enPedido;
+        const fisico = p.stockFisico;
+        let inputClass = '', statusTxt = '', statusClass = 'pend';
+
+        if (fisico !== null && fisico !== undefined) {
+          if (fisico === sist) {
+            inputClass = 'ok'; statusTxt = '✓ coincide'; statusClass = 'ok';
+          } else {
+            const diff = fisico - sist;
+            inputClass = 'bad';
+            statusTxt  = diff > 0 ? `+${diff}` : `${diff}`;
+            statusClass = 'bad';
+          }
+        }
+
+        const itemDiv = document.createElement('div');
+        itemDiv.className = `inv-item${p.estado === 'contado' ? ' contado' : p.estado === 'discrepancia' ? ' discrepancia' : ''}`;
+        itemDiv.innerHTML = `
+          <div class="inv-item-name">${p.nombre}</div>
+          <div class="inv-item-code">${p.codigo}</div>
+          <div class="inv-item-stock">Sistema: <span>${p.disponib}</span> disp. + <span>${p.enPedido}</span> ped. = <span>${sist}</span></div>
+          <div class="inv-item-input-row">
+            <input type="number" min="0" class="inv-qty-input ${inputClass}"
+              value="${fisico !== null && fisico !== undefined ? fisico : ''}"
+              placeholder="—"
+              onchange="onInvQtyChange(this, '${invId}', ${p.idx})"
+              ${d.status === 'completado' ? 'disabled' : ''}/>
+            <span class="inv-item-status ${statusClass}">${statusTxt || (fisico === null || fisico === undefined ? 'pendiente' : '')}</span>
+          </div>`;
+        famSection.querySelector('.inv-fam-body').appendChild(itemDiv);
+      });
+
+      famSection.querySelector('.inv-fam-body').innerHTML += '</div>';
+      detalle.appendChild(famSection);
+    });
+
+    // Botón finalizar
+    const todoContado = (d.productos || []).every(p => p.stockFisico !== null && p.stockFisico !== undefined);
+    const finBtn = $('inv-fin-btn');
+    finBtn.disabled = !todoContado || d.status === 'completado';
+    finBtn.className = 'inv-fin-btn' + (todoContado && discs > 0 ? ' warn' : '');
+    finBtn.textContent = d.status === 'completado'
+      ? `✓ Conteo finalizado · ${discs} discrepancia${discs !== 1 ? 's' : ''}`
+      : `Finalizar conteo${discs > 0 ? ` ⚠ ${discs} disc.` : ''}`;
+  });
+}
+
+window.toggleInvFamilia = hdr => {
+  const body = hdr.nextElementSibling;
+  body.style.display = body.style.display === 'none' ? '' : 'none';
+};
+
+window.onInvQtyChange = async (input, invId, idx) => {
+  const val = parseInt(input.value, 10);
+  if (isNaN(val) || val < 0) { input.value = ''; return; }
+
+  const ref  = fbMod.doc(db, 'inventarios', invId);
+  const snap = await fbMod.getDoc(ref);
+  if (!snap.exists()) return;
+
+  const data     = snap.data();
+  const productos = [...data.productos];
+  const p        = productos[idx];
+  const sist     = p.disponib + p.enPedido;
+
+  productos[idx] = {
+    ...p,
+    stockFisico: val,
+    estado: val === sist ? 'contado' : 'discrepancia'
+  };
+
+  // Recalcular resumen
+  const contados      = productos.filter(x => x.estado !== 'pendiente').length;
+  const discrepancias = productos.filter(x => x.estado === 'discrepancia').length;
+  const pendientes    = productos.filter(x => x.estado === 'pendiente').length;
+
+  const update = {
+    productos,
+    resumen: { total: productos.length, contados, discrepancias, pendientes },
+  };
+
+  // Marcar como en_progreso si es el primer toque
+  if (data.status === 'pendiente') {
+    update.status     = 'en_progreso';
+    update.iniciadoAt = Date.now();
+  }
+
+  await fbMod.updateDoc(ref, update);
+};
+
+window.finalizarConteo = async () => {
+  if (!currentInvId) return;
+  const ref  = fbMod.doc(db, 'inventarios', currentInvId);
+  const snap = await fbMod.getDoc(ref);
+  if (!snap.exists()) return;
+
+  const d    = snap.data();
+  const discs = d.resumen?.discrepancias || 0;
+
+  const msg = discs > 0
+    ? `⚠ Hay ${discs} discrepancia${discs !== 1 ? 's' : ''}.\n¿Confirmar finalización de todas formas?`
+    : '¿Confirmar finalización del conteo?';
+
+  if (!confirm(msg)) return;
+
+  await fbMod.updateDoc(ref, {
+    status: 'completado',
+    completadoAt: Date.now()
+  });
+};
+
+// ── Historial ────────────────────────
+async function initInvHistorial() {
+  const list   = $('inv-hist-list');
+  const filSuc = $('inv-hist-fil-suc').value;
+  const filMes = $('inv-hist-fil-mes').value;
+
+  list.innerHTML = '<p style="padding:.75rem 1rem;color:var(--muted);font-size:.8rem">Cargando…</p>';
+
+  let q = fbMod.query(
+    fbMod.collection(db, 'inventarios'),
+    fbMod.where('status', '==', 'completado'),
+    fbMod.orderBy('creadoAt', 'desc'),
+    fbMod.limit(50)
+  );
+
+  try {
+    const snap = await fbMod.getDocs(q);
+    let docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    if (filSuc) docs = docs.filter(d => d.sucursal === filSuc);
+    if (filMes) docs = docs.filter(d => (d.fecha || '').startsWith(filMes));
+
+    if (!docs.length) {
+      list.innerHTML = '<p style="padding:.75rem 1rem;color:var(--muted);font-size:.8rem">Sin conteos completados.</p>';
+      return;
+    }
+
+    list.innerHTML = '';
+    docs.forEach(d => {
+      const discs = d.resumen?.discrepancias || 0;
+      const card  = document.createElement('div');
+      card.className = 'inv-hist-card';
+      card.innerHTML = `
+        <div class="inv-hist-card-title">${d.sucursalNombre || d.sucursal} — ${d.titulo || 'Conteo'}</div>
+        <div class="inv-hist-card-sub">${d.fecha || ''} · ${d.asignadoANombre || ''} · ${d.resumen?.total || 0} productos</div>
+        ${discs > 0 ? `
+        <div style="margin-top:.35rem">
+          <span class="inv-pill done" style="font-size:.68rem">✓ Completado</span>
+          <span class="inv-disc-badge" style="margin-left:.5rem">⚠ ${discs} discrepancia${discs !== 1 ? 's' : ''}</span>
+        </div>
+        <div class="inv-hist-detail" id="hist-det-${d.id}">
+          ${(d.productos || []).filter(p => p.estado === 'discrepancia').map(p => `
+            <div class="inv-hist-row">
+              ${p.nombre} — Sist: ${p.disponib + p.enPedido} · Físico: ${p.stockFisico}
+              <span>(${p.stockFisico - (p.disponib + p.enPedido) > 0 ? '+' : ''}${p.stockFisico - (p.disponib + p.enPedido)})</span>
+            </div>`).join('')}
+        </div>
+        <button onclick="toggleHistDet('${d.id}')" style="font-size:.7rem;background:none;border:none;color:var(--accent);cursor:pointer;padding:.25rem 0">
+          Ver discrepancias ▾
+        </button>` : `<div style="margin-top:.35rem"><span class="inv-pill done">✓ Sin discrepancias</span></div>`}`;
+      list.appendChild(card);
+    });
+  } catch(e) {
+    list.innerHTML = `<p style="padding:.75rem 1rem;color:#f08080;font-size:.8rem">Error: ${e.message}</p>`;
+  }
+}
+
+window.toggleHistDet = id => {
+  const el = $(`hist-det-${id}`);
+  if (el) el.classList.toggle('open');
+};
+
 window.goReposicion = () => {
   showScreen('s-reposicion');
   if (!repProducts.length && loadRepSession()) {
@@ -5644,6 +6235,9 @@ document.addEventListener('DOMContentLoaded', init);
       <button class="mob-drawer-btn" onclick="closeMobDrawer();window.open('https://despacho-ordenes.web.app','_blank')">
         <span class="mob-icon">📦</span>Órdenes
       </button>
+      <button class="mob-drawer-btn" onclick="closeMobDrawer();goInventario()">
+        <span class="mob-icon">📋</span>Inventario
+      </button>
       <button class="mob-drawer-btn" onclick="closeMobDrawer();toggleDark()">
         <span class="mob-icon">🌙</span>Tema
       </button>
@@ -6013,6 +6607,110 @@ document.addEventListener('DOMContentLoaded', init);
       style="font-size:.68rem;padding:4px 8px;border:1px solid var(--border);border-radius:var(--r);background:var(--surface);color:var(--text)"/>
   </div>
   <div id="traz-list" style="padding:.75rem .875rem 5rem"></div>
+</div>
+
+<!-- ══════════════ MÓDULO 8b — INVENTARIO ══════════════ -->
+<div id="s-inventario" class="scr">
+  <div class="topbar">
+    <div class="topbar-title">📋 Inventario físico</div>
+    <div class="topbar-actions">
+      <button class="btn btn-ghost" style="font-size:.65rem" onclick="goInvHistorial()">📜 Historial</button>
+      <button class="btn btn-ghost" style="font-size:.65rem" onclick="goBackFromInventario()">← Volver</button>
+    </div>
+  </div>
+  <div id="inv-list" style="padding:.75rem .875rem 5rem"></div>
+  <button class="inv-fab" onclick="openInvModal()" title="Nuevo conteo">＋</button>
+</div>
+
+<!-- Modal nuevo conteo -->
+<div id="inv-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:200;align-items:center;justify-content:center;padding:1rem">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:1.25rem;width:100%;max-width:420px;max-height:90vh;overflow-y:auto">
+    <div style="font-size:.95rem;font-weight:700;margin-bottom:1rem">➕ Nuevo conteo de inventario</div>
+
+    <label style="font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Sucursal</label>
+    <select id="inv-modal-sucursal" style="width:100%;margin:.3rem 0 .85rem;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:.45rem .6rem;font-size:.82rem;color:var(--text)">
+      <option value="">Seleccionar…</option>
+      <option value="B01">B01 Hangar</option>
+      <option value="B02">B02 Zdt</option>
+      <option value="M01">M01 Merliot</option>
+      <option value="S02">S02 San Salvador</option>
+      <option value="S03">S03 San Miguel</option>
+      <option value="S04">S04 Soyapango</option>
+      <option value="S06">S06 Zoditech</option>
+      <option value="S07">S07 Usulután</option>
+    </select>
+
+    <label style="font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Título / descripción</label>
+    <input id="inv-modal-titulo" type="text" placeholder="ej. Sony, Impresoras de Tanque…"
+      style="width:100%;margin:.3rem 0 .85rem;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:.45rem .6rem;font-size:.82rem;color:var(--text);box-sizing:border-box"/>
+
+    <label style="font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Asignar a</label>
+    <select id="inv-modal-asignado" style="width:100%;margin:.3rem 0 .85rem;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:.45rem .6rem;font-size:.82rem;color:var(--text)">
+      <option value="">Sin asignar</option>
+    </select>
+
+    <label style="font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Archivos XLS</label>
+    <div class="inv-dropzone" style="margin:.3rem 0 .5rem" onclick="$('inv-modal-files').click()">
+      <div style="font-size:1.5rem">📂</div>
+      <div class="inv-dropzone-txt">Toca para subir uno o varios XLS<br><span style="font-size:.7rem;opacity:.7">Reporte de Inventario de Existencias</span></div>
+    </div>
+    <input id="inv-modal-files" type="file" accept=".xls,.xlsx" multiple style="display:none" onchange="onInvFilesChange(this)"/>
+    <div id="inv-modal-preview"></div>
+
+    <div style="display:flex;gap:.5rem;margin-top:1rem">
+      <button onclick="closeInvModal()" style="flex:1;padding:.55rem;border:1px solid var(--border);border-radius:var(--r);background:transparent;color:var(--text);font-size:.8rem;cursor:pointer">Cancelar</button>
+      <button onclick="crearConteoInv()" style="flex:1;padding:.55rem;border-radius:var(--r);background:var(--accent);color:#fff;font-size:.8rem;font-weight:600;border:none;cursor:pointer">Crear conteo →</button>
+    </div>
+  </div>
+</div>
+
+<!-- Pantalla detalle / conteo en curso -->
+<div id="s-inventario-detalle" class="scr">
+  <div class="topbar">
+    <div class="topbar-title">
+      <div id="inv-det-title" style="font-size:.85rem;font-weight:700"></div>
+      <div id="inv-det-fecha" style="font-size:.7rem;color:var(--muted);font-weight:400"></div>
+    </div>
+    <div class="topbar-actions">
+      <button class="btn btn-ghost" style="font-size:.65rem" onclick="goBackFromInvDetalle()">← Volver</button>
+    </div>
+  </div>
+  <div class="inv-progress-banner">
+    <span class="inv-banner-txt">Progreso</span>
+    <span class="inv-banner-num" id="inv-det-banner-num">0 / 0</span>
+    <span class="inv-disc-badge" id="inv-det-banner-disc"></span>
+  </div>
+  <div id="inv-detalle-body" style="padding-bottom:5rem"></div>
+  <div class="inv-fin-bar">
+    <button id="inv-fin-btn" class="inv-fin-btn" disabled onclick="finalizarConteo()">Finalizar conteo</button>
+  </div>
+</div>
+
+<!-- Pantalla historial -->
+<div id="s-inventario-historial" class="scr">
+  <div class="topbar">
+    <div class="topbar-title">📜 Historial de conteos</div>
+    <div class="topbar-actions">
+      <button class="btn btn-ghost" style="font-size:.65rem" onclick="goBackFromInvHistorial()">← Volver</button>
+    </div>
+  </div>
+  <div style="padding:.625rem .875rem;display:flex;gap:.5rem;flex-wrap:wrap;border-bottom:1px solid var(--border)">
+    <select id="inv-hist-fil-suc" onchange="initInvHistorial()"
+      style="font-size:.72rem;padding:4px 8px;border:1px solid var(--border);border-radius:var(--r);background:var(--surface);color:var(--text)">
+      <option value="">Todas las sucursales</option>
+      <option value="B01">B01 Hangar</option>
+      <option value="B02">B02 Zdt</option>
+      <option value="M01">M01 Merliot</option>
+      <option value="S02">S02 San Salvador</option>
+      <option value="S03">S03 San Miguel</option>
+      <option value="S04">S04 Soyapango</option>
+      <option value="S06">S06 Zoditech</option>
+      <option value="S07">S07 Usulután</option>
+    </select>
+    <input id="inv-hist-fil-mes" type="month" onchange="initInvHistorial()"
+      style="font-size:.72rem;padding:4px 8px;border:1px solid var(--border);border-radius:var(--r);background:var(--surface);color:var(--text)"/>
+  </div>
+  <div id="inv-hist-list" style="padding:.75rem .875rem 5rem"></div>
 </div>
 </body>
 </html>
