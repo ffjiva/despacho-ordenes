@@ -270,6 +270,9 @@ html, body {
   align-items: center;
 }
 .filter-bar::-webkit-scrollbar { display: none; }
+@media (max-width: 600px) {
+  .filter-bar { flex-wrap: wrap; overflow-x: visible; }
+}
 .fbtn {
   padding: 4px 12px; border-radius: 20px;
   border: 1px solid var(--border); background: transparent;
@@ -500,7 +503,7 @@ body:not(.dark) input[type="time"] {
   color-scheme: light;
 }
 </style>
-<script src="https://unpkg.com/@zxing/browser@0.1.4/umd/index.min.js"></script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 </head>
 <body>
 
@@ -745,23 +748,24 @@ body:not(.dark) input[type="time"] {
     <button class="fbtn on" id="sort-alpha" onclick="setSort('alpha')">A–Z</button>
     <button class="fbtn" id="sort-cat" onclick="setSort('category')">Categorías</button>
     <div class="sort-divider"></div>
-    <input type="search" id="pick-search-input"
-      placeholder="Buscar…"
-      value=""
-      oninput="onPickSearch(this.value)"
-      style="
-        background: var(--surface2);
-        border: 1px solid var(--border);
-        border-radius: 20px;
-        color: var(--text);
-        font-family: var(--mono);
-        font-size: .63rem;
-        padding: 3px 10px;
-        outline: none;
-        width: 130px;
-        flex-shrink: 0;
-      "/>
-    <button id="btn-scanner" class="btn btn-outline" style="font-size:.7rem;padding:5px 12px" onclick="openScanner()">📷 Escanear</button>
+    <div style="display:flex;gap:6px;flex:1;min-width:100%;margin-top:2px;align-items:center;">
+      <input type="search" id="pick-search-input"
+        placeholder="Buscar…"
+        value=""
+        oninput="onPickSearch(this.value)"
+        style="
+          background: var(--surface2);
+          border: 1px solid var(--border);
+          border-radius: 20px;
+          color: var(--text);
+          font-family: var(--mono);
+          font-size: .63rem;
+          padding: 3px 10px;
+          outline: none;
+          flex: 1;
+        "/>
+      <button id="btn-scanner" class="btn btn-outline" style="font-size:.7rem;padding:5px 12px;flex-shrink:0" onclick="openScanner()">📷 Escanear</button>
+    </div>
   </div>
 
   <div class="pick-list" id="pick-list"></div>
@@ -3025,8 +3029,7 @@ window.printEtiquetas = () => {
 /* ═══════════════════════════════════════
    ESCÁNER DE CÓDIGO DE BARRAS
 ═══════════════════════════════════════ */
-let scannerActive = false;
-let zxingReader = null;
+let html5QrScanner = null;
 let scannerCooldown = false;
 
 function openScanner() {
@@ -3037,11 +3040,37 @@ function openScanner() {
   setScannerMsg('neutral', 'Apunta al código del producto...');
   startScanner();
 }
+window.openScanner = openScanner;
 
 function closeScanner() {
   stopScanner();
   const modal = document.getElementById('scanner-modal');
   if (modal) modal.style.display = 'none';
+}
+window.closeScanner = closeScanner;
+
+function playScanSound(type) {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    if (type === 'success') {
+      osc.frequency.setValueAtTime(880, ctx.currentTime);
+      osc.frequency.setValueAtTime(1100, ctx.currentTime + 0.1);
+      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.25);
+    } else {
+      osc.frequency.setValueAtTime(300, ctx.currentTime);
+      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.3);
+    }
+  } catch(e) {}
 }
 
 function setScannerMsg(type, text) {
@@ -3058,50 +3087,30 @@ function setScannerMsg(type, text) {
 }
 
 async function startScanner() {
-  if (scannerActive) return;
-  scannerActive = true;
+  if (html5QrScanner) return;
+  if (typeof Html5Qrcode === 'undefined') {
+    setScannerMsg('error', 'Librería de escaneo no disponible.');
+    return;
+  }
   try {
-    const hints = new Map();
-    const formats = [
-      ZXingBrowser.BarcodeFormat?.EAN_13,
-      ZXingBrowser.BarcodeFormat?.EAN_8,
-      ZXingBrowser.BarcodeFormat?.CODE_128,
-      ZXingBrowser.BarcodeFormat?.CODE_39,
-      ZXingBrowser.BarcodeFormat?.UPC_A,
-      ZXingBrowser.BarcodeFormat?.UPC_E,
-      ZXingBrowser.BarcodeFormat?.QR_CODE,
-    ].filter(Boolean);
-    if (formats.length) hints.set(ZXingBrowser.DecodeHintType?.POSSIBLE_FORMATS, formats);
-
-    zxingReader = new ZXingBrowser.BrowserMultiFormatReader(hints);
-    const video = document.getElementById('scanner-video');
-
-    await zxingReader.decodeFromConstraints(
-      { video: { facingMode: 'environment' } },
-      video,
-      (result, err) => {
-        if (!result) return;
-        if (scannerCooldown) return;
-        handleScan(result.getText());
-      }
+    html5QrScanner = new Html5Qrcode('scanner-region');
+    await html5QrScanner.start(
+      { facingMode: 'environment' },
+      { fps: 10, qrbox: { width: 280, height: 100 } },
+      (text) => { if (!scannerCooldown) handleScan(text); },
+      () => {}
     );
   } catch(e) {
+    html5QrScanner = null;
     setScannerMsg('error', 'No se pudo acceder a la cámara. Verifica los permisos.');
-    scannerActive = false;
   }
 }
 
-function stopScanner() {
-  scannerActive = false;
-  if (zxingReader) {
-    try { zxingReader.reset(); } catch(e) {}
-    zxingReader = null;
-  }
-  const video = document.getElementById('scanner-video');
-  if (video?.srcObject) {
-    video.srcObject.getTracks().forEach(t => t.stop());
-    video.srcObject = null;
-  }
+async function stopScanner() {
+  const scanner = html5QrScanner;
+  html5QrScanner = null;
+  if (!scanner) return;
+  try { await scanner.stop(); scanner.clear(); } catch(e) {}
 }
 
 async function handleScan(code) {
@@ -3114,6 +3123,7 @@ async function handleScan(code) {
 
   if (!product) {
     if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+    playScanSound('error');
     setScannerMsg('error', '❌ Este código no va muñeco, revise bien');
     scannerCooldown = true;
     setTimeout(() => {
@@ -3126,6 +3136,7 @@ async function handleScan(code) {
   const alreadyDone = curData.checked?.[product.id]?.done === true;
   if (alreadyDone) {
     if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+    playScanSound('error');
     setScannerMsg('warn', '⚠️ Ya lo habias puesto');
     scannerCooldown = true;
     setTimeout(() => {
@@ -3137,6 +3148,7 @@ async function handleScan(code) {
   }
 
   if (navigator.vibrate) navigator.vibrate(100);
+  playScanSound('success');
   setScannerMsg('success', `✅ ${product.name || product.code}`);
   await markItemFromScanner(product.id);
 
@@ -3180,7 +3192,7 @@ async function markItemFromScanner(pid) {
       <button onclick="closeScanner()" style="background:transparent;border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:6px;padding:5px 12px;font-size:.75rem;cursor:pointer">✕ Cerrar</button>
     </div>
   </div>
-  <video id="scanner-video" style="width:100%;max-width:480px;height:60vw;max-height:320px;object-fit:cover;background:#111"></video>
+  <div id="scanner-region" style="width:100%;max-width:480px;background:#111;min-height:280px;"></div>
   <div id="scanner-msg" style="width:100%;max-width:480px;padding:14px 16px;font-family:var(--mono);font-size:.8rem;text-align:center;min-height:48px;color:#aaa">Apunta al código del producto...</div>
 </div>
 
