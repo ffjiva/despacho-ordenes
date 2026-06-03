@@ -2461,7 +2461,7 @@ function buildVueltaCard(v, prefix) {
               <span class="vstatus vstatus-${v.status}">${slabel}</span>
               ${v.emergency ? `<span class="emergency-badge">🚨 EMERGENCIA</span>` : ''}
               ${dateBadgeHtml}
-              ${v.assignedTo ? `<span style="font-size:.6rem;color:var(--text2)">👤 ${escHtml(v.assignedTo)}</span>` : ''}
+              ${v.assignedTo ? `<span style="font-size:.6rem;color:var(--text2)">👤 ${escHtml(v.assignedToName || v.assignedTo)}</span>` : ''}
             </div>
           </div>
           <span class="vcard-chevron" id="ch-${cid}">▾</span>
@@ -2970,7 +2970,7 @@ function buildDomCard(d, STATUS_LABEL, prefix) {
           <div class="dcard-meta" style="margin-top:5px">
             ${d.total ? `<span style="font-size:.68rem;font-weight:700">$${Number(d.total).toFixed(2)}</span>` : ''}
             ${d.formaPago ? `<span class="dstat-chip" style="padding:2px 7px;font-size:.58rem">${escHtml(d.formaPago)}</span>` : ''}
-            ${d.assignedTo ? `<span style="font-size:.6rem;color:var(--text2)">👤 ${escHtml(d.assignedTo)}</span>` : ''}
+            ${d.assignedTo ? `<span style="font-size:.6rem;color:var(--text2)">👤 ${escHtml(d.assignedToName || d.assignedTo)}</span>` : ''}
           </div>
           ${motivo}
         </div>
@@ -3476,7 +3476,7 @@ function renderCierre(r, yaGuardado) {
         <div class="cierre-incomplete-item">
           <span>🚐</span>
           <span>${escHtml(v.destination)}</span>
-          ${v.assignedTo ? `<span style="color:var(--muted);font-size:.62rem">· ${escHtml(v.assignedTo)}</span>` : ''}
+          ${v.assignedTo ? `<span style="color:var(--muted);font-size:.62rem">· ${escHtml(v.assignedToName || v.assignedTo)}</span>` : ''}
         </div>`).join('')
     : '<div class="briefing-empty">✓ Todas las vueltas completadas.</div>';
 
@@ -3487,7 +3487,7 @@ function renderCierre(r, yaGuardado) {
           <span>📦</span>
           <span>${escHtml(d.cliente)}</span>
           <span style="color:${stColors[d.status]||'var(--muted)'};font-size:.6rem">· ${d.status}</span>
-          ${d.assignedTo ? `<span style="color:var(--muted);font-size:.62rem">· ${escHtml(d.assignedTo)}</span>` : ''}
+          ${d.assignedTo ? `<span style="color:var(--muted);font-size:.62rem">· ${escHtml(d.assignedToName || d.assignedTo)}</span>` : ''}
         </div>`;
       }).join('')
     : '<div class="briefing-empty">✓ Todas las entregas completadas.</div>';
@@ -4789,27 +4789,80 @@ async function initInvHistorial() {
 
     list.innerHTML = '';
     docs.forEach(d => {
-      const discs = d.resumen?.discrepancias || 0;
-      const card  = document.createElement('div');
+      const discs     = d.resumen?.discrepancias || 0;
+      const total     = d.resumen?.total || 0;
+      const discProds = (d.productos || []).filter(p => p.estado === 'discrepancia');
+      const okProds   = (d.productos || []).filter(p => p.estado === 'contado');
+
+      const discHTML = discProds.map(p => {
+        const sist = p.disponib + p.enPedido;
+        const diff = p.stockFisico - sist;
+        return `<div class="inv-hist-row">
+          <span style="font-size:.65rem;color:var(--muted);margin-right:.4rem;font-family:monospace">${p.codigo}</span>
+          ${p.nombre}
+          <span style="float:right;font-weight:600;color:${diff>0?'#4caf7d':'#f08080'}">${diff>0?'+':''}${diff}</span>
+          <span style="color:var(--muted)"> Sist: ${sist} · Físico: ${p.stockFisico}</span>
+        </div>`;
+      }).join('');
+
+      const okHTML = okProds.map(p =>
+        `<div class="inv-hist-row" style="color:var(--muted)">
+          <span style="font-size:.65rem;margin-right:.4rem;font-family:monospace">${p.codigo}</span>
+          ${p.nombre}
+          <span style="float:right;color:var(--done-tx)">✓ ${p.stockFisico}</span>
+        </div>`
+      ).join('');
+
+      const card = document.createElement('div');
       card.className = 'inv-hist-card';
+      card.style.cursor = 'pointer';
       card.innerHTML = `
-        <div class="inv-hist-card-title">${d.sucursalNombre || d.sucursal} — ${d.titulo || 'Conteo'}</div>
-        <div class="inv-hist-card-sub">${d.fecha || ''} · ${d.asignadoANombre || ''} · ${d.resumen?.total || 0} productos</div>
-        ${discs > 0 ? `
-        <div style="margin-top:.35rem">
+        <div class="inv-hist-card-title" style="display:flex;justify-content:space-between;align-items:center">
+          <span>${d.sucursalNombre || d.sucursal} — ${d.titulo || 'Conteo'}</span>
+          <span class="inv-hist-chevron" style="font-size:.7rem;color:var(--muted);transition:transform .2s">▾</span>
+        </div>
+        <div class="inv-hist-card-sub">${d.fecha || ''} · ${d.asignadoANombre || ''} · ${total} productos</div>
+        <div style="margin-top:.4rem;display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
           <span class="inv-pill done" style="font-size:.68rem">✓ Completado</span>
-          <span class="inv-disc-badge" style="margin-left:.5rem">⚠ ${discs} discrepancia${discs !== 1 ? 's' : ''}</span>
+          ${discs > 0 ? `<span class="inv-disc-badge">⚠ ${discs} discrepancia${discs!==1?'s':''}</span>` : '<span style="font-size:.68rem;color:var(--done-tx)">Sin discrepancias</span>'}
+          <button onclick="event.stopPropagation();exportInvXLS('${d.id}')"
+            style="margin-left:auto;font-size:.68rem;padding:2px 10px;border:1px solid var(--border);border-radius:10px;background:transparent;color:var(--muted);cursor:pointer">
+            ⬇ XLS
+          </button>
         </div>
+
         <div class="inv-hist-detail" id="hist-det-${d.id}">
-          ${(d.productos || []).filter(p => p.estado === 'discrepancia').map(p => `
-            <div class="inv-hist-row">
-              ${p.nombre} — Sist: ${p.disponib + p.enPedido} · Físico: ${p.stockFisico}
-              <span>(${p.stockFisico - (p.disponib + p.enPedido) > 0 ? '+' : ''}${p.stockFisico - (p.disponib + p.enPedido)})</span>
-            </div>`).join('')}
-        </div>
-        <button onclick="toggleHistDet('${d.id}')" style="font-size:.7rem;background:none;border:none;color:var(--accent);cursor:pointer;padding:.25rem 0">
-          Ver discrepancias ▾
-        </button>` : `<div style="margin-top:.35rem"><span class="inv-pill done">✓ Sin discrepancias</span></div>`}`;
+
+          ${discProds.length > 0 ? `
+          <div class="inv-hist-section">
+            <div class="inv-hist-section-hdr" onclick="event.stopPropagation();toggleHistSection(this)"
+              style="display:flex;justify-content:space-between;align-items:center;padding:.4rem 0;cursor:pointer;border-top:1px solid var(--border);margin-top:.5rem">
+              <span style="font-size:.72rem;font-weight:600;color:#f08080">⚠ Discrepancias (${discProds.length})</span>
+              <span style="font-size:.65rem;color:var(--muted)">▾</span>
+            </div>
+            <div class="inv-hist-section-body">${discHTML}</div>
+          </div>` : ''}
+
+          ${okProds.length > 0 ? `
+          <div class="inv-hist-section">
+            <div class="inv-hist-section-hdr" onclick="event.stopPropagation();toggleHistSection(this)"
+              style="display:flex;justify-content:space-between;align-items:center;padding:.4rem 0;cursor:pointer;border-top:1px solid var(--border);margin-top:.35rem">
+              <span style="font-size:.72rem;font-weight:600;color:var(--done-tx)">✓ Coincidencias (${okProds.length})</span>
+              <span style="font-size:.65rem;color:var(--muted)">▸</span>
+            </div>
+            <div class="inv-hist-section-body" style="display:none">${okHTML}</div>
+          </div>` : ''}
+
+        </div>`;
+
+      card.addEventListener('click', () => {
+        const det     = document.getElementById(`hist-det-${d.id}`);
+        const chevron = card.querySelector('.inv-hist-chevron');
+        const isOpen  = det.classList.contains('open');
+        det.classList.toggle('open');
+        chevron.style.transform = isOpen ? '' : 'rotate(-90deg)';
+      });
+
       list.appendChild(card);
     });
   } catch(e) {
@@ -4817,9 +4870,64 @@ async function initInvHistorial() {
   }
 }
 
+window.toggleHistSection = hdr => {
+  const body    = hdr.nextElementSibling;
+  const arrow   = hdr.querySelector('span:last-child');
+  const isOpen  = body.style.display !== 'none';
+  body.style.display  = isOpen ? 'none' : '';
+  arrow.textContent   = isOpen ? '▸' : '▾';
+};
+
 window.toggleHistDet = id => {
   const el = document.getElementById(`hist-det-${id}`);
   if (el) el.classList.toggle('open');
+};
+
+window.exportInvXLS = async (invId) => {
+  if (typeof XLSX === 'undefined') {
+    alert('SheetJS no cargado. Recargá la página.');
+    return;
+  }
+  try {
+    const snap = await fbMod.getDoc(fbMod.doc(db, 'inventarios', invId));
+    if (!snap.exists()) return;
+    const d = snap.data();
+
+    const rows = [
+      ['Código', 'Descripción', 'Familia', 'Disponible (Sist)', 'En Pedido (Sist)', 'Total Sistema', 'Conteo Físico', 'Diferencia', 'Estado']
+    ];
+
+    (d.productos || []).forEach(p => {
+      const sist = p.disponib + p.enPedido;
+      const diff = p.stockFisico !== null && p.stockFisico !== undefined ? p.stockFisico - sist : '';
+      rows.push([
+        p.codigo,
+        p.nombre,
+        p.familia,
+        p.disponib,
+        p.enPedido,
+        sist,
+        p.stockFisico !== null && p.stockFisico !== undefined ? p.stockFisico : '',
+        diff,
+        p.estado === 'contado' ? 'Coincide' : p.estado === 'discrepancia' ? 'Discrepancia' : 'Pendiente'
+      ]);
+    });
+
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = [
+      {wch:16},{wch:50},{wch:22},{wch:18},{wch:16},{wch:16},{wch:16},{wch:12},{wch:14}
+    ];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Inventario');
+
+    const suc    = (d.sucursal || '').replace(/\s/g,'');
+    const titulo = (d.titulo   || 'conteo').replace(/\s/g,'_');
+    const fecha  = d.fecha || getTodaySV();
+    XLSX.writeFile(wb, `Inventario_${suc}_${titulo}_${fecha}.xlsx`);
+  } catch(e) {
+    alert('Error exportando: ' + e.message);
+  }
 };
 
 window.goReposicion = () => {
