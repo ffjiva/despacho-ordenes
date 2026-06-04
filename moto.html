@@ -1057,7 +1057,7 @@ function buildDomCard(d) {
               <span class="dmbadge dmbadge-${st}">${STATUS_LBL[st] || st}</span>
               ${d.assignedTo
                 ? `<span style="font-size:.58rem;color:var(--muted)">
-                     👤 ${esc(d.assignedTo)}</span>`
+                     👤 ${esc(d.assignedToName || d.assignedTo)}</span>`
                 : ''}
             </div>
           </div>
