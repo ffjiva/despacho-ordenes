@@ -1430,6 +1430,7 @@ let repRedistData     = {}; // { 'M01->S02': { code: qty } }
 let repRedistActiveOrig  = 'M01';
 let repRedistDestFilter  = null;
 let repCompraTouched  = {}; // { code: Set<sucId> } — sucursales editadas manualmente por producto
+let repCompraPostMode = false; // true = usar stock Gerencial (B01+B02) como pool
 let repDisplayLimit   = 300;
 
 const $ = id => document.getElementById(id);
@@ -2855,7 +2856,11 @@ window.confirmImport = async () => {
   btn.disabled = true;
   btn.innerHTML = '<span class="spin"></span>Guardando…';
 
-  const motorista = $('d-motorista-sel')?.value || '';
+  const motoristaEl = $('d-motorista-sel');
+  const motorista   = motoristaEl?.value || '';
+  const motoristaNombre = motorista
+    ? (motoristaEl.options[motoristaEl.selectedIndex]?.text || motorista)
+    : '';
   const importDate = $('import-fecha')?.value || getTodaySV();
   const now = Date.now();
 
@@ -2878,7 +2883,8 @@ window.confirmImport = async () => {
           departamento: d.departamento || '',
           municipio: d.municipio || '',
           empresaEnvio: d.empresaEnvio || 'Delivery Quiky',
-          assignedTo: motorista,
+          assignedTo:     motorista,
+          assignedToName: motoristaNombre,
           status: 'pendiente',
           motivoNoEntrega: '',
           fechaReagenda: '',
@@ -5826,7 +5832,7 @@ function computeComprasSuggestions() {
   repCompraProducts.forEach(p => {
     const touched = REP_DESTS.some(sid => (repCompraData[sid][p.code] || 0) > 0);
     if (touched) return;
-    const available = Math.max(0, p.qty - REP_B01_RESERVE);
+    const available = getCompraPool(p);
     if (available <= 0) return;
     const stockMap = repProductMap.get(p.code);
     const getStock = sid => stockMap ? (stockMap.stock[sid] || 0) : 0;
@@ -5889,6 +5895,8 @@ function renderCompraPanelFiles() {
       </div>`).join('') +
       `<button class="btn btn-outline" style="font-size:.58rem;margin-left:4px"
         onclick="document.getElementById('rep-compra-input').click()">+ Agregar más</button>
+       <button id="btn-compra-post-mode" class="btn btn-outline" style="font-size:.58rem;${repCompraPostMode?'color:var(--done-tx);border-color:var(--done-bd);':''}}"
+        onclick="toggleCompraPostMode()">📦 ${repCompraPostMode ? 'Usando stock Gerencial' : 'Usar stock Gerencial'}</button>
        <button class="btn btn-outline" style="font-size:.58rem;color:var(--err-tx);border-color:var(--err-tx)"
         onclick="clearCompraFiles()">⊘ Limpiar compras</button>`;
   } else {
@@ -5913,7 +5921,7 @@ function renderCompraTable() {
     return terms.every(t => nameNorm.includes(t) || codeNorm.includes(t));
   });
 
-  const totalAvail = repCompraProducts.reduce((s,p) => s + Math.max(0, p.qty - REP_B01_RESERVE), 0);
+  const totalAvail = repCompraProducts.reduce((s,p) => s + getCompraPool(p), 0);
   const totalSend  = Object.values(send).reduce((s,v) => s+v, 0);
   $('rep-summary').innerHTML =
     `${repCompraProducts.length} productos en compra · disponible a distribuir: <strong>${totalAvail}</strong> · asignado: <strong>${totalSend}</strong>`;
@@ -5932,13 +5940,16 @@ function renderCompraTable() {
   const rows = filtered.map(p => {
     const qty  = send[p.code] || 0;
     const sst  = repProductMap.get(p.code)?.stock[sucId] ?? 0;
-    const avail = Math.max(0, p.qty - REP_B01_RESERVE);
+    const avail = getCompraPool(p);
     const min   = REP_MINIMUMS[sucId] || 0;
     const sug   = (sst < min && avail > 0) ? Math.min(min - sst, avail) : 0;
+    const poolDisplay = repCompraPostMode
+      ? (() => { const sm = repProductMap.get(p.code); return sm ? Math.max(0,(sm.stock.B01||0)-REP_B01_RESERVE)+(sm.stock.B02||0) : 0; })()
+      : p.qty;
     return `<tr>
       <td class="td-code">${escHtml(p.code)}</td>
       <td class="td-name">${escHtml(p.name)}</td>
-      <td class="td-stk">${p.qty}</td>
+      <td class="td-stk">${poolDisplay}</td>
       <td class="td-stk ${stkCls(sst)}">${sst > 0 ? sst : '<span style="color:var(--border)">0</span>'}</td>
       <td class="td-sug">${sug > 0 ? `<span class="sug-badge">▲${sug}</span>` : '—'}</td>
       <td class="td-send">
@@ -5954,7 +5965,7 @@ function renderCompraTable() {
     <table class="rep-table">
       <thead><tr>
         <th>Código</th><th>Producto</th>
-        <th title="Cantidad en factura de compra">Compra</th>
+        <th title="${repCompraPostMode ? 'Stock B01+B02 del Gerencial' : 'Cantidad en factura de compra'}">${repCompraPostMode ? 'B01+B02' : 'Compra'}</th>
         <th title="Stock ${escHtml(REP_LBLS[sucId])}">Suc.</th>
         <th title="Sugerido">Sug.</th>
         <th>Enviar</th>
@@ -5975,10 +5986,31 @@ window.clearCompraFiles = () => {
   repCompraProducts = [];
   repCompraData     = {};
   repCompraTouched  = {};
+  repCompraPostMode = false;
   renderCompraPanelFiles();
   renderRepFull();
   saveRepSession();
 };
+
+window.toggleCompraPostMode = () => {
+  repCompraPostMode = !repCompraPostMode;
+  // Limpiar asignaciones para recalcular con el nuevo pool
+  repCompraData    = {};
+  repCompraTouched = {};
+  computeComprasSuggestions();
+  renderCompraPanelFiles();
+  renderRepFull();
+};
+
+// Helper: pool disponible por producto según modo activo
+function getCompraPool(p) {
+  if (!repCompraPostMode) {
+    return Math.max(0, p.qty - REP_B01_RESERVE);
+  }
+  const stockMap = repProductMap.get(p.code);
+  if (!stockMap) return 0;
+  return Math.max(0, (stockMap.stock.B01 || 0) - REP_B01_RESERVE) + (stockMap.stock.B02 || 0);
+}
 
 function redistributeCompraPool(code) {
   const product = repCompraProducts.find(p => p.code === code);
@@ -5986,9 +6018,9 @@ function redistributeCompraPool(code) {
 
   const touched = repCompraTouched[code] || new Set();
 
-  // Calcular pool libre = total comprado - suma de lo asignado a todas las sucursales
+  // Calcular pool libre = pool disponible - suma de lo asignado a todas las sucursales
   const totalAsigned = REP_DESTS.reduce((sum, sid) => sum + (repCompraData[sid]?.[code] || 0), 0);
-  let pool = product.qty - totalAsigned;
+  let pool = getCompraPool(product) - totalAsigned;
 
   // Primero liberar pool de sucursales no tocadas (se van a recalcular)
   REP_DESTS.forEach(sid => {
@@ -6040,7 +6072,7 @@ function redistributeCompraPool(code) {
 
   // Banner de advertencia si el pool quedó negativo
   const totalFinal = REP_DESTS.reduce((sum, sid) => sum + (repCompraData[sid]?.[code] || 0), 0);
-  const deficit = totalFinal - product.qty;
+  const deficit = totalFinal - getCompraPool(product);
   const summaryEl = $('rep-summary');
   if (summaryEl && deficit > 0) {
     summaryEl.innerHTML = `<span style="color:var(--err-tx);font-weight:600">
@@ -6281,7 +6313,7 @@ window.onRedistQtyInput = inp => {
 function generateRedistXLS(orig) {
   if (typeof XLSX === 'undefined') return;
   const fecha = getTodaySV();
-  const destinos = REP_PRIORITY_ORDER.filter(dest => {
+  const destinos = ['M01','S02','S04','S03','S07','S06'].filter(dest => {
     if (dest === orig) return false;
     const key = `${orig}->${dest}`;
     return repRedistData[key] && Object.values(repRedistData[key]).some(v => v > 0);

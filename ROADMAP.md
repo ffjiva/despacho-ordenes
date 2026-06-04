@@ -196,6 +196,18 @@ Eliminadas comparaciones legacy por `currentUser.name` en el bloque isReadOnly. 
 ### Layout barra filtros móvil *(index.html — s-pick)*
 Media query `@media (max-width: 600px)` aplica `flex-wrap: wrap` a `.filter-bar`. Buscador y botón escáner ocupan fila completa en móvil, con input expandible y botón fijo a la derecha. Sin cambios en escritorio.
 
+### Módulo 8b — Validación de Inventario Físico ✅ *(ops.html)*
+Parser XLS multi-archivo con detección dinámica de headers. Extrae código,
+nombre, familia, Disponib. y E/Pedid. Lista de conteo agrupada por familia,
+colapsable. Input numérico por producto con estados pendiente/contado/discrepancia
+en tiempo real. Progreso persistido en Firestore — sale y retoma sin perder avance.
+Finalización habilitada solo cuando todos los ítems tienen valor. Modal de
+celebración con pixel art + confeti al completar. Historial consultable por
+sucursal y mes, con secciones colapsables de discrepancias y coincidencias,
+código UPC visible y exportación a XLS. Asignable a cualquier colaborador
+con notificación FCM via `onInventarioAsignado`. Navegación: botón topbar
+desktop + drawer móvil. Desplegado: 03 Jun 2026.
+
 ### Corrección de bugs — sesión 03 Jun 2026 *(index.html + ops.html + moto.html)*
 Revisión minuciosa de los tres archivos. 25 bugs corregidos en total.
 
@@ -236,22 +248,28 @@ Revisión minuciosa de los tres archivos. 25 bugs corregidos en total.
 
 ### 🔧 Deuda técnica
 
+**[RESUELTO 03 Jun 2026] — assignedToName en domicilios**
+`confirmImport()` solo guardaba `assignedTo` (UID) sin `assignedToName`.
+Las cards de ops.html y moto.html mostraban el UID en lugar del nombre.
+Fix: obtener el texto del option seleccionado al momento del import y
+guardar `assignedToName` en Firestore junto con `assignedTo`.
+
+**[RESUELTO 03 Jun 2026] — moto.html queries por nombre en lugar de UID**
+`moto.html` filtraba los listeners de Firestore (vueltas, domicilios,
+carryover) usando `profile.name` en lugar del UID. Al migrar a Firebase
+Auth los assignedTo pasaron a guardar UIDs, causando que Anderson no viera
+sus entregas asignadas. Fix: separar `currentDriverUid` (para queries
+Firestore) de `currentDriver` (para display). Fallback uid||nombre para
+documentos legacy.
+
+**[RESUELTO 03 Jun 2026] — Timezone en nombres de archivos XLS**
+4 ocurrencias de `new Date().toISOString().slice(0,10)` en generación de
+nombres de archivos XLS usaban UTC, mostrando fecha del día siguiente
+después de las 6 PM en El Salvador. Reemplazadas por `getTodaySV()`.
 
 ---
 
 ### 🔲 Features próximos
-
-**Módulo 8b — Validación de Inventario Físico** *(ops.html)*
-Sube reporte XLS de inventario de bodega/sucursal (uno o varios archivos simultáneos).
-Parser SheetJS extrae productos con código, nombre, familia, Disponib. y E/Pedid.
-Lista de conteo agrupada por familia. Input numérico por producto. Estados: pendiente / contado / discrepancia.
-Progreso persistido en Firestore — puede salir y retomar sin perder avance.
-Finalización habilitada solo cuando todos los ítems tienen valor numérico ingresado.
-Si hay discrepancias al finalizar → modal de confirmación con conteo de diferencias.
-Resultado guardado en Firestore con historial consultable por sucursal y mes.
-Asignable a cualquier colaborador con notificación FCM al asignar.
-Navegación: botón en topbar desktop + entrada en drawer móvil "⋯".
-Prioridad: alta — visita bodega B03 el jueves 05 Jun 2026.
 
 ---
 
@@ -322,4 +340,4 @@ Al abrir una sesión de implementación:
 
 ---
 
-*Última actualización: 03 Junio 2026 (bugs)*
+*Última actualización: 03 Junio 2026 (sesión tarde)*
