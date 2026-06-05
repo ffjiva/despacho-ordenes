@@ -2180,7 +2180,7 @@ async function doOpenDespacho(id, readOnly = false, lockedBy = '') {
           ? ` <button onclick="confirmReopen('${id}','${(data.name||data.orderNumber||'').replace(/'/g,"\\'")}')" style="margin-left:10px;padding:2px 10px;font-size:.6rem;font-family:var(--mono);font-weight:700;border:1px solid var(--warn-bd);border-radius:4px;background:transparent;color:var(--warn-tx);cursor:pointer">🔓 Reabrir</button>`
           : '';
         banner.innerHTML = readOnly && lockedBy
-          ? `👁 MODO LECTURA — Orden en uso por ${lockedBy}`
+          ? `👁 MODO LECTURA — Orden en uso por ${data.lockedByName || lockedBy}`
           : isCollab
           ? `🔒 Esta orden no te fue asignada`
           : isDispatched && currentUser?.role === 'super'
@@ -2412,7 +2412,8 @@ window.uploadPickFoto = async input => {
 
   try {
     const ext     = file.name.split('.').pop() || 'jpg';
-    const path    = `despachos/${curId}/fotos/${Date.now()}_${currentUser?.name || 'user'}.${ext}`;
+    const safeName = (currentUser?.name || 'user').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const path    = `despachos/${curId}/fotos/${Date.now()}_${safeName}.${ext}`;
     const storRef = storageMod.ref(storage, path);
     await storageMod.uploadBytes(storRef, file);
     const url = await storageMod.getDownloadURL(storRef);
@@ -2503,7 +2504,7 @@ window.printPDF = () => {
 <h1>DESPACHO MANAGER</h1>
 <div class="sub">ORDEN ${orderNumber || '—'} · ${orderDate || '—'}</div>
 <div class="sub">${origin || '—'} → ${destination || '—'}</div>
-<div class="meta">Asignado: ${assignedTo || 'Sin asignar'} &nbsp;|&nbsp; Generado: ${now}</div>
+<div class="meta">Asignado: ${curData?.assignedToName || assignedTo || 'Sin asignar'} &nbsp;|&nbsp; Generado: ${now}</div>
 <hr/>
 <table>
   <thead>

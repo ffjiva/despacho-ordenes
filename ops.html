@@ -3100,13 +3100,13 @@ function renderMetricas() {
 
   const motoristas = {};
   vueltas.forEach(v => {
-    const m = v.assignedTo || 'Sin asignar';
+    const m = v.assignedToName || v.assignedTo || 'Sin asignar';
     if (!motoristas[m]) motoristas[m] = { vueltas: 0, vueltasDone: 0, entregas: 0, entregasDone: 0 };
     motoristas[m].vueltas++;
     if (v.status === 'done') motoristas[m].vueltasDone++;
   });
   doms.forEach(d => {
-    const m = d.assignedTo || 'Sin asignar';
+    const m = d.assignedToName || d.assignedTo || 'Sin asignar';
     if (!motoristas[m]) motoristas[m] = { vueltas: 0, vueltasDone: 0, entregas: 0, entregasDone: 0 };
     motoristas[m].entregas++;
     if (d.status === 'entregado') motoristas[m].entregasDone++;
@@ -3412,13 +3412,13 @@ async function buildCierreResumen(fecha) {
 
   const motoristasMap = {};
   vueltas.forEach(v => {
-    const m = v.assignedTo || 'Sin asignar';
+    const m = v.assignedToName || v.assignedTo || 'Sin asignar';
     if (!motoristasMap[m]) motoristasMap[m] = { nombre: m, vueltas: 0, vueltasDone: 0, entregas: 0, entregasDone: 0 };
     motoristasMap[m].vueltas++;
     if (v.status === 'done') motoristasMap[m].vueltasDone++;
   });
   doms.forEach(d => {
-    const m = d.assignedTo || 'Sin asignar';
+    const m = d.assignedToName || d.assignedTo || 'Sin asignar';
     if (!motoristasMap[m]) motoristasMap[m] = { nombre: m, vueltas: 0, vueltasDone: 0, entregas: 0, entregasDone: 0 };
     motoristasMap[m].entregas++;
     if (d.status === 'entregado') motoristasMap[m].entregasDone++;
@@ -5813,7 +5813,7 @@ function parseCompraXLS(workbook) {
       const rawCode = (col[3] || '').trim();
       const rawQty  = (col[2] || '').trim();
       const name    = (col[4] || '').trim();
-      if (!/^\d+$/.test(rawCode)) continue;
+      if (!/^[A-Za-z0-9]{3,}$/.test(rawCode)) continue;
       const qty = parseFloat(rawQty);
       if (!qty || qty <= 0) continue;
       if (seen.has(rawCode)) {
