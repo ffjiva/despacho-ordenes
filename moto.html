@@ -554,7 +554,7 @@ async function fetchArrastre() {
     ));
     const vPrev = vSnap.docs
       .map(d => ({ id: d.id, ...d.data() }))
-      .filter(v => (v.assignedTo === currentDriverUid || v.assignedTo === currentDriver) && ['pending','en_camino'].includes(v.status))
+      .filter(v => v.assignedTo === currentDriverUid && ['pending','en_camino'].includes(v.status))
       .map(v => ({ ...v, _arrastre: true }));
     cachedArrastre = vPrev;
     if (vPrev.length) renderCombined();
@@ -578,7 +578,7 @@ async function fetchEnCola() {
     ));
     const vueltas = vSnap.docs
       .map(d => ({ id: d.id, ...d.data() }))
-      .filter(v => (v.assignedTo === currentDriverUid || v.assignedTo === currentDriver) && ['pending','en_camino'].includes(v.status));
+      .filter(v => v.assignedTo === currentDriverUid && ['pending','en_camino'].includes(v.status));
 
     const dSnap = await fbMod.getDocs(fbMod.query(
       fbMod.collection(db, 'domicilios'),
@@ -587,7 +587,7 @@ async function fetchEnCola() {
     ));
     const domicilios = dSnap.docs
       .map(d => ({ id: d.id, ...d.data() }))
-      .filter(d => (d.assignedTo === currentDriverUid || d.assignedTo === currentDriver) && ['pendiente','en_camino'].includes(d.status));
+      .filter(d => d.assignedTo === currentDriverUid && ['pendiente','en_camino'].includes(d.status));
 
     cachedEnCola = [...vueltas, ...domicilios].sort((a, b) =>
       (a.date || '').localeCompare(b.date || '') || (a.order || 0) - (b.order || 0)
@@ -1339,7 +1339,7 @@ window.uploadFoto = async input => {
   btns.forEach(b => { b.disabled = true; });
   if (btns[0]) btns[0].textContent = '⏳ Subiendo…';
   try {
-    const path    = `vueltas/${id}/${Date.now()}_${currentDriver}.jpg`;
+    const path    = `vueltas/${id}/${Date.now()}_${currentDriverUid}.jpg`;
     const storRef = storageMod.ref(storage, path);
     await storageMod.uploadBytes(storRef, file);
     const url = await storageMod.getDownloadURL(storRef);
@@ -1509,7 +1509,7 @@ window.uploadFotoDom = async input => {
   btns.forEach(b => { b.disabled = true; });
   if (btns[0]) btns[0].textContent = '⏳ Subiendo…';
   try {
-    const path    = `domicilios/${id}/${Date.now()}_${currentDriver}.jpg`;
+    const path    = `domicilios/${id}/${Date.now()}_${currentDriverUid}.jpg`;
     const storRef = storageMod.ref(storage, path);
     await storageMod.uploadBytes(storRef, file);
     const url = await storageMod.getDownloadURL(storRef);

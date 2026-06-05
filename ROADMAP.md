@@ -267,6 +267,27 @@ documentos legacy.
 nombres de archivos XLS usaban UTC, mostrando fecha del día siguiente
 después de las 6 PM en El Salvador. Reemplazadas por `getTodaySV()`.
 
+**[RESUELTO 04 Jun 2026] — Auditoría completa UID vs nombre (index.html + ops.html + moto.html)**
+Revisión sistemática de los 3 archivos. Hallazgos y fixes aplicados:
+
+- `moto.html` — filtros client-side en `fetchArrastre`/`fetchEnCola` comparaban
+  `assignedTo` (UID) contra `currentDriver` (nombre) como fallback legacy → siempre
+  fallaba. Eliminado el fallback; filtros usan solo `currentDriverUid`.
+- `moto.html` — paths de Storage (`vueltas/` y `domicilios/`) usaban `currentDriver`
+  (nombre con espacios/acentos) → paths inválidos. Cambiados a `currentDriverUid`.
+- `index.html` — dropdown de filtro supervisor guardaba nombre en `value`; filtro
+  comparaba `assignedToName || assignedTo` (nombre) contra ese valor → nunca matcheaba
+  documentos nuevos (que guardan UID). Fix: dropdown ahora guarda UID en `value`,
+  muestra nombre en texto, filtro compara `d.assignedTo === supUserFilter` (UID vs UID).
+- `index.html` — banner modo lectura ya mostraba `lockedByName || lockedBy` ✓
+- `index.html` — PDF export usa `assignedToName || assignedTo` ✓
+- `index.html` — path foto Storage sanitizado: `currentUser.name` → `safeName` con regex
+- `ops.html` — métricas y cierre agrupan motoristas por `assignedToName || assignedTo`
+  en los dos bloques de cálculo (`buildMetricas` y `buildCierreResumen`).
+- `ops.html` — cards de vueltas y domicilios, briefing y cierre incompletos ya usaban
+  `assignedToName || assignedTo` ✓
+- `moto.html` — cards de domicilios muestran `assignedToName || assignedTo` ✓
+
 ---
 
 ### 🔲 Features próximos
@@ -340,4 +361,4 @@ Al abrir una sesión de implementación:
 
 ---
 
-*Última actualización: 03 Junio 2026 (sesión tarde)*
+*Última actualización: 04 Junio 2026*

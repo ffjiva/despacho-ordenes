@@ -1441,7 +1441,7 @@ async function populateSupFilters(list) {
     const snap = await fbMod.getDocs(
       fbMod.query(fbMod.collection(db, 'users'), fbMod.where('active', '==', true))
     );
-    users = snap.docs.map(d => d.data().name).filter(Boolean).sort();
+    users = snap.docs.map(d => ({ uid: d.id, name: d.data().name || d.id })).filter(u => u.name).sort((a,b) => a.name.localeCompare(b.name));
   } catch { users = []; }
 
   // Destinos: extraer de órdenes activas (no archivadas) solamente
@@ -1450,7 +1450,7 @@ async function populateSupFilters(list) {
   )].sort();
 
   userSel.innerHTML = '<option value="">Todos</option>' +
-    users.map(u => `<option value="${u}"${u===supUserFilter?' selected':''}>${u}</option>`).join('');
+    users.map(u => `<option value="${u.uid}"${u.uid===supUserFilter?' selected':''}>${u.name}</option>`).join('');
   destSel.innerHTML = '<option value="">Todos</option>' +
     dests.map(d => {
       const lbl = ubicLabel(d) || d;
@@ -1592,7 +1592,7 @@ function renderDash(list) {
   if (isSuper) populateSupFilters(list);
 
   // Aplicar filtros adicionales del supervisor
-  if (isSuper && supUserFilter) list = list.filter(d => (d.assignedToName || d.assignedTo) === supUserFilter);
+  if (isSuper && supUserFilter) list = list.filter(d => d.assignedTo === supUserFilter);
   if (isSuper && supDestFilter) list = list.filter(d => d.destination === supDestFilter);
 
   const archivadas = list.filter(d => d.archived);
