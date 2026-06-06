@@ -163,6 +163,16 @@ Collaborator ve solo sus órdenes. "Esperando que me den" si no hay órdenes asi
 ### Módulo 6c — Generador de Órdenes de Reposición
 `ops.html` → pantalla `s-reposicion`. Parser SheetJS local + sugerencias IA. Algoritmo 2 fases (mínimos por prioridad + excedente proporcional). Panel ⚙ PARÁMETROS. Opción "Completar al tope". Modo Compra: sube GerencialTotal.xls + archivo de compra → sugiere distribución respetando topes por sucursal. Genera XLS biff8 por par Origen→Destino. Persistencia sessionStorage.
 
+**Nota de diseño — Multi-archivo Gerencial:**
+El soporte para múltiples archivos XLS en reposición normal fue diseñado
+para enriquecer la columna "Marca" — el GerencialTotal aporta el stock
+(first-write-wins) y los archivos adicionales por marca solo aportaban el
+campo brand usando el nombre del archivo como fuente. Este flujo está
+obsoleto: REP_KNOWN_BRANDS ya contiene el listado completo de 209 marcas
+activas, por lo que el parser detecta la marca directamente desde el nombre
+del producto en el GerencialTotal. El multi-archivo sigue funcionando por
+compatibilidad pero no es necesario en el flujo diario.
+
 ### Módulo 7 — Trazabilidad de Reposiciones
 `ops.html` → pantalla `s-trazabilidad`. Registro automático en Firestore al generar XLS. Filtros por origen, destino, fecha. Cards expandibles con detalle de productos.
 
