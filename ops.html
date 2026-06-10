@@ -1967,7 +1967,12 @@ window.saveEditDomicilio = async () => {
 
 window.deleteDomicilio = async (id, nombre) => {
   if (!confirm(`¿Eliminar la entrega de "${nombre}"?\nEsta acción no se puede deshacer.`)) return;
-  try { await fbMod.deleteDoc(fbMod.doc(db, 'domicilios', id)); }
+  try {
+    await fbMod.deleteDoc(fbMod.doc(db, 'domicilios', id));
+    // Refrescar arrastre por si el domicilio eliminado era de días anteriores
+    await loadArrastre(getTodaySV());
+    renderTodas();
+  }
   catch(e) { console.error(e); alert('Error al eliminar.'); }
 };
 
