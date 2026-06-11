@@ -3678,10 +3678,8 @@ async function loadBriefingData() {
     const vueltasHoy = vueltasSnap.docs.length;
     const vueltasDone = vueltasSnap.docs.filter(d => d.data().status === 'done').length;
 
-    // 3. Equipo activo
-    const teamSnap = await fbMod.getDoc(fbMod.doc(db, 'config', 'team'));
-    const members  = teamSnap.exists() ? (teamSnap.data().members || []) : [];
-    const motoristas = members.filter(m => m.role === 'motorista' && m.active !== false);
+    // 3. Equipo activo (motoristas) — desde users/{uid}; config/team está deprecado
+    const motoristas = await loadTeamMembers();
 
     // 4. Cierre de ayer — vueltas y entregas incompletas
     let cierreAyer = null;
