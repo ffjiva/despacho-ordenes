@@ -1,4 +1,3 @@
-const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const https = require("https");
 const XLSX = require("xlsx");
@@ -201,7 +200,7 @@ exports.onInventarioAsignado = onDocumentWritten('inventarios/{invId}', async (e
   return null;
 });
 
-exports.parseDocument = functions.https.onRequest(
+exports.parseDocument = onRequest(
   { timeoutSeconds: 300, memory: '1GiB' },
   async (req, res) => {
   console.log("Request received:", req.method);
@@ -497,7 +496,7 @@ async function buildCierreResumenAdmin(db, fecha) {
   };
 }
 
-exports.suggestReplenishment = functions.https.onRequest(
+exports.suggestReplenishment = onRequest(
   { timeoutSeconds: 120, memory: '512MiB' },
   async (req, res) => {
   res.set('Access-Control-Allow-Origin', '*');
