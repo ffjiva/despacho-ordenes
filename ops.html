@@ -1356,6 +1356,7 @@ const COLLECTION = 'ops_pendientes';
 const UBICACIONES_OPS = [
   { id: 'B01', label: 'B01 - Hangar',       aliases: ['hangar', 'bodega matrix sf', 'matrix sf'] },
   { id: 'B02', label: 'B02 - Zdt',          aliases: ['zdt', 'bodega central', 'central'] },
+  { id: 'B03', label: 'B03 - Oriente',      aliases: ['oriente', 'bodega oriente'] },
   { id: 'M01', label: 'M01 - Merliot',      aliases: ['merliot', 'zona digital matrix', 'zd matrix', 'matrix'] },
   { id: 'S02', label: 'S02 - San Salvador', aliases: ['san salvador', 'zona digital san salvador'] },
   { id: 'S03', label: 'S03 - San Miguel',   aliases: ['san miguel', 'zona digital san miguel'] },
@@ -4076,6 +4077,7 @@ window.deleteAgendaEvent = async (id, titulo) => {
 const REP_SNAMES = {
   'BODEGA CENTRAL':            'B02',
   'BODEGA MATRIX SF':          'B01',
+  'BODEGA ORIENTE':            'B03',
   'ZODITECH':                  'S06',
   'ZONA DIGITAL MATRIX':       'M01',
   'ZONA DIGITAL SAN MIGUEL':   'S03',
@@ -4096,6 +4098,31 @@ let   REP_MAXIMUMS         = { ...REP_MAXIMUMS_DEFAULT };
 let   REP_B01_RESERVE      = 2;
 let   REP_DIST_PCT         = 85;
 let   REP_FILL_TO_MAX      = false;
+
+// ── Helpers de disponibilidad por origen ─────────────────────────────────────
+// Centralizan el cálculo de "disponible" antes duplicado. origin: 'B01B02'
+// (default) | 'B01' | 'B02' | 'B03'. Por ahora solo se usa 'B01B02', así que el
+// comportamiento es idéntico al anterior.
+const REP_ORIGIN_SOURCES = {
+  B01B02: ['B01', 'B02'],
+  B01:    ['B01'],
+  B02:    ['B02'],
+  B03:    ['B03'],
+};
+// Reserva por bodega. B01 usa el valor configurable REP_B01_RESERVE; el resto
+// sin reserva por ahora (la config por bodega llega en una fase posterior).
+function repReserveFor(w) { return w === 'B01' ? REP_B01_RESERVE : 0; }
+// Disponible para SUGERENCIAS: descuenta la reserva de cada bodega del origen.
+function repAvailable(p, origin = 'B01B02') {
+  const srcs = REP_ORIGIN_SOURCES[origin] || REP_ORIGIN_SOURCES.B01B02;
+  return srcs.reduce((sum, w) =>
+    sum + Math.max(0, (p.stock[w] || 0) - repReserveFor(w)), 0);
+}
+// Tope MANUAL: stock físico completo del origen, sin descontar reserva.
+function repPoolCeiling(p, origin = 'B01B02') {
+  const srcs = REP_ORIGIN_SOURCES[origin] || REP_ORIGIN_SOURCES.B01B02;
+  return srcs.reduce((sum, w) => sum + (p.stock[w] || 0), 0);
+}
 const REP_KNOWN_BRANDS = [
   'BLUE MICROPHONE','THONET & VANDER','WESTERN DIGITAL','FORMULA V LINE','NIPPON AMERICA',
   'COOLER MASTER','EAGLE WARRIOR','HARMAN KARDON','SILICON POWER','BIT DEFENDER',
@@ -5178,7 +5205,7 @@ function parseRepXLS(workbook, brand) {
           code, name,
           brand: detectedBrand,
           cat:   localCat,
-          stock: { B01:0, B02:0, M01:0, S02:0, S03:0, S04:0, S06:0, S07:0 },
+          stock: { B01:0, B02:0, B03:0, M01:0, S02:0, S03:0, S04:0, S06:0, S07:0 },
         };
         repProductMap.set(code, cur);
         repProducts.push(cur);
@@ -5208,9 +5235,8 @@ function computeRepSuggestions() {
     const touched = REP_DESTS.some(sid => (repSendData[sid][p.code] || 0) > 0);
     if (touched) return;
 
-    const totalB    = (p.stock.B01 || 0) + (p.stock.B02 || 0);
-    const byReserve = Math.max(0, (p.stock.B01 || 0) - REP_B01_RESERVE)
-                    + (p.stock.B02 || 0);
+    const totalB    = repPoolCeiling(p, 'B01B02');
+    const byReserve = repAvailable(p, 'B01B02');
     const byPct     = Math.floor(totalB * REP_DIST_PCT / 100);
     let available   = Math.min(byReserve, byPct);
     if (available <= 0) return;
@@ -5470,7 +5496,7 @@ function renderRepTable() {
   const _minimum = REP_MINIMUMS[sucId] || 0;
   const totalSug  = filtered.reduce((s,p) => {
     const sst   = p.stock[sucId]||0;
-    const avail = Math.max(0,(p.stock.B01||0)-REP_B01_RESERVE)+(p.stock.B02||0);
+    const avail = repAvailable(p, 'B01B02');
     return s + ((sst < _minimum && avail > 0) ? Math.min(_minimum - sst, avail) : 0);
   }, 0);
   $('rep-summary').innerHTML =
@@ -5489,12 +5515,10 @@ function renderRepTable() {
     const sendA   = send[a.code] || 0;
     const sendB   = send[b.code] || 0;
     const _min = REP_MINIMUMS[sucId] || 0;
-    const sugA = ((a.stock[sucId]||0) < _min &&
-                  Math.max(0,(a.stock.B01||0)-REP_B01_RESERVE)+(a.stock.B02||0) > 0) ? 1 : 0;
-    const sugB = ((b.stock[sucId]||0) < _min &&
-                  Math.max(0,(b.stock.B01||0)-REP_B01_RESERVE)+(b.stock.B02||0) > 0) ? 1 : 0;
-    const bavailA = (a.stock.B01||0) + (a.stock.B02||0);
-    const bavailB = (b.stock.B01||0) + (b.stock.B02||0);
+    const sugA = ((a.stock[sucId]||0) < _min && repAvailable(a, 'B01B02') > 0) ? 1 : 0;
+    const sugB = ((b.stock[sucId]||0) < _min && repAvailable(b, 'B01B02') > 0) ? 1 : 0;
+    const bavailA = repPoolCeiling(a, 'B01B02');
+    const bavailB = repPoolCeiling(b, 'B01B02');
 
     switch (repSortBy) {
       case 'stock_asc':
@@ -5512,7 +5536,7 @@ function renderRepTable() {
       case 'col': {
         const valA = (() => {
           if (repSortCol==='sug') {
-            const m=REP_MINIMUMS[sucId]||0, av=Math.max(0,(a.stock.B01||0)-REP_B01_RESERVE)+(a.stock.B02||0);
+            const m=REP_MINIMUMS[sucId]||0, av=repAvailable(a, 'B01B02');
             return ((a.stock[sucId]||0)<m&&av>0) ? Math.min(m-(a.stock[sucId]||0),av) : 0;
           }
           switch(repSortCol){case'b01':return a.stock.B01||0;case'b02':return a.stock.B02||0;case'suc':return a.stock[sucId]||0;}
@@ -5520,7 +5544,7 @@ function renderRepTable() {
         })();
         const valB = (() => {
           if (repSortCol==='sug') {
-            const m=REP_MINIMUMS[sucId]||0, av=Math.max(0,(b.stock.B01||0)-REP_B01_RESERVE)+(b.stock.B02||0);
+            const m=REP_MINIMUMS[sucId]||0, av=repAvailable(b, 'B01B02');
             return ((b.stock[sucId]||0)<m&&av>0) ? Math.min(m-(b.stock[sucId]||0),av) : 0;
           }
           switch(repSortCol){case'b01':return b.stock.B01||0;case'b02':return b.stock.B02||0;case'suc':return b.stock[sucId]||0;}
@@ -5548,8 +5572,7 @@ function renderRepTable() {
     const b01   = p.stock.B01  || 0;
     const b02   = p.stock.B02  || 0;
     const sst   = p.stock[sucId] || 0;
-    const b01reserve = Math.max(0, b01 - REP_B01_RESERVE);
-    const avail      = b01reserve + b02;
+    const avail      = repAvailable(p, 'B01B02');
     const minimum    = REP_MINIMUMS[sucId] || 0;
     const sug        = (sst < minimum && avail > 0)
       ? Math.min(minimum - sst, avail) : 0;
@@ -5947,7 +5970,7 @@ function renderCompraTable() {
     const min   = REP_MINIMUMS[sucId] || 0;
     const sug   = (sst < min && avail > 0) ? Math.min(min - sst, avail) : 0;
     const poolDisplay = repCompraPostMode
-      ? (() => { const sm = repProductMap.get(p.code); return sm ? Math.max(0,(sm.stock.B01||0)-REP_B01_RESERVE)+(sm.stock.B02||0) : 0; })()
+      ? (() => { const sm = repProductMap.get(p.code); return sm ? repAvailable(sm, 'B01B02') : 0; })()
       : p.qty;
     return `<tr>
       <td class="td-code">${escHtml(p.code)}</td>
@@ -6012,7 +6035,7 @@ function getCompraPool(p) {
   }
   const stockMap = repProductMap.get(p.code);
   if (!stockMap) return 0;
-  return Math.max(0, (stockMap.stock.B01 || 0) - REP_B01_RESERVE) + (stockMap.stock.B02 || 0);
+  return repAvailable(stockMap, 'B01B02');
 }
 
 function redistributeCompraPool(code) {
