@@ -778,6 +778,14 @@ body:not(.dark) input[type="time"] {
   background: var(--warn-bg); color: var(--warn-tx);
   border: 1px solid var(--warn-bd);
 }
+.rep-origin { display: flex; gap: 4px; margin-bottom: 8px; }
+.rorigin-btn {
+  padding: 5px 12px; border-radius: var(--r);
+  border: 1px solid var(--border); background: var(--surface);
+  color: var(--text); font-size: .72rem; font-weight: 700;
+  font-family: var(--mono); cursor: pointer;
+}
+.rorigin-btn.on { background: var(--text); color: var(--surface); border-color: var(--text); }
 .rep-qty {
   width: 52px; padding: 4px 5px; text-align: center;
   border: 1px solid var(--border); border-radius: var(--r);
@@ -4088,16 +4096,21 @@ const REP_SNAMES = {
 };
 const REP_DESTS    = ['M01','S02','S04','S03','S07','S06'];
 const REP_LBLS     = { M01:'M01 Merliot', S02:'S02 Sv', S03:'S03 S.Miguel',
-                       S04:'S04 Soya.',   S06:'S06 Zoditech', S07:'S07 Usulután' };
+                       S04:'S04 Soya.',   S06:'S06 Zoditech', S07:'S07 Usulután',
+                       B03:'B03 Oriente' };
 const REP_FNAMES   = { M01:'Merliot', S02:'SanSalvador', S03:'SanMiguel',
-                       S04:'Soyapango', S06:'Zoditech', S07:'Usulutan' };
+                       S04:'Soyapango', S06:'Zoditech', S07:'Usulutan',
+                       B03:'Oriente' };
 const REP_PRIORITY_ORDER   = ['M01','S02','S04','S03','S07','S06'];
-// Destinos del flujo de reposición normal. Por ahora devuelve las 6 sucursales
-// (sin cambio). En 2b-1b pasa a depender de repOrigin (agrega/quita B03).
-function repTargets() { return REP_DESTS; }
-const REP_MINIMUMS_DEFAULT = { M01:5, S02:5, S04:3, S03:2, S07:2, S06:2 };
+// Destinos del flujo de reposición normal, según el origen seleccionado.
+// Origen B-bodega (B01+B02/B01/B02): B03 es destino (en su prioridad tras S04).
+// Origen B03: B03 es la fuente, así que solo las 6 sucursales.
+const REP_DESTS_B03 = ['M01','S02','S04','B03','S03','S07','S06'];
+function repTargets() { return repOrigin === 'B03' ? REP_DESTS : REP_DESTS_B03; }
+function repOriginLabel() { return repOrigin === 'B01B02' ? 'B01+B02' : repOrigin; }
+const REP_MINIMUMS_DEFAULT = { M01:5, S02:5, S04:3, S03:2, S07:2, S06:2, B03:0 };
 let   REP_MINIMUMS         = { ...REP_MINIMUMS_DEFAULT };
-const REP_MAXIMUMS_DEFAULT = { M01:10, S02:10, S04:6, S03:5, S07:4, S06:5 };
+const REP_MAXIMUMS_DEFAULT = { M01:10, S02:10, S04:6, S03:5, S07:4, S06:5, B03:10 };
 let   REP_MAXIMUMS         = { ...REP_MAXIMUMS_DEFAULT };
 let   REP_B01_RESERVE      = 2;
 let   REP_DIST_PCT         = 85;
@@ -5239,13 +5252,13 @@ function computeRepSuggestions() {
     const touched = repTargets().some(sid => (repSendData[sid][p.code] || 0) > 0);
     if (touched) return;
 
-    const totalB    = repPoolCeiling(p, 'B01B02');
-    const byReserve = repAvailable(p, 'B01B02');
+    const totalB    = repPoolCeiling(p, repOrigin);
+    const byReserve = repAvailable(p, repOrigin);
     const byPct     = Math.floor(totalB * REP_DIST_PCT / 100);
     let available   = Math.min(byReserve, byPct);
     if (available <= 0) return;
 
-    const WEIGHTS = { M01:4, S02:4, S04:4, S03:3, S07:3, S06:2 };
+    const WEIGHTS = { M01:4, S02:4, S04:4, S03:3, S07:3, S06:2, B03:0 };
 
     // Fase 1: cubrir mínimos en orden de prioridad
     let remaining = available;
@@ -5358,6 +5371,7 @@ function stkCls(v) {
 
 function renderRepFull() {
   renderRepFileList();
+  renderRepOrigin();
   renderRepTabs();
   renderRepGlobalTotals();
   renderRepFilters();
@@ -5413,6 +5427,29 @@ function renderRepFileList() {
     </div>`).join('');
 }
 
+function renderRepOrigin() {
+  const el = $('rep-origin');
+  if (!el) return;
+  const opts = [['B01B02','B01+B02'],['B01','B01'],['B02','B02'],['B03','B03']];
+  el.innerHTML = opts.map(([id,lbl]) =>
+    `<button class="rorigin-btn${id===repOrigin?' on':''}" onclick="setRepOrigin('${id}')">${lbl}</button>`
+  ).join('');
+}
+window.setRepOrigin = (o) => {
+  if (o === repOrigin) return;
+  repOrigin = o;
+  const dests = repTargets();
+  if (!dests.includes(repActiveTab)) repActiveTab = dests[0];
+  ['M01','S02','S04','B03','S03','S07','S06'].forEach(sid => {
+    if (repSendData[sid]) Object.keys(repSendData[sid]).forEach(c => delete repSendData[sid][c]);
+  });
+  computeRepSuggestions();
+  renderRepOrigin();
+  renderRepTabs();
+  renderRepTable();
+  renderRepGlobalTotals();
+  saveRepSession();
+};
 function renderRepTabs() {
   if (repMode === 'redist') { renderRedistTabs(); return; }
   const _tabSrc = repMode === 'compra' ? repCompraData : repSendData;
@@ -5492,7 +5529,7 @@ function renderRepTable() {
 
   const totalB01  = filtered.reduce((s,p) => s+(p.stock.B01||0), 0);
   const totalB02  = filtered.reduce((s,p) => s+(p.stock.B02||0), 0);
-  const totalB    = totalB01 + totalB02;
+  const totalB    = filtered.reduce((s,p) => s + repPoolCeiling(p, repOrigin), 0);
   const totalSuc  = filtered.reduce((s,p) => s+(p.stock[sucId]||0), 0);
   const totalSend = Object.values(send).reduce((s,v) => s+v, 0);
   const totalSendF= filtered.reduce((s,p) => s+(send[p.code]||0), 0);
@@ -5500,11 +5537,11 @@ function renderRepTable() {
   const _minimum = REP_MINIMUMS[sucId] || 0;
   const totalSug  = filtered.reduce((s,p) => {
     const sst   = p.stock[sucId]||0;
-    const avail = repAvailable(p, 'B01B02');
+    const avail = repAvailable(p, repOrigin);
     return s + ((sst < _minimum && avail > 0) ? Math.min(_minimum - sst, avail) : 0);
   }, 0);
   $('rep-summary').innerHTML =
-    `${filtered.length} productos · disponible B01+B02: <strong>${totalB}</strong> · ` +
+    `${filtered.length} productos · disponible ${repOriginLabel()}: <strong>${totalB}</strong> · ` +
     `asignado: <strong>${totalSend}</strong> · líneas: <strong>${filled}</strong>`;
 
   if (!filtered.length) {
@@ -5519,10 +5556,10 @@ function renderRepTable() {
     const sendA   = send[a.code] || 0;
     const sendB   = send[b.code] || 0;
     const _min = REP_MINIMUMS[sucId] || 0;
-    const sugA = ((a.stock[sucId]||0) < _min && repAvailable(a, 'B01B02') > 0) ? 1 : 0;
-    const sugB = ((b.stock[sucId]||0) < _min && repAvailable(b, 'B01B02') > 0) ? 1 : 0;
-    const bavailA = repPoolCeiling(a, 'B01B02');
-    const bavailB = repPoolCeiling(b, 'B01B02');
+    const sugA = ((a.stock[sucId]||0) < _min && repAvailable(a, repOrigin) > 0) ? 1 : 0;
+    const sugB = ((b.stock[sucId]||0) < _min && repAvailable(b, repOrigin) > 0) ? 1 : 0;
+    const bavailA = repPoolCeiling(a, repOrigin);
+    const bavailB = repPoolCeiling(b, repOrigin);
 
     switch (repSortBy) {
       case 'stock_asc':
@@ -5540,7 +5577,7 @@ function renderRepTable() {
       case 'col': {
         const valA = (() => {
           if (repSortCol==='sug') {
-            const m=REP_MINIMUMS[sucId]||0, av=repAvailable(a, 'B01B02');
+            const m=REP_MINIMUMS[sucId]||0, av=repAvailable(a, repOrigin);
             return ((a.stock[sucId]||0)<m&&av>0) ? Math.min(m-(a.stock[sucId]||0),av) : 0;
           }
           switch(repSortCol){case'b01':return a.stock.B01||0;case'b02':return a.stock.B02||0;case'suc':return a.stock[sucId]||0;}
@@ -5548,7 +5585,7 @@ function renderRepTable() {
         })();
         const valB = (() => {
           if (repSortCol==='sug') {
-            const m=REP_MINIMUMS[sucId]||0, av=repAvailable(b, 'B01B02');
+            const m=REP_MINIMUMS[sucId]||0, av=repAvailable(b, repOrigin);
             return ((b.stock[sucId]||0)<m&&av>0) ? Math.min(m-(b.stock[sucId]||0),av) : 0;
           }
           switch(repSortCol){case'b01':return b.stock.B01||0;case'b02':return b.stock.B02||0;case'suc':return b.stock[sucId]||0;}
@@ -5576,7 +5613,7 @@ function renderRepTable() {
     const b01   = p.stock.B01  || 0;
     const b02   = p.stock.B02  || 0;
     const sst   = p.stock[sucId] || 0;
-    const avail      = repAvailable(p, 'B01B02');
+    const avail      = repAvailable(p, repOrigin);
     const minimum    = REP_MINIMUMS[sucId] || 0;
     const sug        = (sst < minimum && avail > 0)
       ? Math.min(minimum - sst, avail) : 0;
@@ -6906,6 +6943,7 @@ document.addEventListener('DOMContentLoaded', init);
           onclick="exitRedistMode()">← Volver a reposición normal</button>
       </div>
     </div>
+    <div class="rep-origin" id="rep-origin"></div>
     <div class="rep-tabs" id="rep-tabs"></div>
     <div class="rep-filters" id="rep-filters"></div>
     <div class="rep-actions">
