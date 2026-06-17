@@ -4115,6 +4115,36 @@ let   REP_MAXIMUMS         = { ...REP_MAXIMUMS_DEFAULT };
 // Mínimo de B03 por categoría: solo mantiene existencias de estos tipos voluminosos
 // para alimentar S03/S07; el resto, 0.
 const REP_B03_CATEGORIES = new Set(['Gaming Chairs','Monitores','Cases','Smart TV','Escritorios','Sillas']);
+// Lista blanca de categorías activas del sistema (137). El parser solo acepta
+// como categoría lo que esté aquí; lo demás se ignora (evita productos colados).
+const REP_CATEGORIES = new Set([
+  'ACCESORIOS APPLE', 'Accesorios Protección', 'Accesorios Tablets', 'Accesorios de Impresión',
+  'Accesorios para Carro', 'Accesorios para Laptop', 'Accesorios para Móviles', 'Accesorios para PC',
+  'Accesorios para Pantallas', 'Accesorios para Redes', 'Access Point', 'Adaptadores Computo',
+  'Adaptadores de Audio', 'Antenas de Red', 'Antivirus y Seguridad', 'Audífonos para PC', 'Baterías',
+  'Bobinas Cable UTP', 'Bocinas Portátiles', 'Bocinas para PC', 'Bolsones y Estuches',
+  'Cables Celular MicroUSB', 'Cables Celular Tipo C', 'Cables Computo', 'Cables de Audio', 'Cables de Red',
+  'Cables para Iphone', 'Cables para Pantallas', 'Calculadoras Básicas', 'Calculadoras Científicas',
+  'Cargadores para Celular', 'Cartuchos de Tinta', 'Cases', 'Celulares', 'Cintas', 'Coleccionables',
+  'Controles para TV', 'Cámara de Acción', 'Cámaras Fotográficas', 'Cámaras de Vigilancia', 'Discos Duros',
+  'Discos Externos', 'Dispositivos', 'Earphones 3.5MM', 'Earphones Bluetooth', 'Earphones Bluetooth O',
+  'Ecommerce Costos', 'Enclosures', 'Enfriamiento Líquido', 'Enfriamiento por Aire', 'Equipos RF',
+  'Escritorios', 'Extensores de Red', 'Fuentes de Poder', 'Gamepads', 'Gaming Chairs', 'Gaming Goodies',
+  'Gaming Headset', 'Gaming Keyboards', 'Gaming Mouse', 'Gaming Mousepad', 'HEADPHONES USB-C',
+  'Headphones 3.5MM', 'Headphones Bluetooth', 'Herramientas', 'Herramientas de Red', 'Impresores Láser',
+  'Impresores Matriciales', 'Impresores Térmicos', 'Impresores de Inyección', 'Impresores de Tanque',
+  'Juguetes Educativos', 'Juguetes RC', 'Kits de Vigilancia', 'Laptops', 'Laptops Gamer', 'Laptops RF',
+  'Limpieza', 'Liquidación', 'Media', 'Memorias TFlash', 'Memorias USB', 'Microfono PC', 'Micrófono Aux',
+  'Mobiliario y Equipo', 'Monitores', 'Monitores RF', 'Motherboards AMD', 'Motherboards INTEL',
+  'Mouse Inalámbricos', 'Mouse USB Opticos', 'Mousepads', 'Nintendo', 'Ofimática', 'Otros Muebles',
+  'PC Desktop', 'PC Gamer', 'Papelería', 'Pasta Térmica', 'Playstation', 'Procesadores AMD',
+  'Procesadores Intel', 'Productos Pulled', 'Proyectores', 'Racks para TV', 'Ram para Laptop', 'Ram para PC',
+  'Reguladores', 'Routers', 'Scaners', 'Servidores', 'Sillas', 'Sistemas Operativos', 'Smart Home',
+  'Smart TV', 'Smartwatch', 'Switch de Red', 'Tabletas Gráficas', 'Tablets', 'Tarjetas PCI',
+  'Tarjetas de Red PCI', 'Tarjetas de Red USB', 'Tarjetas de Video', 'Teclados', 'Televisores',
+  'Tintas Refill', 'Tóner', 'UPS', 'Unidades DVR-NVR', 'Unidades Opticas', 'Unidades SSD M.2',
+  'Unidades SSD Sata', 'Varios Electrónicos', 'Varios RF', 'Ventilación para Case', 'WebCams', 'XBOX',
+]);
 const REP_B03_MIN = 6;
 function repMinFor(p, sid) {
   if (sid === 'B03') return REP_B03_CATEGORIES.has((p.cat || '').trim()) ? REP_B03_MIN : 0;
@@ -5201,6 +5231,7 @@ function parseRepXLS(workbook, brand) {
   }
 
   let cur = null, localCat = '', added = 0, enriched = 0;
+  const repRejectedCats = [];
 
   for (const row of rows) {
     const c1 = String(row[1] ?? '').trim();
@@ -5236,10 +5267,20 @@ function parseRepXLS(workbook, brand) {
         repProducts.push(cur);
         added++;
       }
-    } else {
+    } else if (REP_CATEGORIES.has(c1)) {
       localCat = c1;
       cur = null;
+    } else {
+      // No es categoría conocida (nombre de producto suelto, fragmento, etc.):
+      // se ignora para no contaminar el filtro. Se suelta el producto actual para
+      // que las filas de stock siguientes no se le atribuyan.
+      repRejectedCats.push(c1);
+      cur = null;
     }
+  }
+  if (repRejectedCats.length) {
+    console.log('[reposición] filas ignoradas (no son categorías conocidas):',
+                [...new Set(repRejectedCats)]);
   }
   return { added, enriched };
 }
