@@ -33,10 +33,10 @@
 
 | Archivo | Descripción | Líneas aprox. |
 |---|---|---|
-| `index.html` | Despacho Manager — picking con IA | ~3,070 |
-| `ops.html` | Operaciones — pendientes, vueltas, entregas, métricas, reposición | ~5,596 |
-| `moto.html` | Portal Motorista | ~1,546 |
-| `functions/index.js` | Cloud Functions | ~610 |
+| `index.html` | Despacho Manager — picking con IA | ~3,214 |
+| `ops.html` | Operaciones — pendientes, vueltas, entregas, métricas, reposición | ~7,170 |
+| `moto.html` | Portal Motorista | ~1,569 |
+| `functions/index.js` | Cloud Functions | ~660 |
 
 ---
 
@@ -76,7 +76,6 @@ assignedToName: string   ← nombre para display
 createdBy:      string   ← uid Firebase Auth
 createdByName:  string   ← nombre para display
 photos:         string[] ← URLs de fotos de preparación (Storage)
-createdBy:      string
 products:       [{ id, name, code, qty, family }]
 checked:        { [productId]: { done, time, note } }
 status:         'pending'|'active'|'done'|'dispatched'|'dispatched_incomplete'
@@ -118,6 +117,7 @@ Solo persiste por FCM tokens legacy. No usar para nuevos desarrollos.
 | `createUser` | Crea usuario en Firebase Auth + Firestore sin cerrar sesión del super. |
 | `onDespachoAssigned` | Trigger Firestore: notificación FCM al asignar orden. Busca por nombre en `users/`, `sendEach()`, limpieza de tokens inválidos. |
 | `onVueltaAssigned` | Trigger Firestore: notificación FCM al asignar vuelta. Mismo patrón que `onDespachoAssigned`. |
+| `onInventarioAsignado` | Trigger Firestore: notificación FCM al asignar validación de inventario físico (módulo 8b). Mismo patrón que `onDespachoAssigned`. |
 | `suggestReplenishment` | Sugerencias IA para módulo 6c (claude-haiku-4-5). Requiere Firebase Auth token. |
 | `autoCierreJornada` | Cierre automático de jornada. |
 
@@ -125,6 +125,7 @@ Solo persiste por FCM tokens legacy. No usar para nuevos desarrollos.
 - HTTP client: `https` nativo (no @anthropic-ai/sdk)
 - API key env var: `ANTHROPIC_KEY`
 - Modelo: `claude-haiku-4-5`
+- `parseDocument` y `suggestReplenishment` migradas a Cloud Functions **v2** (`onRequest`) con config inline (timeout/memoria estables al redeploy). Eliminado import muerto de `firebase-functions` en raíz. (17 Jun 2026)
 
 ---
 
@@ -172,6 +173,28 @@ obsoleto: REP_KNOWN_BRANDS ya contiene el listado completo de 209 marcas
 activas, por lo que el parser detecta la marca directamente desde el nombre
 del producto en el GerencialTotal. El multi-archivo sigue funcionando por
 compatibilidad pero no es necesario en el flujo diario.
+
+**Reposición — Bodega Oriente (B03) + saneamiento de categorías (17 Jun 2026):**
+- **Selector de origen:** control segmentado B01+B02 / B01 / B02 / B03. `repOrigin`
+  + `repTargets()` calculan los destinos según el origen. Disponible y reservas
+  centralizados en `repAvailable()` / `repPoolCeiling()` / `repReserveFor()`
+  (B01 reserva 2; B02 y B03 reserva 0). `REP_DIST_PCT` 85% como tope byPct.
+- **B03 como destino:** Bodega Oriente, regional (surte principalmente S03/S07).
+  Recibe de B01/B02. Aparece como pestaña destino cuando el origen es B01/B02/B01+B02.
+  Como origen, redistribuye a todas las sucursales (capacidad para casos ocasionales).
+- **Mínimo por categoría en B03:** `REP_B03_CATEGORIES` (6 categorías voluminosas:
+  Gaming Chairs, Monitores, Cases, Smart TV, Escritorios, Sillas) + helper
+  `repMinFor(p, sid)`. B03 solo mantiene mínimo (6) en esas categorías; 0 en el resto.
+  Lista confirmada cruzando el inventario físico de B03 contra el Gerencial.
+- **Lista blanca de categorías:** `REP_CATEGORIES` (137 categorías activas). El parser
+  solo acepta como categoría lo que esté en el catálogo; los nombres de producto sueltos
+  ("NEGRO", "NAVYTECH…", etc.) se ignoran en vez de volverse categorías falsas. Log de
+  auditoría `repRejectedCats` en consola para detectar desajustes de texto.
+- **Auto-refresco de categoría:** al reutilizar un producto existente en el parser, su
+  categoría se actualiza con el parse actual (`if (localCat) cur.cat = localCat`). Un
+  re-upload del Gerencial corrige categorías viejas sin limpiar sessionStorage a mano.
+- **Fix briefing:** `loadBriefingData` ahora cuenta motoristas activos desde `users/{uid}`
+  vía `loadTeamMembers()` (antes leía `config/team`, deprecado).
 
 ### Módulo 7 — Trazabilidad de Reposiciones
 `ops.html` → pantalla `s-trazabilidad`. Registro automático en Firestore al generar XLS. Filtros por origen, destino, fecha. Cards expandibles con detalle de productos.
@@ -298,9 +321,39 @@ Revisión sistemática de los 3 archivos. Hallazgos y fixes aplicados:
   `assignedToName || assignedTo` ✓
 - `moto.html` — cards de domicilios muestran `assignedToName || assignedTo` ✓
 
+**[RESUELTO 17 Jun 2026] — Migración Cloud Functions v2**
+`parseDocument` y `suggestReplenishment` migradas de `functions.https.onRequest` (v1)
+a `onRequest` (v2) con timeout/memoria inline. Eliminado el `require("firebase-functions")`
+muerto en raíz. Verificado en producción.
+
+**[RESUELTO 17 Jun 2026] — Briefing contaba motoristas desde config/team**
+`loadBriefingData` leía la colección deprecada `config/team` para el conteo de motoristas
+activos. Ahora usa `loadTeamMembers()` (consulta `users/{uid}` por role + active).
+
+**[RESUELTO 17 Jun 2026] — Bodega Oriente (B03) en reposición**
+Ver Módulo 6c: selector de origen, B03 como destino, mínimo por categoría (6 voluminosas),
+lista blanca de 137 categorías y auto-refresco de categoría al reutilizar.
+
 ---
 
 ### 🔲 Features próximos
+
+**Reposición — Pool en vivo (Fase 4)** *(ops.html)* — **SIGUIENTE PASO**
+El "disponible" por producto se descuenta en tiempo real al asignar cantidades entre
+destinos. Tope **DURO** en el input (no deja asignar de más; marca en **rojo** al topar =
+stock completo sin reserva). Zona **ámbar** cuando se usa la reserva (entre stock−reserva
+y stock). La sugerencia automática respeta la reserva (B01:2); el ajuste manual permite
+usar hasta el stock completo. Diseñado, pendiente de implementar.
+
+**Reposición — Columna B03 en la tabla** *(ops.html)*
+B03 ya aparece como pestaña/destino, pero la tabla solo muestra columnas B01/B02. Agregar
+columna B03 para ver su stock junto a las demás. Polish junto con prueba a fondo de B03
+como origen.
+
+**Navegación con URLs relativas** *(index.html + ops.html + moto.html)*
+Botones "Ops"/"Órdenes" usan URLs absolutas hardcodeadas (`window.open('https://despacho-ordenes.web.app/...')`),
+lo que en previews salta a producción. Cambiar a relativas (`window.open('ops.html')`).
+**OJO:** los deep links `?orden=` que se comparten externamente deben quedar absolutos.
 
 ---
 
@@ -345,6 +398,8 @@ Mejoras menores para implementar cuando haya espacio:
 - **GPS picking** — registrar coordenadas al iniciar y completar una orden de bodega (index.html)
 - **Agente WhatsApp** — notificaciones o comandos por WhatsApp (largo plazo)
 - **Rediseño home ops.html** — revisión estética del layout de navegación principal. Dos conceptos bocetados en sesión 03 Jun 2026: (A) home con botones por módulo agrupados por sección, (B) tabs superiores por módulo. Pendiente de evaluar cuando haya espacio.
+- **Modularizar ops.html** — supera 7,000 líneas, difícil de editar (agrava el stale-cache de Claude Code). Opción: módulos ES nativos (sin build), empezando por extraer reposición. Reto: estado compartido (`repProducts`, `repSendData`, etc.). También un `shared.js` para lógica duplicada entre index/ops/moto.
+- **Revisar integración WhatsApp** *(moto.html)* — `wa.me/${WHATSAPP_GROUP}` (~líneas 1406/1460): la constante está definida pero no es funcional. Revisar si es código muerto a eliminar o feature a completar.
 
 ---
 
@@ -354,12 +409,19 @@ Mejoras menores para implementar cuando haya espacio:
 |---|---|---|---|
 | B01 | BODEGA MATRIX SF (Hangar) | Origen | — |
 | B02 | BODEGA CENTRAL | Origen | — |
+| B03 | BODEGA ORIENTE | Origen + Destino (regional) | surte S03/S07 |
 | M01 | ZONA DIGITAL MATRIX (Merliot) | Destino | ALTA |
 | S02 | ZONA DIGITAL SAN SALVADOR | Destino | ALTA |
 | S04 | ZONA DIGITAL SOYAPANGO | Destino | MEDIA |
 | S03 | ZONA DIGITAL SAN MIGUEL | Destino | BAJA |
 | S07 | ZONA DIGITAL USULUTAN | Destino | BAJA |
 | S06 | ZODITECH | Destino | BAJA |
+
+**Nota B03 (Bodega Oriente):** bodega regional con doble rol. Recibe de B01/B02 (como
+destino, con mínimo por categoría en voluminosos) y redistribuye a sucursales (como origen,
+principalmente S03/S07). En el reparto de destinos B03 va en prioridad 4 (después de
+M01/S02/S04), así que para artículos escasos puede quedar en 0 si el pool se agota antes;
+en ese caso se ajusta la cantidad a mano. Posible revisión futura de su prioridad.
 
 ---
 
@@ -371,4 +433,4 @@ Al abrir una sesión de implementación:
 
 ---
 
-*Última actualización: 04 Junio 2026*
+*Última actualización: 17 Junio 2026*
