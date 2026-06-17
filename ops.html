@@ -5255,6 +5255,7 @@ function parseRepXLS(workbook, brand) {
       if (repProductMap.has(code)) {
         cur = repProductMap.get(code);
         if (brand && !cur.brand) { cur.brand = brand; enriched++; }
+        if (localCat) cur.cat = localCat;  // refresca la categoría con el parse actual (ya filtrado por whitelist)
       } else {
         const detectedBrand = brand || detectBrandFromName(name);
         cur = {
