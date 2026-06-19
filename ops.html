@@ -767,6 +767,7 @@ body:not(.dark) input[type="time"] {
 }
 .td-brand { font-size: .6rem; color: var(--info-tx); white-space: nowrap; }
 .td-stk   { text-align: right; font-family: var(--mono); font-size: .65rem; min-width: 38px; }
+.td-stk-passive { opacity: .42; }
 .td-sug   { text-align: center; min-width: 44px; }
 .td-send  { text-align: center; min-width: 58px; }
 .stk-zero { color: var(--border); }
@@ -796,6 +797,19 @@ body:not(.dark) input[type="time"] {
 .rep-qty.has-qty {
   border-color: var(--done-bd); background: var(--done-bg); color: var(--done-tx);
 }
+.rep-qty.is-warn {
+  border-color: var(--warn-bd); background: var(--warn-bg); color: var(--warn-tx);
+}
+.rep-qty.is-full {
+  border-color: var(--err-bd); background: var(--err-bg); color: var(--err-tx);
+}
+.rep-rem {
+  margin-top: 2px; font-size: .52rem; font-family: var(--mono);
+  text-align: center; line-height: 1;
+}
+.rep-rem:empty { display: none; }
+.rep-rem.rem-warn { color: var(--warn-tx); }
+.rep-rem.rem-full { color: var(--err-tx); font-weight: 700; }
 .rep-qty::-webkit-inner-spin-button,
 .rep-qty::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 .rep-qty { -moz-appearance: textfield; }
@@ -4178,6 +4192,15 @@ function repPoolCeiling(p, origin = 'B01B02') {
   const srcs = REP_ORIGIN_SOURCES[origin] || REP_ORIGIN_SOURCES.B01B02;
   return srcs.reduce((sum, w) => sum + (p.stock[w] || 0), 0);
 }
+// Pool en vivo: unidades del producto ya asignadas a destinos distintos al actual.
+function repAssignedElsewhere(code, exceptSuc) {
+  let sum = 0;
+  for (const sid of repTargets()) {
+    if (sid === exceptSuc) continue;
+    sum += (repSendData[sid] && repSendData[sid][code]) || 0;
+  }
+  return sum;
+}
 const REP_KNOWN_BRANDS = [
   'BLUE MICROPHONE','THONET & VANDER','WESTERN DIGITAL','FORMULA V LINE','NIPPON AMERICA',
   'COOLER MASTER','EAGLE WARRIOR','HARMAN KARDON','SILICON POWER','BIT DEFENDER',
@@ -5463,6 +5486,38 @@ function renderRepGlobalTotals() {
     </span>`;
 }
 
+// Refresca rep-summary (asignado/líneas) + pie TOTAL GENERAL sin re-render de filas.
+// Solo modo stock; compra/redist tienen sus propios totales.
+function refreshRepStockTotals() {
+  if (repMode !== 'stock') return;
+  const sucId    = repActiveTab;
+  const send     = repSendData[sucId] || {};
+  const filtered = repProducts.filter(repRowMatches);
+  const totalB     = filtered.reduce((s,p) => s + repPoolCeiling(p, repOrigin), 0);
+  const totalSend  = Object.values(send).reduce((s,v) => s+v, 0);
+  const totalSendF = filtered.reduce((s,p) => s+(send[p.code]||0), 0);
+  const filled     = Object.values(send).filter(v => v > 0).length;
+  const sumEl = $('rep-summary');
+  if (sumEl) sumEl.innerHTML =
+    `${filtered.length} productos · disponible ${repOriginLabel()}: <strong>${totalB}</strong> · ` +
+    `asignado: <strong>${totalSend}</strong> · líneas: <strong>${filled}</strong>`;
+  const foot = $('rep-foot-send');
+  if (foot) foot.textContent = totalSendF > 0 ? totalSendF.toLocaleString() : '—';
+  const fb01 = $('rep-foot-b01'), fb02 = $('rep-foot-b02'), fb03 = $('rep-foot-b03');
+  if (fb01 || fb02 || fb03) {
+    let rB01 = 0, rB02 = 0, rB03 = 0;
+    filtered.forEach(p => {
+      const a = repAllocate(p.code);
+      rB01 += a.remain.B01 !== undefined ? a.remain.B01 : (p.stock.B01 || 0);
+      rB02 += a.remain.B02 !== undefined ? a.remain.B02 : (p.stock.B02 || 0);
+      rB03 += a.remain.B03 !== undefined ? a.remain.B03 : (p.stock.B03 || 0);
+    });
+    if (fb01) fb01.textContent = rB01.toLocaleString();
+    if (fb02) fb02.textContent = rB02.toLocaleString();
+    if (fb03) fb03.textContent = rB03.toLocaleString();
+  }
+}
+
 function renderRepFileList() {
   $('rep-filelist').innerHTML = repLoadedFiles.map(f => `
     <div class="rep-file-item">
@@ -5555,6 +5610,21 @@ function renderRepFilters() {
     </select>`;
 }
 
+function repRowMatches(p) {
+  if (repActiveCat   && p.cat   !== repActiveCat)  return false;
+  if (repActiveBrand && (p.brand||'').toUpperCase().trim() !== repActiveBrand) return false;
+  if (repSearch) {
+    const normSearch = s => String(s).toLowerCase()
+      .normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .replace(/[^a-z0-9]/g, '');
+    const terms    = repSearch.trim().split(/\s+/).filter(Boolean).map(normSearch);
+    const nameNorm = normSearch(p.name);
+    const codeNorm = normSearch(p.code);
+    if (!terms.every(t => nameNorm.includes(t) || codeNorm.includes(t))) return false;
+  }
+  return true;
+}
+
 function renderRepTable() {
   if (repMode === 'compra') { renderCompraTable(); return; }
   if (repMode === 'redist') { renderRedistTable(); return; }
@@ -5562,23 +5632,14 @@ function renderRepTable() {
   const send     = repSendData[sucId] || {};
   const hasBrand = repProducts.some(p => p.brand);
 
-  const filtered = repProducts.filter(p => {
-    if (repActiveCat   && p.cat   !== repActiveCat)  return false;
-    if (repActiveBrand && (p.brand||'').toUpperCase().trim() !== repActiveBrand) return false;
-    if (repSearch) {
-      const normSearch = s => String(s).toLowerCase()
-        .normalize('NFD').replace(/[̀-ͯ]/g, '')
-        .replace(/[^a-z0-9]/g, '');
-      const terms    = repSearch.trim().split(/\s+/).filter(Boolean).map(normSearch);
-      const nameNorm = normSearch(p.name);
-      const codeNorm = normSearch(p.code);
-      if (!terms.every(t => nameNorm.includes(t) || codeNorm.includes(t))) return false;
-    }
-    return true;
-  });
+  const filtered = repProducts.filter(repRowMatches);
 
-  const totalB01  = filtered.reduce((s,p) => s+(p.stock.B01||0), 0);
-  const totalB02  = filtered.reduce((s,p) => s+(p.stock.B02||0), 0);
+  const totalB01  = filtered.reduce((s,p) => { const a = repAllocate(p.code);
+    return s + (a.remain.B01 !== undefined ? a.remain.B01 : (p.stock.B01||0)); }, 0);
+  const totalB02  = filtered.reduce((s,p) => { const a = repAllocate(p.code);
+    return s + (a.remain.B02 !== undefined ? a.remain.B02 : (p.stock.B02||0)); }, 0);
+  const totalB03  = filtered.reduce((s,p) => { const a = repAllocate(p.code);
+    return s + (a.remain.B03 !== undefined ? a.remain.B03 : (p.stock.B03||0)); }, 0);
   const totalB    = filtered.reduce((s,p) => s + repPoolCeiling(p, repOrigin), 0);
   const totalSuc  = filtered.reduce((s,p) => s+(p.stock[sucId]||0), 0);
   const totalSend = Object.values(send).reduce((s,v) => s+v, 0);
@@ -5629,7 +5690,7 @@ function renderRepTable() {
             const m=repMinFor(a, sucId), av=repAvailable(a, repOrigin);
             return ((a.stock[sucId]||0)<m&&av>0) ? Math.min(m-(a.stock[sucId]||0),av) : 0;
           }
-          switch(repSortCol){case'b01':return a.stock.B01||0;case'b02':return a.stock.B02||0;case'suc':return a.stock[sucId]||0;}
+          switch(repSortCol){case'b01':return a.stock.B01||0;case'b02':return a.stock.B02||0;case'b03':return a.stock.B03||0;case'suc':return a.stock[sucId]||0;}
           return 0;
         })();
         const valB = (() => {
@@ -5637,7 +5698,7 @@ function renderRepTable() {
             const m=repMinFor(b, sucId), av=repAvailable(b, repOrigin);
             return ((b.stock[sucId]||0)<m&&av>0) ? Math.min(m-(b.stock[sucId]||0),av) : 0;
           }
-          switch(repSortCol){case'b01':return b.stock.B01||0;case'b02':return b.stock.B02||0;case'suc':return b.stock[sucId]||0;}
+          switch(repSortCol){case'b01':return b.stock.B01||0;case'b02':return b.stock.B02||0;case'b03':return b.stock.B03||0;case'suc':return b.stock[sucId]||0;}
           return 0;
         })();
         return repSortDir==='desc' ? valB-valA : valA-valB;
@@ -5659,14 +5720,25 @@ function renderRepTable() {
 
   const rows = toRender.map(p => {
     const qty   = send[p.code] || 0;
-    const b01   = p.stock.B01  || 0;
-    const b02   = p.stock.B02  || 0;
+    const alloc = repAllocate(p.code);      // remanente vivo por bodega (Paso 2)
+    const b01   = alloc.remain.B01 !== undefined ? alloc.remain.B01 : (p.stock.B01 || 0);
+    const b02   = alloc.remain.B02 !== undefined ? alloc.remain.B02 : (p.stock.B02 || 0);
+    const b03   = alloc.remain.B03 !== undefined ? alloc.remain.B03 : (p.stock.B03 || 0);
     const sst   = p.stock[sucId] || 0;
     const avail      = repAvailable(p, repOrigin);
     const minimum    = repMinFor(p, sucId);
     const sug        = (sst < minimum && avail > 0)
       ? Math.min(minimum - sst, avail) : 0;
 
+    // Pool en vivo: tope duro y zonas según lo ya asignado en otros destinos.
+    // avail = repAvailable (stock - reserva) = límite de zona verde.
+    const ceiling       = repPoolCeiling(p, repOrigin);
+    const elsewhere     = repAssignedElsewhere(p.code, sucId);
+    const totalAssigned = elsewhere + qty;
+    const zoneCls = qty <= 0 ? ''
+      : totalAssigned >= ceiling ? ' is-full'
+      : totalAssigned >  avail   ? ' is-warn'
+      : ' has-qty';
     return `<tr>
       <td class="td-code">${escHtml(p.code)}</td>
       <td class="td-name">${escHtml(p.name)}</td>
@@ -5681,13 +5753,14 @@ function renderRepTable() {
               " title="${escAttr(p.brand)}">${escHtml(p.brand)}</span>`
           : '<span style="color:var(--border)">—</span>'}
       </td>` : ''}
-      <td class="td-stk ${stkCls(b01)}">${b01 > 0 ? b01 : '<span style="color:var(--border)">0</span>'}</td>
-      <td class="td-stk ${stkCls(b02)}">${b02 > 0 ? b02 : '<span style="color:var(--border)">0</span>'}</td>
+      <td class="td-stk ${stkCls(b01)}${repStkPassive('B01')?' td-stk-passive':''}" data-stk="B01">${b01 > 0 ? b01 : '<span style="color:var(--border)">0</span>'}</td>
+      <td class="td-stk ${stkCls(b02)}${repStkPassive('B02')?' td-stk-passive':''}" data-stk="B02">${b02 > 0 ? b02 : '<span style="color:var(--border)">0</span>'}</td>
+      <td class="td-stk ${stkCls(b03)}${repStkPassive('B03')?' td-stk-passive':''}" data-stk="B03">${b03 > 0 ? b03 : '<span style="color:var(--border)">0</span>'}</td>
       <td class="td-stk ${stkCls(sst)}">${sst > 0 ? sst : '<span style="color:var(--border)">0</span>'}</td>
       <td class="td-sug">${sug>0?`<span class="sug-badge">▲${sug}</span>`:'—'}</td>
       <td class="td-send">
         <input type="number" min="0" step="1" value="${qty||''}"
-          class="rep-qty${qty>0?' has-qty':''}"
+          class="rep-qty${zoneCls}"
           data-code="${escAttr(p.code)}" data-suc="${sucId}"
           placeholder="0" oninput="onRepQtyInput(this)"/>
       </td>
@@ -5699,12 +5772,14 @@ function renderRepTable() {
     <table class="rep-table">
       <thead><tr>
         <th>Código</th><th>Producto</th>${brandTh}
-        ${['b01','b02','suc','sug'].map(col => {
-          const labels = {b01:'B01',b02:'B02',suc:'Suc.',sug:'Sug.'};
-          const titles = {b01:'Stock B01',b02:'Stock B02',
+        ${['b01','b02','b03','suc','sug'].map(col => {
+          const labels = {b01:'B01',b02:'B02',b03:'B03',suc:'Suc.',sug:'Sug.'};
+          const titles = {b01:'Stock B01',b02:'Stock B02',b03:'Stock B03',
                           suc:`Stock ${REP_LBLS[sucId]}`,sug:'Sugerido'};
           const arrow = repSortCol===col ? (repSortDir==='desc'?'↓':'↑') : '';
-          return `<th title="${titles[col]}" style="cursor:pointer;user-select:none"
+          const wh    = {b01:'B01',b02:'B02',b03:'B03'}[col];
+          const dim   = wh && repStkPassive(wh) ? ';opacity:.42' : '';
+          return `<th title="${titles[col]}" style="cursor:pointer;user-select:none${dim}"
             onclick="toggleRepSort('${col}')">${labels[col]}${arrow}</th>`;
         }).join('')}
         <th>Enviar</th>
@@ -5712,11 +5787,12 @@ function renderRepTable() {
       <tbody>${rows}${extraRow}</tbody>
       <tfoot><tr class="rep-total-row">
         <td colspan="${hasBrand ? 3 : 2}" class="rep-total-label">TOTAL GENERAL</td>
-        <td class="td-stk">${totalB01.toLocaleString()}</td>
-        <td class="td-stk">${totalB02.toLocaleString()}</td>
+        <td class="td-stk${repStkPassive('B01')?' td-stk-passive':''}" id="rep-foot-b01">${totalB01.toLocaleString()}</td>
+        <td class="td-stk${repStkPassive('B02')?' td-stk-passive':''}" id="rep-foot-b02">${totalB02.toLocaleString()}</td>
+        <td class="td-stk${repStkPassive('B03')?' td-stk-passive':''}" id="rep-foot-b03">${totalB03.toLocaleString()}</td>
         <td class="td-stk">${totalSuc.toLocaleString()}</td>
         <td class="td-sug">${totalSug > 0 ? `<span class="sug-badge">▲${totalSug}</span>` : '—'}</td>
-        <td class="td-send">${totalSendF > 0 ? totalSendF.toLocaleString() : '—'}</td>
+        <td class="td-send" id="rep-foot-send">${totalSendF > 0 ? totalSendF.toLocaleString() : '—'}</td>
       </tr></tfoot>
     </table>`;
 }
@@ -5762,14 +5838,53 @@ window.onRepSearch = val => {
 };
 
 window.onRepQtyInput = inp => {
-  const v        = parseInt(inp.value, 10);
+  let v          = parseInt(inp.value, 10);
   const code     = inp.dataset.code;
   const suc      = inp.dataset.suc;
   const isCompra = inp.dataset.mode === 'compra';
   const _target  = isCompra ? repCompraData : repSendData;
   if (!_target[suc]) _target[suc] = {};
-  if (v > 0) { _target[suc][code] = v; inp.classList.add('has-qty'); }
-  else        { delete _target[suc][code]; inp.classList.remove('has-qty'); }
+
+  if (!isCompra) {
+    // ── Pool en vivo: tope DURO + zonas ámbar/rojo ──
+    const p = repProductMap.get(code);
+    if (p) {
+      const ceiling   = repPoolCeiling(p, repOrigin);
+      const softAvail = repAvailable(p, repOrigin);   // stock - reserva
+      const elsewhere = repAssignedElsewhere(code, suc);
+      const hardCap   = Math.max(0, ceiling - elsewhere);
+      if (!(v > 0)) v = 0;
+      if (v > hardCap) { v = hardCap; inp.value = v || ''; }   // no deja asignar de más
+
+      if (v > 0) _target[suc][code] = v; else delete _target[suc][code];
+
+      const totalAssigned = elsewhere + v;
+      inp.classList.remove('has-qty', 'is-warn', 'is-full');
+      if (v > 0) {
+        if (totalAssigned >= ceiling)       inp.classList.add('is-full');
+        else if (totalAssigned > softAvail) inp.classList.add('is-warn');
+        else                                inp.classList.add('has-qty');
+      }
+      // Paso 2 (B): drenar en vivo las columnas de bodega de esta fila
+      const alloc = repAllocate(code);
+      const tr = inp.closest('tr');
+      if (tr) ['B01', 'B02', 'B03'].forEach(w => {
+        if (alloc.remain[w] === undefined) return;
+        const cell = tr.querySelector(`[data-stk="${w}"]`);
+        if (!cell) return;
+        const rv = alloc.remain[w];
+        cell.className = 'td-stk ' + stkCls(rv);
+        cell.innerHTML = rv > 0 ? rv : '<span style="color:var(--border)">0</span>';
+      });
+    } else {
+      if (v > 0) { _target[suc][code] = v; inp.classList.add('has-qty'); }
+      else        { delete _target[suc][code]; inp.classList.remove('has-qty'); }
+    }
+  } else {
+    if (v > 0) { _target[suc][code] = v; inp.classList.add('has-qty'); }
+    else        { delete _target[suc][code]; inp.classList.remove('has-qty'); }
+  }
+
   const btn = $(`rtab-${suc}`);
   if (btn) {
     const n     = Object.values(_target[suc]).filter(x=>x>0).length;
@@ -5777,7 +5892,6 @@ window.onRepQtyInput = inp => {
     btn.innerHTML = `${REP_LBLS[suc]}${badge}`;
   }
 
-  // En modo compra: marcar como tocada y redistribuir el pool
   if (isCompra) {
     if (!repCompraTouched[code]) repCompraTouched[code] = new Set();
     repCompraTouched[code].add(suc);
@@ -5785,6 +5899,7 @@ window.onRepQtyInput = inp => {
   }
 
   renderRepGlobalTotals();
+  refreshRepStockTotals();
   saveRepSessionDebounced();
 };
 
@@ -5813,56 +5928,76 @@ window.generateAllRepXLS = () => {
   }
   let delay = 0;
   activos.forEach(sucId => {
-    const { fromB01, fromB02 } = assignOrigins(sucId);
-    const hasB01 = Object.values(fromB01).some(v => v > 0);
-    const hasB02 = Object.values(fromB02).some(v => v > 0);
-    if (hasB01 || hasB02) {
+    const bySource = assignOrigins(sucId);
+    const sources  = Object.keys(bySource).filter(w =>
+      Object.values(bySource[w]).some(v => v > 0));
+    if (sources.length) {
       setTimeout(() => generateRepXLS(sucId), delay);
-      delay += (hasB01 && hasB02 ? 900 : 450);
+      delay += sources.length > 1 ? 900 : 450;
     }
   });
 };
 
+// Repartidor GLOBAL: para un producto reparte los envíos de TODOS los destinos
+// entre las bodegas del origen, drenando en el orden de srcs (B01 antes que B02)
+// y recorriendo destinos en orden de prioridad (repTargets()). Así ninguna bodega
+// queda sobre-asignada. Devuelve el split por destino y el remanente vivo por
+// bodega (este último alimenta las columnas en el Paso 2).
+function repAllocate(code) {
+  const p    = repProductMap.get(code);
+  const srcs = REP_ORIGIN_SOURCES[repOrigin] || REP_ORIGIN_SOURCES.B01B02;
+  const remain = {};
+  srcs.forEach(w => { remain[w] = p ? (p.stock[w] || 0) : 0; });
+  const perDest = {};
+  if (!p) return { perDest, remain };
+  for (const dest of repTargets()) {            // ya viene en orden de prioridad
+    let qty = (repSendData[dest] && repSendData[dest][code]) || 0;
+    const split = {};
+    for (const w of srcs) {                       // drena B01 y luego B02
+      if (qty <= 0) break;
+      const take = Math.min(qty, remain[w]);
+      if (take > 0) { split[w] = take; remain[w] -= take; qty -= take; }
+    }
+    perDest[dest] = split;
+  }
+  return { perDest, remain };
+}
+
+// Reparto por bodega de UN destino, leyendo del repartidor global.
+// Devuelve { B01:{code:qty}, B02:{...}, ... } según las bodegas del origen.
 function assignOrigins(sucId) {
-  const send   = repSendData[sucId] || {};
-  const fromB01 = {};
-  const fromB02 = {};
-
-  for (const [code, qty] of Object.entries(send)) {
-    if (!qty || qty <= 0) continue;
-    const p   = repProductMap.get(code);
-    if (!p) continue;
-    const b01 = p.stock.B01 || 0;
-    const b02 = p.stock.B02 || 0;
-
-    if (b01 >= qty) {
-      fromB01[code] = qty;
-    } else if (b01 > 0) {
-      fromB01[code] = b01;
-      const resto = qty - b01;
-      if (b02 >= resto) fromB02[code] = resto;
-      else if (b02 > 0) fromB02[code] = b02;
-    } else if (b02 >= qty) {
-      fromB02[code] = qty;
-    } else if (b02 > 0) {
-      fromB02[code] = b02;
+  const srcs     = REP_ORIGIN_SOURCES[repOrigin] || REP_ORIGIN_SOURCES.B01B02;
+  const bySource = {};
+  srcs.forEach(w => { bySource[w] = {}; });
+  const send = repSendData[sucId] || {};
+  for (const code of Object.keys(send)) {
+    if (!(send[code] > 0)) continue;
+    const { perDest } = repAllocate(code);
+    const split = perDest[sucId] || {};
+    for (const w of Object.keys(split)) {
+      if (split[w] > 0) bySource[w][code] = split[w];
     }
   }
-
-  return { fromB01, fromB02 };
+  return bySource;
 }
 
 const REP_ORIGIN_NAMES = {
   B01: 'HangarSF',
   B02: 'BodegaCentral',
+  B03: 'BodegaOriente',
 };
+
+// Paso 2b: bodega pasiva = no pertenece al origen activo → columna atenuada y estática.
+function repStkPassive(w) {
+  return !(REP_ORIGIN_SOURCES[repOrigin] || REP_ORIGIN_SOURCES.B01B02).includes(w);
+}
 
 function generateRepXLS(sucId) {
   if (typeof XLSX === 'undefined') return;
-  const { fromB01, fromB02 } = assignOrigins(sucId);
+  const bySource = assignOrigins(sucId);
 
   let generated = 0;
-  [['B01', fromB01], ['B02', fromB02]].forEach(([originId, sendMap]) => {
+  Object.entries(bySource).forEach(([originId, sendMap]) => {
     const rows = Object.entries(sendMap)
       .filter(([, v]) => v > 0)
       .map(([code, qty]) => [code, qty]);
