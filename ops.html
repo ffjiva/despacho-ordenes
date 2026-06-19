@@ -699,6 +699,7 @@ body:not(.dark) input[type="time"] {
   display: inline-flex; align-items: center; gap: 5px;
 }
 .rtab.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.rtab-unserved { opacity: .42; }
 .rtab-badge {
   min-width: 17px; height: 17px; border-radius: 9px;
   font-size: .55rem; font-weight: 700;
@@ -4116,6 +4117,13 @@ const REP_FNAMES   = { M01:'Merliot', S02:'SanSalvador', S03:'SanMiguel',
                        S04:'Soyapango', S06:'Zoditech', S07:'Usulutan',
                        B03:'Oriente' };
 const REP_PRIORITY_ORDER   = ['M01','S02','S04','S03','S07','S06'];
+// Destinos que cada origen abastece. B03 solo despacha a S03/S07.
+// Orígenes sin entrada sirven a todos los destinos.
+const REP_ORIGIN_DESTS = { B03: ['S03', 'S07'] };
+function repOriginServes(sid) {
+  const allowed = REP_ORIGIN_DESTS[repOrigin];
+  return !allowed || allowed.includes(sid);
+}
 // Destinos del flujo de reposición normal, según el origen seleccionado.
 // Origen B-bodega (B01+B02/B01/B02): B03 es destino (en su prioridad tras S04).
 // Origen B03: B03 es la fuente, así que solo las 6 sucursales.
@@ -5320,6 +5328,8 @@ function detectBrandFromName(name) {
 
 function computeRepSuggestions() {
   repTargets().forEach(sid => { if (!repSendData[sid]) repSendData[sid] = {}; });
+  // Solo destinos que el origen activo abastece (B03 → S03/S07).
+  const dests = repTargets().filter(repOriginServes);
 
   repProducts.forEach(p => {
     const touched = repTargets().some(sid => (repSendData[sid][p.code] || 0) > 0);
@@ -5335,7 +5345,7 @@ function computeRepSuggestions() {
 
     // Fase 1: cubrir mínimos en orden de prioridad
     let remaining = available;
-    for (const sid of repTargets()) {
+    for (const sid of dests) {
       if (remaining <= 0) break;
       const cur  = p.stock[sid] || 0;
       const need = Math.max(0, repMinFor(p, sid) - cur);
@@ -5350,7 +5360,7 @@ function computeRepSuggestions() {
     if (remaining > 0) {
       if (REP_FILL_TO_MAX) {
         // Modo "completar al tope": cada sucursal recibe lo que le falta para llegar a su tope
-        repTargets().forEach(sid => {
+        dests.forEach(sid => {
           if (remaining <= 0) return;
           const alreadySending = repSendData[sid][p.code] || 0;
           const currentStock   = p.stock[sid] || 0;
@@ -5364,16 +5374,16 @@ function computeRepSuggestions() {
         });
       } else {
         // Modo proporcional (comportamiento original)
-        const totalW = Object.values(WEIGHTS).reduce((a,b) => a+b, 0);
+        const totalW = dests.reduce((a,sid) => a + (WEIGHTS[sid] || 0), 0) || 1;
         let   given  = 0;
         const extras = {};
-        repTargets().forEach(sid => {
-          const share = Math.floor(remaining * WEIGHTS[sid] / totalW);
+        dests.forEach(sid => {
+          const share = Math.floor(remaining * (WEIGHTS[sid] || 0) / totalW);
           extras[sid] = share;
           given += share;
         });
-        if (given < remaining) extras['M01'] = (extras['M01'] || 0) + (remaining - given);
-        repTargets().forEach(sid => {
+        if (given < remaining && dests[0]) extras[dests[0]] = (extras[dests[0]] || 0) + (remaining - given);
+        dests.forEach(sid => {
           if ((extras[sid] || 0) > 0) {
             const currentStock = p.stock[sid] || 0;
             const maxAllowed   = REP_MAXIMUMS[sid] || 999;
@@ -5561,7 +5571,8 @@ function renderRepTabs() {
   $('rep-tabs').innerHTML = repTargets().map(id => {
     const n     = Object.values(_tabSrc[id] || {}).filter(v => v > 0).length;
     const badge = n ? `<span class="rtab-badge">${n}</span>` : '';
-    return `<button class="rtab${id === repActiveTab ? ' on' : ''}" id="rtab-${id}"
+    const unserved = repMode !== 'compra' && !repOriginServes(id) ? ' rtab-unserved' : '';
+    return `<button class="rtab${id === repActiveTab ? ' on' : ''}${unserved}" id="rtab-${id}"
       onclick="switchRepTab('${id}')">${REP_LBLS[id]}${badge}</button>`;
   }).join('');
 }
@@ -5688,7 +5699,7 @@ function renderRepTable() {
         const valA = (() => {
           if (repSortCol==='sug') {
             const m=repMinFor(a, sucId), av=repAvailable(a, repOrigin);
-            return ((a.stock[sucId]||0)<m&&av>0) ? Math.min(m-(a.stock[sucId]||0),av) : 0;
+            return (repOriginServes(sucId) && (a.stock[sucId]||0)<m&&av>0) ? Math.min(m-(a.stock[sucId]||0),av) : 0;
           }
           switch(repSortCol){case'b01':return a.stock.B01||0;case'b02':return a.stock.B02||0;case'b03':return a.stock.B03||0;case'suc':return a.stock[sucId]||0;}
           return 0;
@@ -5696,7 +5707,7 @@ function renderRepTable() {
         const valB = (() => {
           if (repSortCol==='sug') {
             const m=repMinFor(b, sucId), av=repAvailable(b, repOrigin);
-            return ((b.stock[sucId]||0)<m&&av>0) ? Math.min(m-(b.stock[sucId]||0),av) : 0;
+            return (repOriginServes(sucId) && (b.stock[sucId]||0)<m&&av>0) ? Math.min(m-(b.stock[sucId]||0),av) : 0;
           }
           switch(repSortCol){case'b01':return b.stock.B01||0;case'b02':return b.stock.B02||0;case'b03':return b.stock.B03||0;case'suc':return b.stock[sucId]||0;}
           return 0;
@@ -5727,7 +5738,7 @@ function renderRepTable() {
     const sst   = p.stock[sucId] || 0;
     const avail      = repAvailable(p, repOrigin);
     const minimum    = repMinFor(p, sucId);
-    const sug        = (sst < minimum && avail > 0)
+    const sug        = (repOriginServes(sucId) && sst < minimum && avail > 0)
       ? Math.min(minimum - sst, avail) : 0;
 
     // Pool en vivo: tope duro y zonas según lo ya asignado en otros destinos.
@@ -5811,7 +5822,8 @@ window.switchRepTab = id => {
     if (!btn) return;
     const n     = Object.values(_stSrc[sid]||{}).filter(v=>v>0).length;
     const badge = n ? `<span class="rtab-badge">${n}</span>` : '';
-    btn.className = `rtab${sid===id?' on':''}`;
+    const unserved = repMode !== 'compra' && !repOriginServes(sid) ? ' rtab-unserved' : '';
+    btn.className = `rtab${sid===id?' on':''}${unserved}`;
     btn.innerHTML = `${REP_LBLS[sid]}${badge}`;
   });
   renderRepTable();
