@@ -140,6 +140,7 @@ html, body {
 .box { padding: 10px 12px; border-radius: var(--r); font-size: .72rem; line-height: 1.6; border: 1px solid; }
 .box-info { background: var(--info-bg); border-color: var(--info-bd); color: var(--info-tx); }
 .box-err  { background: var(--err-bg);  border-color: var(--err-bd);  color: var(--err-tx); }
+.box-warn { background: var(--warn-bg); border-color: var(--warn-bd); color: var(--warn-tx); }
 
 /* ── SPINNER ── */
 .spin {
@@ -5202,6 +5203,7 @@ window.handleRepFiles = async inputEl => {
 
   showRepState('loading');
   $('rep-err').style.display = 'none';
+  if ($('rep-warn')) $('rep-warn').style.display = 'none';
 
   try {
     for (const file of newFiles) {
@@ -5211,10 +5213,18 @@ window.handleRepFiles = async inputEl => {
       const { added, enriched } = parseRepXLS(wb, brand);
       repLoadedFiles.push({ name: file.name, brand: brand || '', added, enriched });
     }
+    const clamped = repClampAll();
     computeRepSuggestions();
     showRepState('data');
     renderRepFull();
     saveRepSession();
+    if (clamped > 0) {
+      const w = $('rep-warn');
+      if (w) {
+        w.textContent = `⚠ ${clamped} ${clamped === 1 ? 'producto ajustado' : 'productos ajustados'}: bajó el stock tras la carga y se recortó el exceso (prioridad inversa).`;
+        w.style.display = '';
+      }
+    }
   } catch(e) {
     showRepState(repLoadedFiles.length ? 'data' : 'empty');
     if (repLoadedFiles.length) renderRepFull();
@@ -5223,6 +5233,41 @@ window.handleRepFiles = async inputEl => {
     console.error('handleRepFiles:', e);
   }
 };
+
+// Recorta asignaciones que excedan el pool del origen tras un re-upload que bajó stock.
+// Prioridad INVERSA: lo último en entrar (sucursales de menor prioridad) sale primero.
+// Devuelve cuántos productos se ajustaron.
+function repClampAll() {
+  const order   = repTargets();
+  const reverse = order.slice().reverse();
+  const codes = new Set();
+  for (const dest of order) {
+    const m = repSendData[dest];
+    if (m) for (const c in m) if (m[c] > 0) codes.add(c);
+  }
+  let adjusted = 0;
+  for (const code of codes) {
+    const p = repProductMap.get(code);
+    if (!p) continue;
+    const ceiling = repPoolCeiling(p, repOrigin);
+    let total = 0;
+    for (const dest of order) total += (repSendData[dest] && repSendData[dest][code]) || 0;
+    let excess = total - ceiling;
+    if (excess <= 0) continue;
+    for (const dest of reverse) {
+      if (excess <= 0) break;
+      const cur = (repSendData[dest] && repSendData[dest][code]) || 0;
+      if (cur <= 0) continue;
+      const cut  = Math.min(cur, excess);
+      const next = cur - cut;
+      if (next > 0) repSendData[dest][code] = next;
+      else          delete repSendData[dest][code];
+      excess -= cut;
+    }
+    adjusted++;
+  }
+  return adjusted;
+}
 
 function detectRepBrand(filename) {
   const base = filename.replace(/\.[^.]+$/, '');
@@ -7020,6 +7065,7 @@ document.addEventListener('DOMContentLoaded', init);
         </div>
       </div>
       <div id="rep-err" class="box box-err" style="display:none;margin-top:.75rem"></div>
+      <div id="rep-warn" class="box box-warn" style="display:none;margin-top:.75rem"></div>
     </div>
   </div>
 
