@@ -5214,7 +5214,7 @@ window.handleRepFiles = async inputEl => {
       repLoadedFiles.push({ name: file.name, brand: brand || '', added, enriched });
     }
     const clamped = repClampAll();
-    computeRepSuggestions();
+    computeRepSuggestions(true);   // carga = solo mínimos (el excedente queda para el botón IA)
     showRepState('data');
     renderRepFull();
     saveRepSession();
@@ -5371,7 +5371,7 @@ function detectBrandFromName(name) {
   return '';
 }
 
-function computeRepSuggestions() {
+function computeRepSuggestions(minimumsOnly = false) {
   repTargets().forEach(sid => { if (!repSendData[sid]) repSendData[sid] = {}; });
   // Solo destinos que el origen activo abastece (B03 → S03/S07).
   const dests = repTargets().filter(repOriginServes);
@@ -5401,8 +5401,8 @@ function computeRepSuggestions() {
       }
     }
 
-    // Fase 2: distribuir excedente
-    if (remaining > 0) {
+    // Fase 2: distribuir excedente (se omite en modo solo-mínimos, p.ej. al cargar)
+    if (remaining > 0 && !minimumsOnly) {
       if (REP_FILL_TO_MAX) {
         // Modo "completar al tope": cada sucursal recibe lo que le falta para llegar a su tope
         dests.forEach(sid => {
@@ -5603,7 +5603,7 @@ window.setRepOrigin = (o) => {
   ['M01','S02','S04','B03','S03','S07','S06'].forEach(sid => {
     if (repSendData[sid]) Object.keys(repSendData[sid]).forEach(c => delete repSendData[sid][c]);
   });
-  computeRepSuggestions();
+  computeRepSuggestions(true);   // cambio de origen = re-llenar solo mínimos
   renderRepOrigin();
   renderRepTabs();
   renderRepTable();
