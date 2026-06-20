@@ -196,6 +196,38 @@ compatibilidad pero no es necesario en el flujo diario.
 - **Fix briefing:** `loadBriefingData` ahora cuenta motoristas activos desde `users/{uid}`
   vía `loadTeamMembers()` (antes leía `config/team`, deprecado).
 
+**Reposición — Pool en vivo (Fase 4) + repartidor global + auto-fill a mínimos (20 Jun 2026):**
+- **Pool en vivo:** el "disponible" por producto se descuenta en tiempo real al teclear
+  cantidades entre destinos. Tope DURO en el input (no deja asignar de más). Zona ámbar al
+  usar la reserva (stock−reserva → stock), roja al topar el pool. Variante B: el texto de
+  aviso solo aparece en ámbar/rojo, nunca en verde.
+- **Repartidor global `repAllocate(code)`:** reemplaza al viejo `assignOrigins()` por-destino.
+  Drena las bodegas en orden de prioridad (M01→S02→S04→B03→S03→S07→S06) sobre todos los
+  destinos a la vez, cerrando el bug latente donde B01 podía sobre-pedirse entre pestañas.
+  `generateRepXLS`/`generateAllRepXLS` iteran dinámicamente sobre los orígenes; B03 genera
+  archivo propio (`BodegaOriente`).
+- **Columnas que drenan en vivo (Paso 2):** B01/B02 muestran `alloc.remain` y bajan al teclear
+  (`data-stk` para updates puntuales del DOM). Footer TOTAL GENERAL y "asignado" en vivo vía
+  `refreshRepStockTotals()` + predicado `repRowMatches()`. Cabecera "disponible" muestra el
+  pool restante (`poolRemainF`), no el stock físico estático.
+- **Columna B03 dedicada (Paso 2b):** B03 siempre visible en todas las pestañas; las columnas
+  del origen activo drenan, las pasivas se atenúan (`td-stk-passive`, opacidad .42).
+- **B03 como origen surte solo S03/S07:** `REP_ORIGIN_DESTS` + `repOriginServes()`. SUG y la
+  distribución IA se limitan a destinos servidos; pestañas no servidas atenuadas
+  (`rtab-unserved`) sin bloquear el input manual.
+- **`repClampAll()`:** red de seguridad que recorta asignaciones sobre-pasadas en orden inverso
+  de prioridad tras un re-upload. Queda casi siempre dormida: el merge usa "primer valor gana"
+  por bodega (re-subir NO baja stock), `sessionStorage` se limpia entre sesiones, y los topes
+  duros previenen la sobre-asignación. Correcto para el flujo "Limpiar todo → sesión nueva".
+  **Nota arquitectónica:** si en el futuro se quiere que recargar el Gerencial refresque stock,
+  hay que cambiar el merge a sobreescritura por bodega presente (opción A); ahí el clamp pasa a
+  ser verificable y útil. Hoy = opción B (sin cambios), deliberada.
+- **Auto-fill a mínimos al cargar:** `computeRepSuggestions(minimumsOnly)` salta la Fase 2
+  (excedente) en carga y cambio de origen → ENVIAR arranca solo en mínimos (SUG) en orden de
+  prioridad drenando el pool. El botón IA (`analyzeWithAI` → CF `suggestReplenishment`, Haiku)
+  y "Completar al tope" en Parámetros conservan la distribución de excedente — caminos
+  separados, intactos.
+
 ### Módulo 7 — Trazabilidad de Reposiciones
 `ops.html` → pantalla `s-trazabilidad`. Registro automático en Firestore al generar XLS. Filtros por origen, destino, fecha. Cards expandibles con detalle de productos.
 
@@ -338,17 +370,18 @@ lista blanca de 137 categorías y auto-refresco de categoría al reutilizar.
 
 ### 🔲 Features próximos
 
-**Reposición — Pool en vivo (Fase 4)** *(ops.html)* — **SIGUIENTE PASO**
-El "disponible" por producto se descuenta en tiempo real al asignar cantidades entre
-destinos. Tope **DURO** en el input (no deja asignar de más; marca en **rojo** al topar =
-stock completo sin reserva). Zona **ámbar** cuando se usa la reserva (entre stock−reserva
-y stock). La sugerencia automática respeta la reserva (B01:2); el ajuste manual permite
-usar hasta el stock completo. Diseñado, pendiente de implementar.
-
-**Reposición — Columna B03 en la tabla** *(ops.html)*
-B03 ya aparece como pestaña/destino, pero la tabla solo muestra columnas B01/B02. Agregar
-columna B03 para ver su stock junto a las demás. Polish junto con prueba a fondo de B03
-como origen.
+**Reposición — Validación pre-XLS (cinturón y tirantes)** *(ops.html)* — **SIGUIENTE PASO**
+Gate único antes de generar, solo en `generateActiveRepXLS()` y `generateAllRepXLS()` (NUNCA en
+el interno `generateRepXLS(sucId)`, para no avisar por destino). Dos piezas:
+1. **Aviso de frescura:** al cargar el Gerencial se guarda la hora (campo nuevo `loadedAt` en
+   `saveRepSession`/`loadRepSession`). Si al generar pasaron >90 min, avisa "El Gerencial se
+   cargó hace X. Si hubo ventas el stock pudo bajar. ¿Generar igual o recargar?". Ataca la
+   causa real de los dos desfases vs facturación.
+2. **Re-chequeo interno liviano:** vuelve a correr el repartidor y avisa si alguna bodega quedó
+   sobre-pedida, si hay líneas a un destino no servido bajo origen B03, o líneas de productos ya
+   ausentes del Gerencial (huérfanas de sesión restaurada). Rara vez dispara; cubre bordes.
+Si todo está limpio y fresco, genera directo sin clicks extra. Ventana = 90 min. Diseñado,
+pendiente de implementar.
 
 **Navegación con URLs relativas** *(index.html + ops.html + moto.html)*
 Botones "Ops"/"Órdenes" usan URLs absolutas hardcodeadas (`window.open('https://despacho-ordenes.web.app/...')`),
@@ -384,6 +417,11 @@ productos_ubicacion/{productCode}
 code, name, bodega
 zona (ej. "B-3"), updatedAt
 
+**Reposición — Sugerencias basadas en historial** *(ops.html — diferida)*
+Usar la colección `reposiciones` de Firestore para aprender la frecuencia de reposición y,
+eventualmente, la velocidad de consumo a partir de snapshots del Gerencial. Plantear en tres
+fases. Diferida hasta extraer reposición a su propio archivo (ver backlog "Modularizar ops.html").
+
 **Rol `operador` — pendiente de definir**
 Nuevo rol en consideración. Aún sin definir: archivos a los que tendrá acceso, acciones permitidas vs solo lectura, y qué miembros del equipo lo usarán.
 
@@ -399,6 +437,8 @@ Mejoras menores para implementar cuando haya espacio:
 - **Agente WhatsApp** — notificaciones o comandos por WhatsApp (largo plazo)
 - **Rediseño home ops.html** — revisión estética del layout de navegación principal. Dos conceptos bocetados en sesión 03 Jun 2026: (A) home con botones por módulo agrupados por sección, (B) tabs superiores por módulo. Pendiente de evaluar cuando haya espacio.
 - **Modularizar ops.html** — supera 7,000 líneas, difícil de editar (agrava el stale-cache de Claude Code). Opción: módulos ES nativos (sin build), empezando por extraer reposición. Reto: estado compartido (`repProducts`, `repSendData`, etc.). También un `shared.js` para lógica duplicada entre index/ops/moto.
+- **Export XLS según filtro activo** *(ops.html)* — exportar solo lo del filtro/pestaña visible, como acción separada y explícita, NUNCA reemplazando el export completo.
+- **Debounce de `refreshRepStockTotals`** *(ops.html)* — condicional. Hoy no hay lag al teclear sobre las 3,668 filas sin filtrar. Si en el futuro se percibe delay, envolver en debounce (~120 ms) para no recalcular `repAllocate` sobre todo el filtrado en cada tecla. Mitigación lista, sin aplicar hasta que haga falta.
 - **Revisar integración WhatsApp** *(moto.html)* — `wa.me/${WHATSAPP_GROUP}` (~líneas 1406/1460): la constante está definida pero no es funcional. Revisar si es código muerto a eliminar o feature a completar.
 
 ---
@@ -433,4 +473,4 @@ Al abrir una sesión de implementación:
 
 ---
 
-*Última actualización: 17 Junio 2026*
+*Última actualización: 20 Junio 2026*
