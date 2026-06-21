@@ -6085,6 +6085,40 @@ window.generateAllRepXLS = () => {
   });
 };
 
+// Export por FILTRO activo: XLS solo de los productos visibles bajo el filtro
+// (cat/marca/búsqueda), por cada destino con cantidad dentro del filtro. Acción
+// separada — no reemplaza "XLS activo" ni "Todos". Registra en trazabilidad con
+// marca { parcial: true }. Solo flujo stock.
+window.generateFilteredRepXLS = () => {
+  if (repMode !== 'stock') {
+    alert('El export por filtro solo aplica a reposición normal (stock).');
+    return;
+  }
+  if (!(repActiveCat || repActiveBrand || repSearch)) {
+    alert('No hay filtro activo. Para el export completo usá "XLS activo" o "Todos".');
+    return;
+  }
+  const codeSet = new Set(repProducts.filter(repRowMatches).map(p => p.code));
+  const activos = repTargets().filter(id =>
+    Object.entries(repSendData[id] || {}).some(([code, v]) => v > 0 && codeSet.has(code))
+  );
+  if (!activos.length) {
+    alert('El filtro activo no tiene cantidades asignadas en ningún destino.');
+    return;
+  }
+  if (!repPreflightGate()) return;
+  let delay = 0;
+  activos.forEach(sucId => {
+    const bySource = assignOrigins(sucId);
+    const sources  = Object.keys(bySource).filter(w =>
+      Object.entries(bySource[w]).some(([code, v]) => v > 0 && codeSet.has(code)));
+    if (sources.length) {
+      setTimeout(() => generateRepXLS(sucId, codeSet), delay);
+      delay += sources.length > 1 ? 900 : 450;
+    }
+  });
+};
+
 // Repartidor GLOBAL: para un producto reparte los envíos de TODOS los destinos
 // entre las bodegas del origen, drenando en el orden de srcs (B01 antes que B02)
 // y recorriendo destinos en orden de prioridad (repTargets()). Así ninguna bodega
@@ -6139,16 +6173,17 @@ function repStkPassive(w) {
   return !(REP_ORIGIN_SOURCES[repOrigin] || REP_ORIGIN_SOURCES.B01B02).includes(w);
 }
 
-function generateRepXLS(sucId) {
+function generateRepXLS(sucId, codeSet) {
   if (typeof XLSX === 'undefined') return;
   const bySource = assignOrigins(sucId);
 
   let generated = 0;
   Object.entries(bySource).forEach(([originId, sendMap]) => {
-    const rows = Object.entries(sendMap)
-      .filter(([, v]) => v > 0)
-      .map(([code, qty]) => [code, qty]);
-    if (!rows.length) return;
+    const entries = Object.entries(sendMap)
+      .filter(([code, v]) => v > 0 && (!codeSet || codeSet.has(code)));
+    if (!entries.length) return;
+    const rows      = entries.map(([code, qty]) => [code, qty]);
+    const recordMap = Object.fromEntries(entries);   // trazabilidad = solo lo exportado
 
     setTimeout(() => {
       const ws = XLSX.utils.aoa_to_sheet([['Código', 'Cantidad'], ...rows]);
@@ -6156,18 +6191,19 @@ function generateRepXLS(sucId) {
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Reposicion');
       const fecha = getTodaySV();
+      const suf   = codeSet ? '_filtrado' : '';
       XLSX.writeFile(wb,
-        `Reposicion_${REP_ORIGIN_NAMES[originId]}_${REP_FNAMES[sucId]}_${fecha}.xls`,
+        `Reposicion_${REP_ORIGIN_NAMES[originId]}_${REP_FNAMES[sucId]}${suf}_${fecha}.xls`,
         { bookType: 'biff8' }
       );
-      saveReposicionRecord(originId, sucId, sendMap, fecha);
+      saveReposicionRecord(originId, sucId, recordMap, fecha, codeSet ? { parcial: true } : undefined);
     }, generated++ * 400);
   });
 
   if (!generated) alert(`Sin cantidades para ${REP_LBLS[sucId]}.`);
 }
 
-async function saveReposicionRecord(origen, destino, sendMap, fecha) {
+async function saveReposicionRecord(origen, destino, sendMap, fecha, extra) {
   if (!db) return;
   try {
     const { collection, addDoc } = fbMod;
@@ -6185,7 +6221,8 @@ async function saveReposicionRecord(origen, destino, sendMap, fecha) {
       destino,
       productos,
       totalUnidades: productos.reduce((s, p) => s + p.cantidad, 0),
-      generadoPor: currentUser?.name || 'ops'
+      generadoPor: currentUser?.name || 'ops',
+      ...(extra || {})
     });
   } catch (e) {
     console.warn('saveReposicionRecord:', e);
@@ -7286,6 +7323,9 @@ document.addEventListener('DOMContentLoaded', init);
           onclick="analyzeWithAI()">✨ IA</button>
         <button class="btn btn-outline" style="font-size:.6rem"
           onclick="generateActiveRepXLS()">⬇ XLS activo</button>
+        <button class="btn btn-outline" style="font-size:.6rem"
+          title="Exporta solo los productos visibles bajo el filtro activo (categoría/marca/búsqueda) y los registra en trazabilidad. No reemplaza el export completo."
+          onclick="generateFilteredRepXLS()">⬇ Filtrado</button>
         <button class="btn btn-dark" style="font-size:.6rem"
           onclick="generateAllRepXLS()">⬇ Todos</button>
       </div>

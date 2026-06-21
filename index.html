@@ -992,101 +992,6 @@ window.useLocalMode = () => {
 };
 
 /* ═══════════════════════════════════════
-   USER NAME MODAL
-═══════════════════════════════════════ */
-async function showNameModal(onDone) {
-  document.getElementById('name-overlay')?.remove();
-
-  // Load existing team members to show and validate against
-  const members = await loadUsers();
-
-  const div = document.createElement('div');
-  div.id = 'name-overlay';
-  div.className = 'name-overlay';
-
-  const memberOptions = members.length
-    ? `<div style="margin-bottom:1rem">
-        <div style="font-size:.6rem;font-weight:700;letter-spacing:.1em;color:var(--muted);text-transform:uppercase;margin-bottom:6px">Selecciona tu usuario</div>
-        ${members.map(m => `
-          <div class="member-opt" onclick="window._pickMember('${m.replace(/'/g,"\\'")}',this)"
-            style="padding:9px 12px;border:1px solid var(--border);border-radius:var(--r);margin-bottom:6px;cursor:pointer;font-size:.78rem;font-weight:600;transition:all .15s">
-            👤 ${m}
-          </div>`).join('')}
-        <div style="font-size:.6rem;color:var(--muted);text-align:center;margin:.6rem 0;letter-spacing:.07em;text-transform:uppercase">o ingresa un nombre nuevo</div>
-      </div>`
-    : '';
-
-  div.innerHTML = `
-    <div class="name-card">
-      <h2>¿Quién eres?</h2>
-      <p>Esto te identifica al asignar y trabajar órdenes en equipo.</p>
-      ${memberOptions}
-      <div class="name-input-wrap">
-        <input id="name-inp" type="text" placeholder="Nombre nuevo…" autocomplete="off"
-          onkeydown="if(event.key==='Enter')window._saveName()"/>
-        <div id="name-err" style="display:none;color:var(--err-tx);font-size:.65rem;margin-top:4px"></div>
-      </div>
-      <button class="btn btn-dark btn-full" onclick="window._saveName()">Confirmar →</button>
-    </div>`;
-  document.body.appendChild(div);
-
-  // Add hover style
-  div.querySelectorAll('.member-opt').forEach(el => {
-    el.addEventListener('mouseenter', () => el.style.borderColor = 'var(--accent)');
-    el.addEventListener('mouseleave', () => { if (!el.classList.contains('selected')) el.style.borderColor = 'var(--border)'; });
-  });
-
-  let pickedMember = '';
-
-  window._pickMember = (name, el) => {
-    pickedMember = name;
-    div.querySelectorAll('.member-opt').forEach(o => {
-      o.style.background = '';
-      o.style.borderColor = 'var(--border)';
-      o.classList.remove('selected');
-    });
-    el.style.background = 'var(--accent)';
-    el.style.color = '#fff';
-    el.style.borderColor = 'var(--accent)';
-    el.classList.add('selected');
-    $('name-inp').value = '';
-  };
-
-  window._saveName = async () => {
-    const typed = $('name-inp')?.value.trim();
-    const name = pickedMember || typed;
-
-    if (!name) {
-      $('name-inp').style.borderColor = 'var(--err-bd)';
-      return;
-    }
-
-    // Check for duplicate only if typing a new name (not picking existing)
-    if (!pickedMember && members.includes(name)) {
-      const errEl = $('name-err');
-      errEl.textContent = `"${name}" ya está en uso. Selecciónalo de la lista o elige otro nombre.`;
-      errEl.style.display = 'block';
-      $('name-inp').style.borderColor = 'var(--err-bd)';
-      return;
-    }
-
-    currentUser = name;
-    localStorage.setItem(USER_KEY, name);
-
-    // Auto-add new name to team list
-    if (!pickedMember && !members.includes(name)) {
-      members.push(name);
-      await saveUsersRemote(members);
-    }
-
-    div.remove();
-    if (onDone) onDone();
-  };
-
-  setTimeout(() => $('name-inp')?.focus(), 50);
-}
-
-/* ═══════════════════════════════════════
    USERS / EQUIPO
 ═══════════════════════════════════════ */
 async function loadUsers() {
@@ -1100,14 +1005,6 @@ async function loadUsers() {
       .filter(u => u.active !== false && u.role !== undefined)
       .map(u => ({ uid: u.uid, name: u.name }));
   } catch { return []; }
-}
-
-async function saveUsersRemote(members) {
-  if (isLocal) {
-    localStorage.setItem(USERS_KEY, JSON.stringify(members));
-    return;
-  }
-  await fbMod.setDoc(fbMod.doc(db, 'config', 'team'), { members });
 }
 
 window.showUsersModal = async () => {
@@ -1267,7 +1164,7 @@ async function ensureFirestoreConnection() {
   if (isLocal || !db || !fbMod) return;
   try {
     await withTimeout(
-      fbMod.getDoc(fbMod.doc(db, 'config', 'team')),
+      fbMod.getDoc(fbMod.doc(db, 'config', 'ubicaciones')),
       5000,
       'ping timeout'
     );
