@@ -1055,7 +1055,7 @@ body:not(.dark) input[type="time"] {
       <button class="btn btn-ghost" id="btn-vueltas" style="font-size:.65rem" onclick="goVueltas()">🚐<span class="hide-mobile"> Vueltas</span></button>
       <button class="btn btn-ghost" style="font-size:.65rem" onclick="goCierre()">🔒<span class="hide-mobile"> Cierre</span></button>
       <button class="btn btn-ghost" style="font-size:.65rem" onclick="goAgenda()">📅<span class="hide-mobile"> Agenda</span></button>
-      <button class="btn btn-ghost" style="font-size:.65rem" onclick="window.open('https://despacho-ordenes.web.app','_blank')">📦<span class="hide-mobile"> Órdenes</span></button>
+      <button class="btn btn-ghost" style="font-size:.65rem" onclick="window.open('index.html','_blank')">📦<span class="hide-mobile"> Órdenes</span></button>
       <button id="btn-reposicion" class="btn btn-ghost" style="font-size:.65rem" onclick="goReposicion()">📊<span class="hide-mobile"> Reposición</span></button>
       <button id="btn-inventario" class="btn btn-ghost" style="font-size:.65rem" onclick="goInventario()">📋<span class="hide-mobile"> Inventario</span></button>
       <button class="btn btn-ghost" style="font-size:.85rem;padding:5px 9px" onclick="toggleDark()" id="theme-btn" title="Modo oscuro">🌙</button>
@@ -2506,7 +2506,7 @@ function buildVueltaCard(v, prefix) {
         ${gpsEnd}
         ${(photos || v.linkedOrderId || (v.linkedOrderIds && v.linkedOrderIds.length)) ? `
           <div style="padding:4px 12px 10px;display:flex;flex-direction:column;gap:6px">
-            ${(() => { const ids = v.linkedOrderIds || (v.linkedOrderId ? [v.linkedOrderId] : []); return ids.map(oid => `<a class="vloc-link" href="https://despacho-ordenes.web.app/?orden=${oid}" target="_blank">📋 Ver orden vinculada →</a>`).join(''); })()}
+            ${(() => { const ids = v.linkedOrderIds || (v.linkedOrderId ? [v.linkedOrderId] : []); return ids.map(oid => `<a class="vloc-link" href="/?orden=${oid}" target="_blank">📋 Ver orden vinculada →</a>`).join(''); })()}
             ${photos ? `<div style="display:flex;gap:5px;flex-wrap:wrap">${photos}</div>` : ''}
           </div>` : ''}
         <div class="vcard-actions" onclick="event.stopPropagation()">
@@ -6956,7 +6956,7 @@ document.addEventListener('DOMContentLoaded', init);
       <button class="mob-drawer-btn" onclick="closeMobDrawer();goAgenda()">
         <span class="mob-icon">📅</span>Agenda
       </button>
-      <button class="mob-drawer-btn" onclick="closeMobDrawer();window.open('https://despacho-ordenes.web.app','_blank')">
+      <button class="mob-drawer-btn" onclick="closeMobDrawer();window.open('index.html','_blank')">
         <span class="mob-icon">📦</span>Órdenes
       </button>
       <button class="mob-drawer-btn" onclick="closeMobDrawer();goInventario()">
