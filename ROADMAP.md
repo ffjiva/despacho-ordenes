@@ -228,6 +228,24 @@ compatibilidad pero no es necesario en el flujo diario.
   y "Completar al tope" en Parámetros conservan la distribución de excedente — caminos
   separados, intactos.
 
+**Reposición — Validación pre-XLS (cinturón y tirantes) (21 Jun 2026):**
+- **Gate único `repPreflightGate()`** antes de generar, cableado solo en `generateActiveRepXLS()`
+  y `generateAllRepXLS()` (flujo `stock`). El interno `generateRepXLS(sucId)` queda intacto para no
+  avisar por destino. Compra y redist retornan antes; no se tocan.
+- **Pieza 1 — frescura:** global `repLoadedAt` sellado en `handleRepFiles` al cargar el Gerencial,
+  persistido como `loadedAt` en `saveRepSession`/`loadRepSession` (restaura el sello original, no
+  re-sella) y limpiado en `clearRepSession`. Si pasaron >90 min avisa que el stock pudo bajar por
+  ventas. Sesión vieja sin `loadedAt` → no avisa. Ataca la causa real de los dos desfases vs facturación.
+- **Pieza 2 — re-chequeo liviano `repPreflightCheck()`:** corre `repAllocate()` sobre los códigos con
+  cantidad y reporta tres bordes: sobre-pedido (el pool no alcanza), destino no servido por el origen
+  (típico al pasar a B03 sin limpiar) y productos huérfanos (código ausente del Gerencial por sesión
+  restaurada).
+- **Un solo `confirm()`** consolidando ambas piezas; si todo está limpio y fresco genera directo, sin
+  clicks extra. Ventana = 90 min.
+- **Decisión (21 Jun 2026):** los huérfanos quedan **confirmables**, no bloqueantes. Un huérfano no
+  corrompe el XLS (solo significa que ese código no sale) y bloquear obligaría a recargar por algo a
+  veces intencional.
+
 ### Módulo 7 — Trazabilidad de Reposiciones
 `ops.html` → pantalla `s-trazabilidad`. Registro automático en Firestore al generar XLS. Filtros por origen, destino, fecha. Cards expandibles con detalle de productos.
 
@@ -313,6 +331,12 @@ Revisión minuciosa de los tres archivos. 25 bugs corregidos en total.
 
 ### 🔧 Deuda técnica
 
+**[PENDIENTE] — Cerrar grifo `config/team`** *(ops.html)*
+Colección deprecada como fuente de usuarios (solo persiste por FCM tokens legacy). `ops.html` podría
+seguir escribiendo ahí. Tarea: auditar y eliminar cualquier escritura residual a `config/team`. Baja
+prioridad. Estaba en la cola de ejecución de jun 2026 pero nunca se trackeó explícito — solo figuraba
+como nota "DEPRECADO" en el esquema.
+
 **[RESUELTO 03 Jun 2026] — assignedToName en domicilios**
 `confirmImport()` solo guardaba `assignedTo` (UID) sin `assignedToName`.
 Las cards de ops.html y moto.html mostraban el UID en lugar del nombre.
@@ -369,19 +393,6 @@ lista blanca de 137 categorías y auto-refresco de categoría al reutilizar.
 ---
 
 ### 🔲 Features próximos
-
-**Reposición — Validación pre-XLS (cinturón y tirantes)** *(ops.html)* — **SIGUIENTE PASO**
-Gate único antes de generar, solo en `generateActiveRepXLS()` y `generateAllRepXLS()` (NUNCA en
-el interno `generateRepXLS(sucId)`, para no avisar por destino). Dos piezas:
-1. **Aviso de frescura:** al cargar el Gerencial se guarda la hora (campo nuevo `loadedAt` en
-   `saveRepSession`/`loadRepSession`). Si al generar pasaron >90 min, avisa "El Gerencial se
-   cargó hace X. Si hubo ventas el stock pudo bajar. ¿Generar igual o recargar?". Ataca la
-   causa real de los dos desfases vs facturación.
-2. **Re-chequeo interno liviano:** vuelve a correr el repartidor y avisa si alguna bodega quedó
-   sobre-pedida, si hay líneas a un destino no servido bajo origen B03, o líneas de productos ya
-   ausentes del Gerencial (huérfanas de sesión restaurada). Rara vez dispara; cubre bordes.
-Si todo está limpio y fresco, genera directo sin clicks extra. Ventana = 90 min. Diseñado,
-pendiente de implementar.
 
 **Navegación con URLs relativas** *(index.html + ops.html + moto.html)*
 Botones "Ops"/"Órdenes" usan URLs absolutas hardcodeadas (`window.open('https://despacho-ordenes.web.app/...')`),
@@ -473,4 +484,4 @@ Al abrir una sesión de implementación:
 
 ---
 
-*Última actualización: 20 Junio 2026*
+*Última actualización: 21 Junio 2026*
