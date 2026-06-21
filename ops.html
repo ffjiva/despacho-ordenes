@@ -1440,6 +1440,7 @@ let repProductMap  = new Map();
 let repProducts    = [];
 let repSendData    = {};
 let repLoadedFiles = [];
+let repLoadedAt    = null;   // sello de frescura del snapshot de stock del Gerencial
 let repActiveTab   = 'M01';
 let repOrigin      = 'B01B02';   // origen de reposición: 'B01B02'|'B01'|'B02'|'B03'
 let repActiveCat   = '';
@@ -4260,6 +4261,7 @@ const REP_STORAGE_KEY = 'rep_session_v1';
 function saveRepSession() {
   try {
     sessionStorage.setItem(REP_STORAGE_KEY, JSON.stringify({
+      loadedAt:    repLoadedAt,
       products:    repProducts,
       sendData:    repSendData,
       loadedFiles: repLoadedFiles,
@@ -4292,6 +4294,7 @@ function loadRepSession() {
     const raw = sessionStorage.getItem(REP_STORAGE_KEY);
     if (!raw) return false;
     const d = JSON.parse(raw);
+    repLoadedAt    = d.loadedAt    || null;
     repProducts    = d.products    || [];
     repSendData    = d.sendData    || {};
     repLoadedFiles = d.loadedFiles || [];
@@ -5149,6 +5152,7 @@ window.clearRepSession = () => {
   if (repLoadedFiles.length && !confirm('¿Limpiar todo y empezar de nuevo?')) return;
   sessionStorage.removeItem(REP_STORAGE_KEY);
   repProductMap.clear();
+  repLoadedAt       = null;
   repProducts       = [];
   repSendData       = {};
   repLoadedFiles    = [];
@@ -5213,6 +5217,7 @@ window.handleRepFiles = async inputEl => {
       const { added, enriched } = parseRepXLS(wb, brand);
       repLoadedFiles.push({ name: file.name, brand: brand || '', added, enriched });
     }
+    repLoadedAt = Date.now();   // snapshot de stock fresco a esta hora
     const clamped = repClampAll();
     computeRepSuggestions(true);   // carga = solo mínimos (el excedente queda para el botón IA)
     showRepState('data');
@@ -5960,9 +5965,93 @@ window.onRepQtyInput = inp => {
   saveRepSessionDebounced();
 };
 
+const REP_FRESH_WINDOW_MIN = 90;   // ventana de frescura del Gerencial
+
+function repFmtElapsed(ms) {
+  const min = Math.floor(ms / 60000);
+  if (min < 60) return `${min} min`;
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return m ? `${h} h ${m} min` : `${h} h`;
+}
+
+// Re-chequeo liviano: corre el repartidor y reporta los tres bordes.
+// Solo recorre códigos con cantidad asignada → barato, se llama al click.
+function repPreflightCheck() {
+  const served        = repTargets();
+  const overRequested = [];
+  const unservedDests = new Set();
+  const orphans       = [];
+
+  const codes = new Set();
+  for (const dest of Object.keys(repSendData)) {
+    const m = repSendData[dest] || {};
+    for (const code of Object.keys(m)) if (m[code] > 0) codes.add(code);
+  }
+
+  for (const code of codes) {
+    if (!repProductMap.has(code)) { orphans.push(code); continue; }
+    let req = 0;
+    for (const dest of served) req += (repSendData[dest] && repSendData[dest][code]) || 0;
+    const { perDest } = repAllocate(code);
+    let alloc = 0;
+    for (const dest of Object.keys(perDest)) {
+      const split = perDest[dest] || {};
+      for (const w of Object.keys(split)) alloc += split[w] || 0;
+    }
+    if (req > alloc) overRequested.push({ code, by: req - alloc });
+  }
+
+  for (const dest of Object.keys(repSendData)) {
+    const m = repSendData[dest] || {};
+    if (Object.values(m).some(v => v > 0) && !repOriginServes(dest)) unservedDests.add(dest);
+  }
+
+  return { overRequested, unservedDests: [...unservedDests], orphans };
+}
+
+// Gate único. Devuelve true si se debe generar (limpio+fresco, o el usuario
+// confirma "generar igual"). false aborta.
+function repPreflightGate() {
+  const lines = [];
+
+  // Pieza 1 — frescura
+  if (repLoadedAt) {
+    const ageMs = Date.now() - repLoadedAt;
+    if (ageMs > REP_FRESH_WINDOW_MIN * 60000) {
+      lines.push(`• El Gerencial se cargó hace ${repFmtElapsed(ageMs)}. Si hubo ventas, el stock pudo bajar.`);
+    }
+  }
+
+  // Pieza 2 — re-chequeo interno
+  const { overRequested, unservedDests, orphans } = repPreflightCheck();
+
+  if (overRequested.length) {
+    const ej = overRequested.slice(0, 3).map(o => o.code).join(', ');
+    const mas = overRequested.length > 3 ? '…' : '';
+    lines.push(`• ${overRequested.length} ${overRequested.length === 1 ? 'producto quedó sobre-pedido' : 'productos quedaron sobre-pedidos'} (el pool no alcanza): ${ej}${mas}.`);
+  }
+  if (unservedDests.length) {
+    const labels = unservedDests.map(d => REP_LBLS[d] || d).join(', ');
+    lines.push(`• Hay líneas hacia destinos que ${repOriginLabel()} no surte: ${labels}.`);
+  }
+  if (orphans.length) {
+    const ej = orphans.slice(0, 3).join(', ');
+    const mas = orphans.length > 3 ? '…' : '';
+    lines.push(`• ${orphans.length} ${orphans.length === 1 ? 'producto ya no está' : 'productos ya no están'} en el Gerencial (sesión restaurada): ${ej}${mas}.`);
+  }
+
+  if (!lines.length) return true;   // limpio y fresco → genera directo, sin clicks extra
+
+  const msg = '⚠ Revisión antes de generar:\n\n' + lines.join('\n') +
+    '\n\n¿Generar de todas formas?\n(Aceptar = generar igual · Cancelar = volver y recargar/ajustar)';
+  return confirm(msg);
+}
+
 window.generateActiveRepXLS = () => {
   if (repMode === 'compra') { generateCompraRepXLS(repActiveTab); return; }
   if (repMode === 'redist') { generateRedistXLS(repRedistActiveOrig); return; }
+  if (!repPreflightGate()) return;   // gate solo en flujo stock
   generateRepXLS(repActiveTab);
 };
 
@@ -5976,6 +6065,7 @@ window.generateAllRepXLS = () => {
     activos.forEach(sucId => { setTimeout(() => generateCompraRepXLS(sucId), delay); delay += 450; });
     return;
   }
+  if (repMode === 'stock' && !repPreflightGate()) return;   // gate solo en flujo stock
   const activos = repTargets().filter(id =>
     Object.values(repSendData[id] || {}).some(v => v > 0)
   );
