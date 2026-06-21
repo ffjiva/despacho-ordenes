@@ -6086,9 +6086,9 @@ window.generateAllRepXLS = () => {
 };
 
 // Export por FILTRO activo: XLS solo de los productos visibles bajo el filtro
-// (cat/marca/búsqueda), por cada destino con cantidad dentro del filtro. Acción
-// separada — no reemplaza "XLS activo" ni "Todos". Registra en trazabilidad con
-// marca { parcial: true }. Solo flujo stock.
+// (cat/marca/búsqueda) PARA LA PESTAÑA/DESTINO ACTIVO. Acción separada — no
+// reemplaza "XLS activo" (destino activo, todo) ni "Todos" (todos los destinos).
+// Registra en trazabilidad con marca { parcial: true }. Solo flujo stock.
 window.generateFilteredRepXLS = () => {
   if (repMode !== 'stock') {
     alert('El export por filtro solo aplica a reposición normal (stock).');
@@ -6098,25 +6098,16 @@ window.generateFilteredRepXLS = () => {
     alert('No hay filtro activo. Para el export completo usá "XLS activo" o "Todos".');
     return;
   }
+  const sucId   = repActiveTab;
   const codeSet = new Set(repProducts.filter(repRowMatches).map(p => p.code));
-  const activos = repTargets().filter(id =>
-    Object.entries(repSendData[id] || {}).some(([code, v]) => v > 0 && codeSet.has(code))
-  );
-  if (!activos.length) {
-    alert('El filtro activo no tiene cantidades asignadas en ningún destino.');
+  const hay = Object.entries(repSendData[sucId] || {})
+    .some(([code, v]) => v > 0 && codeSet.has(code));
+  if (!hay) {
+    alert(`El filtro activo no tiene cantidades asignadas en ${REP_LBLS[sucId]}.`);
     return;
   }
   if (!repPreflightGate()) return;
-  let delay = 0;
-  activos.forEach(sucId => {
-    const bySource = assignOrigins(sucId);
-    const sources  = Object.keys(bySource).filter(w =>
-      Object.entries(bySource[w]).some(([code, v]) => v > 0 && codeSet.has(code)));
-    if (sources.length) {
-      setTimeout(() => generateRepXLS(sucId, codeSet), delay);
-      delay += sources.length > 1 ? 900 : 450;
-    }
-  });
+  generateRepXLS(sucId, codeSet);
 };
 
 // Repartidor GLOBAL: para un producto reparte los envíos de TODOS los destinos
