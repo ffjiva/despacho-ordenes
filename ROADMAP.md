@@ -246,19 +246,24 @@ compatibilidad pero no es necesario en el flujo diario.
   corrompe el XLS (solo significa que ese código no sale) y bloquear obligaría a recargar por algo a
   veces intencional.
 
-**Reposición — Export XLS por filtro activo (21 Jun 2026):**
-- **`generateFilteredRepXLS()`:** botón "⬇ Filtrado" entre "XLS activo" y "Todos". Exporta solo los
-  productos visibles bajo el filtro activo (categoría/marca/búsqueda) para la **pestaña/destino activo**
-  (`repActiveTab`). Registra en trazabilidad con `{ parcial: true }`. Sufijo `_filtrado` en el nombre
-  del archivo. Solo flujo `stock`; compra y redist quedan fuera.
-- **`generateRepXLS(sucId, codeSet)`:** parámetro `codeSet` opcional; cuando está presente filtra las
-  entradas y usa `recordMap` (solo lo exportado) para la trazabilidad. Sin `codeSet` el comportamiento
-  es idéntico al anterior.
-- **Decisión — solo pestaña activa:** la primera versión recorría todos los destinos con cantidades en
-  el filtro. Se corrigió a `repActiveTab` para que el botón sea coherente con "XLS activo" (mismo
-  destino, distinto alcance). "Todos los destinos filtrados" queda diferido; si se necesita en el
-  futuro se agrega como acción separada explícita.
-- Pasa por `repPreflightGate()` igual que los otros exports.
+**Reposición — Export XLS según filtro activo (21 Jun 2026):**
+- **`generateFilteredRepXLS()`** (botón "⬇ Filtrado", junto a "XLS activo"/"Todos"): exporta solo los
+  productos visibles bajo el filtro activo (`repRowMatches` → cat/marca/búsqueda combinados), para la
+  pestaña/destino activo. Acción separada — no reemplaza "XLS activo" ni "Todos". Solo
+  flujo `stock`. Caso de uso: cambio de prioridad puntual (enfocarse en una marca/categoría/búsqueda),
+  despacharlo, y seguir la revisión normal.
+- **`generateRepXLS(sucId, codeSet)`** parametrizado con `codeSet` opcional (retrocompatible: sin
+  `codeSet` = export completo idéntico). El XLS filtrado lleva sufijo `_filtrado` en el nombre.
+- **Trazabilidad:** registra en `reposiciones` solo lo exportado, con marca `{ parcial: true }` (los
+  registros completos quedan sin el campo). `saveReposicionRecord` acepta un `extra` opcional. Suma al
+  historial para la futura sugerencia por consumo.
+- **Gate:** corre `repPreflightGate()` completo (no acotado al filtro) — la frescura es global de todas
+  formas. Si a futuro molesta el aviso por productos ajenos al filtro, se acota al `codeSet`.
+- Exporta TODOS los productos que matchean, no solo los 300 renderizados (el límite de display no aplica
+  al export).
+- **Decisión — solo pestaña activa:** primera versión recorría todos los destinos; corregido a
+  `repActiveTab` para coherencia con "XLS activo". "Todos los destinos filtrados" diferido como acción
+  separada explícita si se necesita.
 
 ### Módulo 7 — Trazabilidad de Reposiciones
 `ops.html` → pantalla `s-trazabilidad`. Registro automático en Firestore al generar XLS. Filtros por origen, destino, fecha. Cards expandibles con detalle de productos.
@@ -345,11 +350,12 @@ Revisión minuciosa de los tres archivos. 25 bugs corregidos en total.
 
 ### 🔧 Deuda técnica
 
-**[PENDIENTE] — Cerrar grifo `config/team`** *(ops.html)*
-Colección deprecada como fuente de usuarios (solo persiste por FCM tokens legacy). `ops.html` podría
-seguir escribiendo ahí. Tarea: auditar y eliminar cualquier escritura residual a `config/team`. Baja
-prioridad. Estaba en la cola de ejecución de jun 2026 pero nunca se trackeó explícito — solo figuraba
-como nota "DEPRECADO" en el esquema.
+**[RESUELTO 21 Jun 2026] — Cerrar grifo `config/team`** *(index.html)*
+El write real NO estaba en ops.html (solo un comentario) sino en index.html: cadena muerta pre-Auth
+`showNameModal()` → `_saveName()` → `saveUsersRemote()` → `setDoc(config/team)`, con cero callers de
+`showNameModal`. Eliminada toda la cadena (Opción B) + repuntado el ping de conectividad de
+`ensureFirestoreConnection()` de `config/team` a `config/ubicaciones`. Verificado: cero `setDoc`/`getDoc`
+a `config/team`; solo quedan comentarios documentales. `loadUsers()` (lee de `users/{uid}`) intacto.
 
 **[RESUELTO 03 Jun 2026] — assignedToName en domicilios**
 `confirmImport()` solo guardaba `assignedTo` (UID) sin `assignedToName`.
@@ -408,10 +414,11 @@ lista blanca de 137 categorías y auto-refresco de categoría al reutilizar.
 
 ### 🔲 Features próximos
 
-**Navegación con URLs relativas** *(index.html + ops.html + moto.html)*
-Botones "Ops"/"Órdenes" usan URLs absolutas hardcodeadas (`window.open('https://despacho-ordenes.web.app/...')`),
-lo que en previews salta a producción. Cambiar a relativas (`window.open('ops.html')`).
-**OJO:** los deep links `?orden=` que se comparten externamente deben quedar absolutos.
+**[RESUELTO 21 Jun 2026] — Navegación con URLs relativas** *(index/ops/moto)*
+Botones "Ops"/"Órdenes" pasados a relativas (`ops.html` / `index.html`) y deep links `?orden=` a
+raíz-relativos (`/?orden=`). Los previews ya no saltan a producción. Verificado: cero
+`despacho-ordenes.web.app` en navegación (solo quedan `wa.me` externos y comentarios). Sin features
+inmediatos en cola — el próximo gran paso es modularizar ops.html (en chat nuevo, ver Backlog).
 
 ---
 
