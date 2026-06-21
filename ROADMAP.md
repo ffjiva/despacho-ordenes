@@ -246,6 +246,20 @@ compatibilidad pero no es necesario en el flujo diario.
   corrompe el XLS (solo significa que ese código no sale) y bloquear obligaría a recargar por algo a
   veces intencional.
 
+**Reposición — Export XLS por filtro activo (21 Jun 2026):**
+- **`generateFilteredRepXLS()`:** botón "⬇ Filtrado" entre "XLS activo" y "Todos". Exporta solo los
+  productos visibles bajo el filtro activo (categoría/marca/búsqueda) para la **pestaña/destino activo**
+  (`repActiveTab`). Registra en trazabilidad con `{ parcial: true }`. Sufijo `_filtrado` en el nombre
+  del archivo. Solo flujo `stock`; compra y redist quedan fuera.
+- **`generateRepXLS(sucId, codeSet)`:** parámetro `codeSet` opcional; cuando está presente filtra las
+  entradas y usa `recordMap` (solo lo exportado) para la trazabilidad. Sin `codeSet` el comportamiento
+  es idéntico al anterior.
+- **Decisión — solo pestaña activa:** la primera versión recorría todos los destinos con cantidades en
+  el filtro. Se corrigió a `repActiveTab` para que el botón sea coherente con "XLS activo" (mismo
+  destino, distinto alcance). "Todos los destinos filtrados" queda diferido; si se necesita en el
+  futuro se agrega como acción separada explícita.
+- Pasa por `repPreflightGate()` igual que los otros exports.
+
 ### Módulo 7 — Trazabilidad de Reposiciones
 `ops.html` → pantalla `s-trazabilidad`. Registro automático en Firestore al generar XLS. Filtros por origen, destino, fecha. Cards expandibles con detalle de productos.
 
@@ -448,7 +462,6 @@ Mejoras menores para implementar cuando haya espacio:
 - **Agente WhatsApp** — notificaciones o comandos por WhatsApp (largo plazo)
 - **Rediseño home ops.html** — revisión estética del layout de navegación principal. Dos conceptos bocetados en sesión 03 Jun 2026: (A) home con botones por módulo agrupados por sección, (B) tabs superiores por módulo. Pendiente de evaluar cuando haya espacio.
 - **Modularizar ops.html** — supera 7,000 líneas, difícil de editar (agrava el stale-cache de Claude Code). Opción: módulos ES nativos (sin build), empezando por extraer reposición. Reto: estado compartido (`repProducts`, `repSendData`, etc.). También un `shared.js` para lógica duplicada entre index/ops/moto.
-- **Export XLS según filtro activo** *(ops.html)* — exportar solo lo del filtro/pestaña visible, como acción separada y explícita, NUNCA reemplazando el export completo.
 - **Debounce de `refreshRepStockTotals`** *(ops.html)* — condicional. Hoy no hay lag al teclear sobre las 3,668 filas sin filtrar. Si en el futuro se percibe delay, envolver en debounce (~120 ms) para no recalcular `repAllocate` sobre todo el filtrado en cada tecla. Mitigación lista, sin aplicar hasta que haga falta.
 - **Revisar integración WhatsApp** *(moto.html)* — `wa.me/${WHATSAPP_GROUP}` (~líneas 1406/1460): la constante está definida pero no es funcional. Revisar si es código muerto a eliminar o feature a completar.
 
@@ -484,4 +497,4 @@ Al abrir una sesión de implementación:
 
 ---
 
-*Última actualización: 21 Junio 2026*
+*Última actualización: 21 Junio 2026 (tarde)*
