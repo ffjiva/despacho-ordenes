@@ -355,12 +355,20 @@ Revisión minuciosa de los tres archivos. 25 bugs corregidos en total.
 - **F2** ⬜ Trazabilidad (módulo 7) → reposicion.html.
 - **F3** ⬜ Inventario (módulo 8b) → reposicion.html.
 - **F4** ⬜ Limpieza `ops.html`: borrar JS/HTML/CSS migrados + convertir botones topbar/drawer en links a `reposicion.html` + actualizar ROADMAP.
+- **Entrada del colaborador (index.html):** cuando se active la asignación de inventarios, el botón vive en `index.html` (donde el colaborador ya entra), con deep-link directo a SU inventario asignado en reposicion.html (ej. `reposicion.html#inv=<id>`), saltándose el home. El super sigue entrando por el botón Reposición de ops. Requiere: ruteo por hash en `reposicion.html` + gate role-aware (la costura de F0).
 
 ### 🐞 Issues conocidos — fase IA reposición (post-migración)
 Detectados al validar F1. **Idénticos a `ops.html`** — no introducidos por la extracción (código copiado verbatim). Se atacan junto al rework de **sugerencias por historial**:
 1. **La IA sugiere envíos no surtibles por el origen.** `analyzeWithAI` solo manda `{code, name, stock}` al CF; la IA no conoce la disponibilidad por origen (B01+B02), así que sugiere enviar códigos que el origen no stockea → se pintan rojo (`is-full`, exceden el pool). Falta pasar la restricción origen/disponibilidad al prompt.
 2. **`suggestReplenishment` (CF) devuelve HTTP 500 / JSON truncado.** El cliente hace `resp.json()` y truena ("Expected ',' or ']'…", ~pos 7531 = array cortado a la mitad). Causa probable: tope `max_tokens` de Haiku con sets grandes. Endurecer el CF (límite/validación/streaming) + fallback en cliente.
 3. *(Menor, por diseño)* `analyzeWithAI` aplica sugerencias a **todas** las sucursales (`repTargets()`), no a la pestaña activa. Documentado para no confundir.
+
+### 🛠️ Mejoras inventario — post-migración
+Detectadas validando F3. Idénticas a ops (no introducidas por la extracción):
+1. **`parseInvXLS` ignora códigos alfanuméricos.** Solo acepta `/^\d{8,}$/` → en `InventarioMaono.xls` cargó 3 de 7 (SKU como `AUA04`, `DGM20S` se pierden). Fix: discriminar producto/familia por presencia de descripción (col D), no por código numérico. Producto = `col1 && col3`; familia = `col1 && !col3`; saltar subtotales `^[\d.,\s]+$`.
+2. **No se puede reasignar el usuario** de un conteo ya creado. Falta UI de reasignación (editar `assignedTo`/`assignedToName` post-creación). Encaja con el feature de inventario asignable a colaborador.
+3. **Auto-extraer sucursal del XLS** al crear conteo, manteniendo SIEMPRE el campo de asignación manual como override. (El XLS trae cabecera de bodega, ej. "BODEGA MATRIX SF" — mapear a sucursal.)
+4. **Modal de celebración (pixel-art):** el actual es SVG/CSS hecho a mano. Explorar mejora con herramienta externa de pixel-art (ej. sprite sheet de Aseprite/Piskel animado con `steps()`, o asset con licencia abierta), conservando la estética. *(Claude no genera pixel-art animado directamente; se diseña aparte y se integra.)*
 
 ### 🔧 Deuda técnica
 
