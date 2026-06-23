@@ -348,13 +348,13 @@ Revisión minuciosa de los tres archivos. 25 bugs corregidos en total.
 
 ## Pendientes
 
-### 🚧 Modularización reposición → reposicion.html (EN CURSO)
+### ✅ Modularización reposición → reposicion.html (COMPLETA)
 4ª app standalone (modelo `moto.html`) que reúne Reposición + Inventario + Trazabilidad. Init Firebase propio (resuelve el estado compartido). Acceso **solo vía ops**, gate **super-only** con costura ramificable por rol (para el futuro inventario asignable a colaborador). Home con 3 botones; back `← Ops`.
 - **F0** ✅ Andamiaje (login + gate + home + mini-router + CSS base). Deploy + smoke OK.
 - **F1** ✅ Reposición (stock/compra/redist) migrada vía `migrate_f1.js` (extracción por anclas de texto, `node --check` OK, sin duplicados, idempotente). Smoke 1–4 OK. `ops.html` **intacto** (limpieza diferida a F4).
-- **F2** ⬜ Trazabilidad (módulo 7) → reposicion.html.
-- **F3** ⬜ Inventario (módulo 8b) → reposicion.html.
-- **F4** ⬜ Limpieza `ops.html`: borrar JS/HTML/CSS migrados + convertir botones topbar/drawer en links a `reposicion.html` + actualizar ROADMAP.
+- **F2** ✅ Trazabilidad migrada (`migrate_f2.js`).
+- **F3** ✅ Inventario migrado (`migrate_f3.js`).
+- **F4** ✅ Limpieza de ops.html + botón único de acceso (`migrate_f4.js`). ops 7487→3944 líneas. Botones de Inventario eliminados; entrada del colaborador planeada para index.html.
 - **Entrada del colaborador (index.html):** cuando se active la asignación de inventarios, el botón vive en `index.html` (donde el colaborador ya entra), con deep-link directo a SU inventario asignado en reposicion.html (ej. `reposicion.html#inv=<id>`), saltándose el home. El super sigue entrando por el botón Reposición de ops. Requiere: ruteo por hash en `reposicion.html` + gate role-aware (la costura de F0).
 
 ### 🐞 Issues conocidos — fase IA reposición (post-migración)
