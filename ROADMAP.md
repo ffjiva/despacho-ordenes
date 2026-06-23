@@ -370,6 +370,9 @@ Detectadas validando F3. Idénticas a ops (no introducidas por la extracción):
 3. **Auto-extraer sucursal del XLS** al crear conteo, manteniendo SIEMPRE el campo de asignación manual como override. (El XLS trae cabecera de bodega, ej. "BODEGA MATRIX SF" — mapear a sucursal.)
 4. **Modal de celebración (pixel-art):** el actual es SVG/CSS hecho a mano. Explorar mejora con herramienta externa de pixel-art (ej. sprite sheet de Aseprite/Piskel animado con `steps()`, o asset con licencia abierta), conservando la estética. *(Claude no genera pixel-art animado directamente; se diseña aparte y se integra.)*
 
+### ✅ Acciones de limpieza — post F4 (23 Jun 2026)
+- `ops.html.bak` (backup generado por `migrate_f4.js`) removido del tracking con `git rm --cached` y `*.bak` agregado a `.gitignore`. El archivo permanece en disco como seguridad local pero no se versiona.
+
 ### 🔧 Deuda técnica
 
 **[RESUELTO 21 Jun 2026] — Cerrar grifo `config/team`** *(index.html)*

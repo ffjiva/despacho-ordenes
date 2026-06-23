@@ -139,3 +139,6 @@ node_modules/
 .dataconnect
 
 functions/.env
+
+# Backups de migración (generados por migrate_fN.js)
+*.bak
