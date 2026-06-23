@@ -347,6 +347,22 @@ html, body {
   font-size: .62rem; letter-spacing: .04em; color: var(--muted);
   text-transform: uppercase; font-family: var(--font); font-weight: 700;
 }
+
+/* ═══ TRAZABILIDAD (migrado F2) ═══ */
+.empty-state { text-align: center; padding: 3rem 1rem 2rem; color: var(--muted); }
+.traz-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); margin-bottom: .6rem; overflow: hidden; }
+.traz-card-hdr { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; cursor: pointer; gap: 8px; }
+.traz-card-hdr:hover { background: var(--surface2); }
+.traz-badge { font-size: .65rem; font-family: var(--mono); font-weight: 700; padding: 2px 8px; border-radius: 4px; background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+.traz-badge-dest { background: var(--accent); color: #fff; border-color: transparent; }
+.traz-detail { border-top: 1px solid var(--border); }
+.traz-prod-row { display: flex; align-items: center; gap: 8px; padding: 5px 14px; border-bottom: 1px solid var(--border2, #f0f0ec); }
+.traz-prod-row:last-of-type { border-bottom: none; }
+.traz-prod-code { font-family: var(--mono); font-size: .62rem; color: var(--muted); min-width: 80px; }
+.traz-prod-name { font-size: .7rem; flex: 1; }
+.traz-prod-qty { font-family: var(--mono); font-size: .72rem; font-weight: 700; min-width: 28px; text-align: right; }
+
+/* ── MÓDULO 8b — INVENTARIO ── */
 </style>
 </head>
 <body>
@@ -587,10 +603,46 @@ html, body {
 
 
 <div id="s-trazabilidad" class="scr">
-  <div class="topbar"><div class="topbar-title">🧾 Trazabilidad</div>
-    <div class="topbar-actions"><button class="btn btn-ghost" onclick="goHome()">← Inicio</button></div></div>
-  <div class="rh-shell">Pantalla de Trazabilidad — se migra en <b>F2</b>.</div>
+  <div class="topbar">
+    <div class="topbar-title">📋 Historial de Reposiciones</div>
+    <div class="topbar-actions">
+      <button class="btn btn-ghost" style="font-size:.65rem"
+        onclick="goBackFromTrazabilidad()">← Volver</button>
+    </div>
+  </div>
+  <div id="traz-loading" style="display:none;text-align:center;padding:3rem 1rem">
+    <span class="spin"></span>
+    <span style="font-size:.72rem;color:var(--muted);margin-left:8px">Cargando…</span>
+  </div>
+  <div style="padding:.75rem 1rem .25rem;display:flex;gap:8px;flex-wrap:wrap;border-bottom:1px solid var(--border2)">
+    <select id="traz-fil-origen" onchange="renderTrazabilidad()"
+      style="font-size:.68rem;padding:4px 8px;border:1px solid var(--border);border-radius:var(--r);background:var(--surface);color:var(--text)">
+      <option value="">Todos los orígenes</option>
+      <option value="B01">B01 Hangar</option>
+      <option value="B02">B02 Zdt</option>
+      <option value="M01">M01 Merliot</option>
+      <option value="S02">S02 San Salvador</option>
+      <option value="S04">S04 Soyapango</option>
+      <option value="S03">S03 San Miguel</option>
+      <option value="S07">S07 Usulután</option>
+      <option value="S06">S06 Zoditech</option>
+    </select>
+    <select id="traz-fil-destino" onchange="renderTrazabilidad()"
+      style="font-size:.68rem;padding:4px 8px;border:1px solid var(--border);border-radius:var(--r);background:var(--surface);color:var(--text)">
+      <option value="">Todos los destinos</option>
+      <option value="M01">M01 Merliot</option>
+      <option value="S02">S02 San Salvador</option>
+      <option value="S04">S04 Soyapango</option>
+      <option value="S03">S03 San Miguel</option>
+      <option value="S07">S07 Usulután</option>
+      <option value="S06">S06 Zoditech</option>
+    </select>
+    <input id="traz-fil-fecha" type="date" onchange="renderTrazabilidad()"
+      style="font-size:.68rem;padding:4px 8px;border:1px solid var(--border);border-radius:var(--r);background:var(--surface);color:var(--text)"/>
+  </div>
+  <div id="traz-list" style="padding:.75rem .875rem 5rem"></div>
 </div>
+
 
 <div id="s-inventario" class="scr">
   <div class="topbar"><div class="topbar-title">📋 Inventario</div>
@@ -750,7 +802,6 @@ window.goHome = goHome;
 
 // Entradas de sección — STUBS en F0; F1–F3 reemplazan estas funciones por las migradas.
 window.goInventario   = () => showScreen('s-inventario');
-window.goTrazabilidad = () => showScreen('s-trazabilidad');
 
 /* ═══════════════════════════════════
    TEMA
@@ -2839,6 +2890,88 @@ window.analyzeWithAI = async () => {
     btn.disabled = false;
     btn.innerHTML = '✨ IA';
   }
+};
+
+
+/* ═══════════════════════════════════
+   TRAZABILIDAD (migrado F2)
+═══════════════════════════════════ */
+window.goTrazabilidad = () => {
+  showScreen('s-trazabilidad');
+  loadTrazabilidad();
+};
+
+window.goBackFromTrazabilidad = () => { showScreen('s-reposicion'); };
+
+// ── Módulo 7 — Trazabilidad ───────────────────────────────────────────────
+let trazRecords = [];
+
+async function loadTrazabilidad() {
+  console.log('[Trazabilidad] db:', db, 'fbMod:', typeof fbMod);
+  if (!db) { console.warn('[Trazabilidad] db no inicializado'); return; }
+  $('traz-loading').style.display = 'block';
+  $('traz-list').innerHTML = '';
+  try {
+    const { collection, getDocs, query, orderBy, limit } = fbMod;
+    const q = query(collection(db, 'reposiciones'), orderBy('timestamp', 'desc'), limit(100));
+    const snap = await getDocs(q);
+    trazRecords = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderTrazabilidad();
+  } catch (e) {
+    $('traz-list').innerHTML = `<div class="empty-state">Error al cargar: ${e.message}</div>`;
+  } finally {
+    $('traz-loading').style.display = 'none';
+  }
+}
+
+window.renderTrazabilidad = function() {
+  const filOrigen = $('traz-fil-origen').value;
+  const filDest   = $('traz-fil-destino').value;
+  const filFecha  = $('traz-fil-fecha').value;
+  let list = trazRecords;
+  if (filOrigen) list = list.filter(r => r.origen  === filOrigen);
+  if (filDest)   list = list.filter(r => r.destino === filDest);
+  if (filFecha)  list = list.filter(r => r.fecha   === filFecha);
+  const wrap = $('traz-list');
+  if (!list.length) {
+    wrap.innerHTML = '<div class="empty-state">Sin registros aún.</div>';
+    return;
+  }
+  wrap.innerHTML = list.map(r => {
+    const dt = new Date(r.timestamp);
+    const hora = dt.toLocaleTimeString('es-SV', { hour: '2-digit', minute: '2-digit' });
+    return `
+    <div class="traz-card">
+      <div class="traz-card-hdr" onclick="toggleTrazDetail('${r.id}')">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <span class="traz-badge">${r.origen}</span>
+          <span style="font-size:.7rem;color:var(--muted)">→</span>
+          <span class="traz-badge traz-badge-dest">${r.destino}</span>
+          <span style="font-size:.7rem;color:var(--muted)">${r.fecha} ${hora}</span>
+        </div>
+        <div style="display:flex;gap:12px;align-items:center">
+          <span style="font-size:.7rem;color:var(--muted)">${r.totalUnidades} uds · ${r.productos.length} prods</span>
+          <span style="font-size:.75rem;color:var(--muted)">▾</span>
+        </div>
+      </div>
+      <div id="traz-detail-${r.id}" class="traz-detail" style="display:none">
+        ${r.productos.map(p => `
+        <div class="traz-prod-row">
+          <span class="traz-prod-code">${p.codigo}</span>
+          <span class="traz-prod-name">${p.nombre}</span>
+          <span class="traz-prod-qty">${p.cantidad}</span>
+        </div>`).join('')}
+        <div style="padding:8px 14px;font-size:.65rem;color:var(--muted)">
+          Generado por: ${r.generadoPor || '—'}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+window.toggleTrazDetail = (id) => {
+  const el = $(`traz-detail-${id}`);
+  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
 };
 
 init();
