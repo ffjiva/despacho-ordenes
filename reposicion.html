@@ -1,0 +1,2847 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+<title>Reposición · Zona Digital</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap');
+:root {
+  --bg: #161410;
+  --surface: #1f1c18;
+  --surface2: #272320;
+  --border: #2e2a24;
+  --border2: #26231f;
+  --text: #e8e2d8;
+  --text2: #a09890;
+  --muted: #7a7266;
+  --accent: #1f1c18;
+  --accent2: #4caf7d;
+  --brand: #c8922a;
+  --done-bg: #0f2a1a;
+  --done-bd: #1e5c38;
+  --done-tx: #4caf7d;
+  --warn-bg: #2e2210;
+  --warn-bd: #5c400e;
+  --warn-tx: #c8922a;
+  --err-bg: #2a0f0c;
+  --err-bd: #8a2a22;
+  --err-tx: #f5a0a0;
+  --info-bg: #0c1a2a;
+  --info-bd: #1a4a8a;
+  --info-tx: #7ab0f0;
+  --mono: 'IBM Plex Mono', monospace;
+  --sans: 'IBM Plex Sans', sans-serif;
+  --r: 6px;
+  --r2: 10px;
+
+  /* type colors */
+  --dist-bg: #edf5e1; --dist-bd: #bad48a; --dist-tx: #2d5a1b;
+  --auth-bg: #e8f0fb; --auth-bd: #a8c4f0; --auth-tx: #1c4fa0;
+  --comp-bg: #fdf4e3; --comp-bd: #f0cc7a; --comp-tx: #7a4f0a;
+  --inv-bg:  #f5edfb; --inv-bd:  #d0a8f0; --inv-tx:  #5a1c9b;
+}
+body.dark {
+  --bg: #1a1a1a;
+  --surface: #2a2a2a;
+  --surface2: #242424;
+  --border: #3a3a3a;
+  --border2: #303030;
+  --text: #e8e6df;
+  --text2: #a8a69e;
+  --muted: #6a6a5e;
+  --done-bg: #1a2e12; --done-bd: #3a6424; --done-tx: #7ab84a;
+  --warn-bg: #2a2212; --warn-bd: #6a5418; --warn-tx: #d0a030;
+  --err-bg:  #2a1212; --err-bd:  #6a2424; --err-tx:  #e06868;
+  --info-bg: #121a2a; --info-bd: #264472; --info-tx: #6090d8;
+  --dist-bg: #1a2e12; --dist-bd: #3a6424; --dist-tx: #7ab84a;
+  --auth-bg: #121a2a; --auth-bd: #264472; --auth-tx: #6090d8;
+  --comp-bg: #2a2212; --comp-bd: #6a5418; --comp-tx: #d0a030;
+  --inv-bg:  #1e1228; --inv-bd:  #502e72; --inv-tx:  #a870d8;
+}
+/* overrides de tema usados por pantallas que migran en F1–F3 */
+body.dark .btn-light { background: #3a3a3a; color: var(--text); }
+body.dark .fld input, body.dark .fld textarea, body.dark .fld select { background: #222; }
+body.dark .modal { background: #252525; }
+body.dark select option { background: #1e1e1e; color: #e8e8e8; }
+
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html, body {
+  font-family: var(--mono);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  font-size: 14px;
+  line-height: 1.5;
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
+.scr { display: none; min-height: 100vh; }
+.scr.on { display: block; }
+
+/* ── TOPBAR ── */
+.topbar {
+  background: var(--accent);
+  color: #fff;
+  padding: .9rem 1rem .85rem;
+  position: sticky; top: 0; z-index: 200;
+  display: flex; align-items: center; justify-content: space-between; gap: .75rem;
+}
+.topbar-title {
+  font-family: var(--mono);
+  font-size: .78rem; font-weight: 700;
+  letter-spacing: .12em; text-transform: uppercase;
+}
+.topbar-actions { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
+
+/* ── BUTTONS ── */
+.btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 7px 14px; border-radius: var(--r);
+  font-family: var(--mono); font-size: .7rem; font-weight: 700;
+  letter-spacing: .07em; text-transform: uppercase;
+  cursor: pointer; border: none; transition: all .15s;
+  white-space: nowrap;
+}
+.btn:active { transform: scale(.97); }
+.btn-light  { background: #fff; color: var(--accent); }
+.btn-ghost  { background: transparent; border: 1px solid rgba(255,255,255,.3); color: rgba(255,255,255,.85); }
+.btn-ghost:hover { border-color: rgba(255,255,255,.75); color: #fff; }
+.btn-dark   { background: var(--accent); color: #fff; }
+.btn-dark:hover { background: #2c2c22; }
+.btn-dark:disabled { opacity: .4; cursor: not-allowed; }
+.btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text2); }
+.btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+.btn-danger { background: var(--err-bg); color: var(--err-tx); border: 1px solid var(--err-bd); }
+.btn-full { width: 100%; justify-content: center; padding: 11px; font-size: .78rem; }
+
+/* ── FORM FIELDS ── */
+.fld { margin-bottom: .9rem; }
+.fld label { display: block; font-size: .6rem; font-weight: 700; letter-spacing: .1em; color: var(--muted); text-transform: uppercase; margin-bottom: 5px; }
+.fld input, .fld textarea, .fld select {
+  width: 100%; padding: 10px 12px;
+  border: 1px solid var(--border); border-radius: var(--r);
+  font-family: var(--mono); font-size: .73rem;
+  background: var(--surface); color: var(--text);
+  transition: border-color .15s; outline: none;
+}
+.fld input:focus, .fld textarea:focus, .fld select:focus { border-color: var(--accent); }
+.fld select option { color: #18180f; background: #ffffff; }
+.fld textarea { min-height: 80px; resize: vertical; }
+
+/* ── NOTICE BOXES ── */
+.box { padding: 10px 12px; border-radius: var(--r); font-size: .72rem; line-height: 1.6; border: 1px solid; }
+.box-info { background: var(--info-bg); border-color: var(--info-bd); color: var(--info-tx); }
+.box-err  { background: var(--err-bg);  border-color: var(--err-bd);  color: var(--err-tx); }
+.box-warn { background: var(--warn-bg); border-color: var(--warn-bd); color: var(--warn-tx); }
+
+/* ── SPINNER ── */
+.spin {
+  display: inline-block; width: 12px; height: 12px;
+  border: 2px solid rgba(0,0,0,.1); border-top-color: currentColor;
+  border-radius: 50%; animation: rot .65s linear infinite;
+  vertical-align: middle; margin-right: 5px;
+}
+@keyframes rot { to { transform: rotate(360deg); } }
+
+/* ── LOGIN ── */
+.login-wrap {
+  max-width: 400px; margin: 0 auto;
+  padding: 3rem 1.25rem 3rem;
+  display: flex; flex-direction: column; align-items: center;
+}
+.login-logo {
+  width: 52px; height: 52px; background: var(--accent); color: #fff;
+  border-radius: 12px; display: flex; align-items: center; justify-content: center;
+  font-size: 1.5rem; margin-bottom: 1.25rem;
+}
+.login-h   { font-size: 1.05rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; margin-bottom: .3rem; text-align: center; }
+.login-sub { font-size: .72rem; color: var(--text2); text-align: center; margin-bottom: 1.75rem; line-height: 1.7; }
+.login-form { width: 100%; }
+
+/* ── HOME (3 botones — andamiaje F0) ── */
+.rh-grid { max-width: 520px; margin: 0 auto; padding: 1.5rem 1rem 3rem; display: flex; flex-direction: column; gap: .85rem; }
+.rh-card {
+  display: flex; flex-direction: column; align-items: flex-start; gap: .15rem;
+  text-align: left; padding: 1.1rem 1.25rem;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--r2);
+  cursor: pointer; transition: all .15s; color: var(--text); font-family: var(--mono);
+}
+.rh-card:hover  { border-color: var(--brand); transform: translateY(-1px); }
+.rh-card:active { transform: scale(.99); }
+.rh-ico { font-size: 1.5rem; }
+.rh-lbl { font-size: .9rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.rh-sub { font-size: .68rem; color: var(--text2); }
+.rh-shell { padding: 2.5rem 1rem; text-align: center; color: var(--text2); font-size: .78rem; line-height: 1.8; }
+
+/* ═══ MÓDULO REPOSICIÓN (migrado F1) ═══ */
+/* ══════════════════════════════════════
+   MÓDULO 6C — REPOSICIÓN
+══════════════════════════════════════ */
+.rep-upload-zone {
+  max-width: 480px; margin: 3rem auto;
+  padding: 0 1.25rem; text-align: center;
+}
+.rep-dropzone {
+  border: 2px dashed var(--border); border-radius: var(--r2);
+  padding: 2.5rem 1rem; cursor: pointer; transition: all .15s;
+}
+.rep-dropzone:hover { border-color: var(--accent); background: var(--surface); }
+.rep-dropzone.drag-over { border-color: var(--accent); background: var(--surface); transform: scale(1.01); }
+.rep-drop-icon { font-size: 2.2rem; margin-bottom: .6rem; opacity: .35; }
+.rep-drop-text { font-size: .72rem; color: var(--text2); line-height: 1.9; }
+
+.rep-filelist {
+  background: var(--surface); border-bottom: 1px solid var(--border2);
+  padding: .5rem .875rem; display: flex; flex-wrap: wrap; gap: 6px;
+  align-items: center;
+}
+.rep-file-item {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--done-bg); border: 1px solid var(--done-bd);
+  border-radius: var(--r); padding: 3px 9px; font-size: .62rem;
+}
+.rep-file-icon  { color: var(--done-tx); font-weight: 700; }
+.rep-file-name  { color: var(--text); font-weight: 500; max-width: 150px;
+                  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rep-file-brand { color: var(--info-tx); font-weight: 700; background: var(--info-bg);
+                  border-radius: 3px; padding: 1px 5px; font-size: .58rem; }
+.rep-file-count { color: var(--muted); }
+
+.rep-tabs {
+  display: flex; gap: 4px; padding: .55rem .875rem;
+  background: var(--surface); border-bottom: 1px solid var(--border2);
+  overflow-x: auto; flex-shrink: 0;
+}
+.rep-tabs::-webkit-scrollbar { display: none; }
+.rtab {
+  padding: 5px 12px; border-radius: var(--r);
+  border: 1px solid var(--border); background: transparent;
+  font-family: var(--mono); font-size: .63rem; font-weight: 600;
+  cursor: pointer; white-space: nowrap; color: var(--text2);
+  letter-spacing: .04em; text-transform: uppercase; transition: all .15s;
+  display: inline-flex; align-items: center; gap: 5px;
+}
+.rtab.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.rtab-unserved { opacity: .42; }
+.rtab-badge {
+  min-width: 17px; height: 17px; border-radius: 9px;
+  font-size: .55rem; font-weight: 700;
+  background: rgba(255,255,255,.25); color: #fff;
+  text-align: center; line-height: 17px; padding: 0 3px;
+}
+.rtab:not(.on) .rtab-badge { background: var(--border2); color: var(--text2); }
+
+.rep-filters {
+  display: flex; gap: 6px; padding: .5rem .875rem;
+  background: var(--surface2); border-bottom: 1px solid var(--border2);
+  flex-wrap: wrap; align-items: center;
+}
+.rep-filter-sel {
+  padding: 5px 8px; border: 1px solid var(--border); border-radius: var(--r);
+  font-family: var(--mono); font-size: .65rem;
+  background: var(--surface); color: var(--text);
+  outline: none; cursor: pointer; max-width: 180px;
+}
+.rep-search {
+  flex: 1; min-width: 130px; padding: 5px 8px;
+  border: 1px solid var(--border); border-radius: var(--r);
+  font-family: var(--mono); font-size: .65rem;
+  background: var(--surface); color: var(--text); outline: none;
+}
+.rep-search:focus { border-color: var(--accent); }
+
+.rep-actions {
+  display: flex; gap: 6px; align-items: center; flex-wrap: wrap;
+  padding: .45rem .875rem; border-bottom: 1px solid var(--border2);
+  background: var(--surface); position: sticky; top: 52px; z-index: 10;
+}
+.rep-summary { font-size: .61rem; color: var(--muted); }
+
+.rep-table-wrap { overflow-x: auto; padding: .75rem .875rem 5rem; }
+.rep-table {
+  width: 100%; border-collapse: collapse;
+  font-size: .68rem; min-width: 500px;
+}
+.rep-table th {
+  background: var(--surface2); border: 1px solid var(--border2);
+  padding: 6px 8px; text-align: left;
+  font-size: .57rem; font-weight: 700; letter-spacing: .07em;
+  text-transform: uppercase; color: var(--muted); white-space: nowrap;
+}
+.rep-table td {
+  border: 1px solid var(--border2); padding: 5px 8px;
+  vertical-align: middle; background: var(--surface);
+}
+.rep-table tr:hover td { background: var(--surface2); }
+.td-code  {
+  font-size: .6rem; color: var(--muted); white-space: nowrap;
+  position: sticky; left: 0; background: var(--surface); z-index: 1;
+}
+.td-name  {
+  font-weight: 500; min-width: 160px; max-width: 320px;
+  position: sticky; left: 72px; background: var(--surface); z-index: 1;
+}
+.rep-table tr:hover .td-code,
+.rep-table tr:hover .td-name { background: var(--surface2); }
+.rep-table th:first-child {
+  position: sticky; left: 0; z-index: 2; background: var(--surface2);
+}
+.rep-table th:nth-child(2) {
+  position: sticky; left: 72px; z-index: 2; background: var(--surface2);
+}
+.td-brand { font-size: .6rem; color: var(--info-tx); white-space: nowrap; }
+.td-stk   { text-align: right; font-family: var(--mono); font-size: .65rem; min-width: 38px; }
+.td-stk-passive { opacity: .42; }
+.td-sug   { text-align: center; min-width: 44px; }
+.td-send  { text-align: center; min-width: 58px; }
+.stk-zero { color: var(--border); }
+.stk-low  { color: var(--err-tx); font-weight: 700; }
+.stk-ok   { color: var(--done-tx); }
+.sug-badge {
+  display: inline-block; padding: 1px 6px; border-radius: 3px;
+  font-size: .6rem; font-weight: 700;
+  background: var(--warn-bg); color: var(--warn-tx);
+  border: 1px solid var(--warn-bd);
+}
+.rep-origin { display: flex; gap: 4px; margin-bottom: 8px; }
+.rorigin-btn {
+  padding: 5px 12px; border-radius: var(--r);
+  border: 1px solid var(--border); background: var(--surface);
+  color: var(--text); font-size: .72rem; font-weight: 700;
+  font-family: var(--mono); cursor: pointer;
+}
+.rorigin-btn.on { background: var(--text); color: var(--surface); border-color: var(--text); }
+.rep-qty {
+  width: 52px; padding: 4px 5px; text-align: center;
+  border: 1px solid var(--border); border-radius: var(--r);
+  font-family: var(--mono); font-size: .72rem; font-weight: 700;
+  background: var(--surface); color: var(--text); outline: none;
+}
+.rep-qty:focus { border-color: var(--accent); }
+.rep-qty.has-qty {
+  border-color: var(--done-bd); background: var(--done-bg); color: var(--done-tx);
+}
+.rep-qty.is-warn {
+  border-color: var(--warn-bd); background: var(--warn-bg); color: var(--warn-tx);
+}
+.rep-qty.is-full {
+  border-color: var(--err-bd); background: var(--err-bg); color: var(--err-tx);
+}
+.rep-rem {
+  margin-top: 2px; font-size: .52rem; font-family: var(--mono);
+  text-align: center; line-height: 1;
+}
+.rep-rem:empty { display: none; }
+.rep-rem.rem-warn { color: var(--warn-tx); }
+.rep-rem.rem-full { color: var(--err-tx); font-weight: 700; }
+.rep-qty::-webkit-inner-spin-button,
+.rep-qty::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.rep-qty { -moz-appearance: textfield; }
+.rep-total-row td {
+  background: var(--surface2) !important; border-top: 2px solid var(--border2);
+  font-weight: 700; font-family: var(--mono); font-size: .65rem;
+}
+.rep-total-label {
+  font-size: .62rem; letter-spacing: .04em; color: var(--muted);
+  text-transform: uppercase; font-family: var(--font); font-weight: 700;
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════════ LOGIN ══════════════ -->
+<div id="s-login" class="scr on">
+  <div style="position:absolute;top:.75rem;right:.9rem">
+    <button class="btn btn-outline" style="font-size:.85rem;padding:5px 9px" onclick="toggleDark()" id="theme-btn-login" title="Modo oscuro">🌙</button>
+  </div>
+  <div class="login-wrap">
+    <div class="login-logo">📦</div>
+    <div class="login-h">Reposición</div>
+    <div class="login-sub">Operaciones · Zona Digital<br>Ingresa con tu cuenta para continuar.</div>
+    <div class="login-form">
+      <div class="fld"><label>Email</label><input id="rep-email" type="email" placeholder="tu@email.com" autocomplete="email" onkeydown="if(event.key==='Enter')doRepLogin()"/></div>
+      <div class="fld"><label>Contraseña</label><input id="rep-pw" type="password" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doRepLogin()"/></div>
+      <div id="rep-login-err" class="box box-err" style="display:none;margin-bottom:.75rem"></div>
+      <button class="btn btn-dark btn-full" id="btn-rep-login" onclick="doRepLogin()">Ingresar →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ HOME ══════════════ -->
+<div id="s-home" class="scr">
+  <div class="topbar">
+    <div>
+      <div class="topbar-title">📦 Reposición</div>
+      <div style="font-size:.6rem;letter-spacing:.08em;color:rgba(255,255,255,.6);margin-top:2px" id="rh-user">—</div>
+    </div>
+    <div class="topbar-actions">
+      <a href="ops.html" class="btn btn-ghost" style="text-decoration:none">← Ops</a>
+      <button class="btn btn-ghost" style="font-size:.85rem;padding:5px 9px" onclick="toggleDark()" id="theme-btn" title="Modo oscuro">🌙</button>
+      <button class="btn btn-ghost" onclick="doLogout()">Salir</button>
+    </div>
+  </div>
+
+  <div class="rh-grid">
+    <button class="rh-card" onclick="goReposicion()">
+      <span class="rh-ico">📊</span>
+      <span class="rh-lbl">Reposición</span>
+      <span class="rh-sub">Distribución general, compra y redistribución</span>
+    </button>
+    <button class="rh-card" onclick="goInventario()">
+      <span class="rh-ico">📋</span>
+      <span class="rh-lbl">Inventario</span>
+      <span class="rh-sub">Validación de inventario físico</span>
+    </button>
+    <button class="rh-card" onclick="goTrazabilidad()">
+      <span class="rh-ico">🧾</span>
+      <span class="rh-lbl">Trazabilidad</span>
+      <span class="rh-sub">Historial de reposiciones</span>
+    </button>
+  </div>
+</div>
+
+<!-- ══ SHELLS — se llenan en F1 (reposición), F2 (trazabilidad), F3 (inventario) ══ -->
+<div id="s-reposicion" class="scr">
+  <div class="topbar">
+    <div class="topbar-title">📊 Reposición</div>
+    <div class="topbar-actions">
+      <button class="btn btn-ghost" style="font-size:.65rem"
+        onclick="goTrazabilidad()">📋 Historial</button>
+      <button class="btn btn-ghost" style="font-size:.65rem"
+        onclick="goBackFromReposicion()">← Volver</button>
+    </div>
+  </div>
+
+  <input type="file" id="rep-xls-input" accept=".xls,.xlsx" multiple
+    style="display:none" onchange="handleRepFiles(this)"/>
+  <input type="file" id="rep-compra-input" accept=".xls,.xlsx" multiple
+    style="display:none" onchange="handleCompraFile(this)"/>
+
+  <div id="rep-loading" style="display:none;text-align:center;padding:3rem 1rem">
+    <span class="spin"></span>
+    <span style="font-size:.72rem;color:var(--muted);margin-left:8px">
+      Procesando archivos…
+    </span>
+  </div>
+
+  <div id="rep-empty">
+    <div class="rep-upload-zone">
+      <div class="rep-dropzone"
+        onclick="document.getElementById('rep-xls-input').click()"
+        ondragover="repDragOver(event)"
+        ondragleave="repDragLeave(event)"
+        ondrop="repDrop(event)">
+        <div class="rep-drop-icon">📂</div>
+        <div class="rep-drop-text">
+          <strong>Subir reporte de inventario</strong><br/>
+          Uno o varios archivos XLS en formato Gerencial<br/>
+          <span style="font-size:.6rem;color:var(--muted)">
+            GerencialTotal.xls + archivos por marca (opcionales)
+          </span>
+        </div>
+      </div>
+      <div id="rep-err" class="box box-err" style="display:none;margin-top:.75rem"></div>
+      <div id="rep-warn" class="box box-warn" style="display:none;margin-top:.75rem"></div>
+    </div>
+  </div>
+
+  <div id="rep-data" style="display:none">
+    <div id="rep-filelist" class="rep-filelist"></div>
+    <div id="rep-config-panel" style="display:none;padding:.5rem .875rem;border-bottom:1px solid var(--border2);background:var(--surface2)">
+      <div style="font-size:.6rem;font-weight:700;letter-spacing:.08em;color:var(--muted);margin-bottom:.5rem">PARÁMETROS DE REPOSICIÓN</div>
+      <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end">
+        <div>
+          <div style="font-size:.58rem;color:var(--muted);margin-bottom:3px">DISTRIBUCIÓN</div>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+            <div style="display:flex;gap:4px;align-items:center">
+              <span style="font-size:.6rem;color:var(--text2)">Reserva B01</span>
+              <input type="number" min="0" max="50" id="cfg-b01-reserve" class="rep-qty" style="width:48px" value="2"/>
+              <span style="font-size:.6rem;color:var(--text2)">uds</span>
+            </div>
+            <div style="display:flex;gap:4px;align-items:center">
+              <span style="font-size:.6rem;color:var(--text2)">Distribuir</span>
+              <input type="number" min="10" max="100" id="cfg-dist-pct" class="rep-qty" style="width:48px" value="85"/>
+              <span style="font-size:.6rem;color:var(--text2)">% del stock</span>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:.58rem;color:var(--muted);margin-bottom:3px">MÍNIMOS POR SUCURSAL</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <div style="text-align:center"><div style="font-size:.57rem;color:var(--text2);margin-bottom:2px">M01</div><input type="number" min="0" max="50" id="cfg-min-M01" class="rep-qty" style="width:44px" value="5"/></div>
+            <div style="text-align:center"><div style="font-size:.57rem;color:var(--text2);margin-bottom:2px">S02</div><input type="number" min="0" max="50" id="cfg-min-S02" class="rep-qty" style="width:44px" value="5"/></div>
+            <div style="text-align:center"><div style="font-size:.57rem;color:var(--text2);margin-bottom:2px">S04</div><input type="number" min="0" max="50" id="cfg-min-S04" class="rep-qty" style="width:44px" value="3"/></div>
+            <div style="text-align:center"><div style="font-size:.57rem;color:var(--text2);margin-bottom:2px">S03</div><input type="number" min="0" max="50" id="cfg-min-S03" class="rep-qty" style="width:44px" value="2"/></div>
+            <div style="text-align:center"><div style="font-size:.57rem;color:var(--text2);margin-bottom:2px">S07</div><input type="number" min="0" max="50" id="cfg-min-S07" class="rep-qty" style="width:44px" value="2"/></div>
+            <div style="text-align:center"><div style="font-size:.57rem;color:var(--text2);margin-bottom:2px">S06</div><input type="number" min="0" max="50" id="cfg-min-S06" class="rep-qty" style="width:44px" value="2"/></div>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:.58rem;color:var(--muted);margin-bottom:3px">TOPES (no enviar si stock ≥)</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <div style="text-align:center"><div style="font-size:.57rem;color:var(--text2);margin-bottom:2px">M01</div><input type="number" min="0" max="999" id="cfg-max-M01" class="rep-qty" style="width:44px" value="10"/></div>
+            <div style="text-align:center"><div style="font-size:.57rem;color:var(--text2);margin-bottom:2px">S02</div><input type="number" min="0" max="999" id="cfg-max-S02" class="rep-qty" style="width:44px" value="10"/></div>
+            <div style="text-align:center"><div style="font-size:.57rem;color:var(--text2);margin-bottom:2px">S04</div><input type="number" min="0" max="999" id="cfg-max-S04" class="rep-qty" style="width:44px" value="6"/></div>
+            <div style="text-align:center"><div style="font-size:.57rem;color:var(--text2);margin-bottom:2px">S03</div><input type="number" min="0" max="999" id="cfg-max-S03" class="rep-qty" style="width:44px" value="5"/></div>
+            <div style="text-align:center"><div style="font-size:.57rem;color:var(--text2);margin-bottom:2px">S07</div><input type="number" min="0" max="999" id="cfg-max-S07" class="rep-qty" style="width:44px" value="4"/></div>
+            <div style="text-align:center"><div style="font-size:.57rem;color:var(--text2);margin-bottom:2px">S06</div><input type="number" min="0" max="999" id="cfg-max-S06" class="rep-qty" style="width:44px" value="5"/></div>
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          <label style="display:flex;align-items:center;gap:5px;font-size:.62rem;color:var(--text2);cursor:pointer">
+            <input type="checkbox" id="cfg-fill-to-max"
+              onchange="REP_FILL_TO_MAX=this.checked"
+              style="accent-color:var(--accent);width:13px;height:13px"/>
+            Completar al tope
+          </label>
+          <button class="btn btn-dark" style="font-size:.62rem" onclick="applyRepConfig()">↺ Recalcular</button>
+          <button class="btn btn-ghost" style="font-size:.6rem" onclick="resetRepConfig()">Reset</button>
+        </div>
+      </div>
+    </div>
+    <div id="rep-global-totals" style="
+      display:none;
+      padding:.4rem .875rem;
+      border-bottom:1px solid var(--border2);
+      background:var(--surface2);
+      flex-wrap:wrap;gap:6px;align-items:center;
+    "></div>
+    <div style="padding:.4rem .875rem;border-bottom:1px solid var(--border2);
+                background:var(--surface);display:flex;gap:8px;align-items:center">
+      <button class="btn btn-outline" style="font-size:.6rem"
+        onclick="document.getElementById('rep-xls-input').click()">
+        + Agregar archivo
+      </button>
+      <button class="btn btn-outline" style="font-size:.6rem"
+        onclick="toggleRepConfig()">
+        ⚙ Parámetros
+      </button>
+      <button class="btn btn-outline" id="btn-compra-mode" style="font-size:.6rem"
+        onclick="enterCompraMode()">
+        📦 Dist. Compra
+      </button>
+      <button class="btn btn-outline" id="btn-redist-mode" style="font-size:.6rem"
+        onclick="enterRedistMode()">
+        ⇄ Redistribuir
+      </button>
+      <button class="btn btn-outline" style="font-size:.6rem;color:var(--err-tx)"
+        onclick="clearRepSession()">
+        ⊘ Limpiar todo
+      </button>
+    </div>
+    <div id="rep-compra-panel" style="display:none;border-bottom:1px solid var(--border2)">
+      <div style="margin:.6rem .875rem;padding:.55rem .875rem;border-radius:var(--r);
+        background:var(--warn-bg);border:1px solid var(--warn-bd);color:var(--warn-tx);
+        font-size:.67rem;line-height:1.6;display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+        <span>📦 <strong>MODO DISTRIBUCIÓN POR COMPRA</strong> — Solo productos de la factura subida.
+          El stock de sucursales viene del Gerencial cargado.</span>
+        <button class="btn btn-outline" style="font-size:.58rem;color:var(--warn-tx);border-color:var(--warn-bd);margin-left:auto"
+          onclick="exitCompraMode()">← Volver a reposición normal</button>
+      </div>
+      <div id="rep-compra-upload" style="max-width:400px;margin:.25rem auto .75rem;padding:0 1.25rem">
+        <div class="rep-dropzone" style="padding:1.5rem 1rem"
+          onclick="document.getElementById('rep-compra-input').click()"
+          ondragover="compraDragOver(event)" ondragleave="compraDragLeave(event)" ondrop="compraDrop(event)">
+          <div class="rep-drop-icon" style="font-size:1.5rem">📦</div>
+          <div class="rep-drop-text">
+            <strong>Subir factura de compra</strong><br/>
+            <span style="font-size:.6rem;color:var(--muted)">CompraXXX.xls</span>
+          </div>
+        </div>
+      </div>
+      <div id="rep-compra-filelist" class="rep-filelist" style="display:none"></div>
+    </div>
+    <div id="rep-redist-panel" style="display:none;border-bottom:1px solid var(--border2)">
+      <div style="margin:.6rem .875rem;padding:.55rem .875rem;border-radius:var(--r);
+        background:var(--info-bg);border:1px solid var(--info-bd);color:var(--info-tx);
+        font-size:.67rem;line-height:1.6;display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+        <span>⇄ <strong>MODO REDISTRIBUCIÓN</strong> — Mover excedentes entre sucursales.
+          Cada pestaña es una sucursal origen con sobrestock.</span>
+        <button class="btn btn-outline" style="font-size:.58rem;color:var(--info-tx);border-color:var(--info-bd);margin-left:auto"
+          onclick="exitRedistMode()">← Volver a reposición normal</button>
+      </div>
+    </div>
+    <div class="rep-origin" id="rep-origin"></div>
+    <div class="rep-tabs" id="rep-tabs"></div>
+    <div class="rep-filters" id="rep-filters"></div>
+    <div class="rep-actions">
+      <div class="rep-summary" id="rep-summary"></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;
+                  margin-left:auto;flex-shrink:0">
+        <button class="btn btn-outline" style="font-size:.6rem" id="btn-ai-rep"
+          onclick="analyzeWithAI()">✨ IA</button>
+        <button class="btn btn-outline" style="font-size:.6rem"
+          onclick="generateActiveRepXLS()">⬇ XLS activo</button>
+        <button class="btn btn-outline" style="font-size:.6rem"
+          title="Exporta solo los productos visibles bajo el filtro activo (categoría/marca/búsqueda) y los registra en trazabilidad. No reemplaza el export completo."
+          onclick="generateFilteredRepXLS()">⬇ Filtrado</button>
+        <button class="btn btn-dark" style="font-size:.6rem"
+          onclick="generateAllRepXLS()">⬇ Todos</button>
+      </div>
+    </div>
+    <div id="rep-table-wrap" class="rep-table-wrap"></div>
+  </div>
+</div>
+
+
+<div id="s-trazabilidad" class="scr">
+  <div class="topbar"><div class="topbar-title">🧾 Trazabilidad</div>
+    <div class="topbar-actions"><button class="btn btn-ghost" onclick="goHome()">← Inicio</button></div></div>
+  <div class="rh-shell">Pantalla de Trazabilidad — se migra en <b>F2</b>.</div>
+</div>
+
+<div id="s-inventario" class="scr">
+  <div class="topbar"><div class="topbar-title">📋 Inventario</div>
+    <div class="topbar-actions"><button class="btn btn-ghost" onclick="goHome()">← Inicio</button></div></div>
+  <div class="rh-shell">Pantalla de Inventario — se migra en <b>F3</b>.</div>
+</div>
+
+<div id="s-inventario-detalle" class="scr">
+  <div class="topbar"><div class="topbar-title">📋 Conteo</div>
+    <div class="topbar-actions"><button class="btn btn-ghost" onclick="goHome()">← Inicio</button></div></div>
+  <div class="rh-shell">Detalle de conteo — se migra en <b>F3</b>.</div>
+</div>
+
+<div id="s-inventario-historial" class="scr">
+  <div class="topbar"><div class="topbar-title">📋 Historial inventario</div>
+    <div class="topbar-actions"><button class="btn btn-ghost" onclick="goHome()">← Inicio</button></div></div>
+  <div class="rh-shell">Historial de inventario — se migra en <b>F3</b>.</div>
+</div>
+
+<!-- SheetJS — precargado para el código migrado en F1–F3 -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<script type="module">
+/* ═══════════════════════════════════
+   CONFIG & STATE  (F0 — andamiaje)
+═══════════════════════════════════ */
+const FIREBASE_CFG = {
+  apiKey: "AIzaSyAb_0e8Hh_UfzN54S3VZGQXqUD3t53bWrQ",
+  authDomain: "despacho-ordenes.firebaseapp.com",
+  projectId: "despacho-ordenes",
+  storageBucket: "despacho-ordenes.firebasestorage.app",
+  messagingSenderId: "694628838838",
+  appId: "1:694628838838:web:30e9745a0465b004f42517"
+};
+
+const THEME_KEY = 'rep_theme_v1';
+
+let db = null, fbMod = null, authMod = null, auth = null;
+let currentUser = null; // { uid, email, name, role }
+
+/* ── Estado Reposición (migrado F1) ── */
+let repProductMap  = new Map();
+let repProducts    = [];
+let repSendData    = {};
+let repLoadedFiles = [];
+let repLoadedAt    = null;   // sello de frescura del snapshot de stock del Gerencial
+let repActiveTab   = 'M01';
+let repOrigin      = 'B01B02';   // origen de reposición: 'B01B02'|'B01'|'B02'|'B03'
+let repActiveCat   = '';
+let repActiveBrand = '';
+let repSearch      = '';
+let repSortBy      = 'suggested';
+let repSortDir     = 'desc';
+let repSortCol     = '';
+let repMode           = 'stock';
+let repCompraProducts = [];
+let repCompraData     = {};
+let repCompraFiles    = [];
+let repRedistData     = {}; // { 'M01->S02': { code: qty } }
+let repRedistActiveOrig  = 'M01';
+let repRedistDestFilter  = null;
+let repCompraTouched  = {}; // { code: Set<sucId> } — sucursales editadas manualmente por producto
+let repCompraPostMode = false; // true = usar stock Gerencial (B01+B02) como pool
+let repDisplayLimit   = 300;
+
+/* ── Helpers compartidos (mismos que ops; el código migrado los usa) ── */
+const $ = id => document.getElementById(id);
+function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function escAttr(s) { return String(s).replace(/'/g,"\\'"); }
+function getTodaySV() {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'America/El_Salvador' });
+}
+
+/* ═══════════════════════════════════
+   INIT
+═══════════════════════════════════ */
+async function init() {
+  if (localStorage.getItem(THEME_KEY) === 'dark') applyDark(true);
+
+  try {
+    const { initializeApp, getApps } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
+    [fbMod, authMod] = await Promise.all([
+      import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'),
+      import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js')
+    ]);
+    const existing = getApps().find(a => a.name === 'rep-main');
+    const app = existing || initializeApp(FIREBASE_CFG, 'rep-main');
+    db   = fbMod.getFirestore(app);
+    auth = authMod.getAuth(app);
+  } catch (e) {
+    console.error('Firebase init error:', e);
+  }
+
+  if (!authMod || !auth) {
+    showScreen('s-login');
+    showLoginErr('Error al conectar con el servidor. Recarga la página.');
+    return;
+  }
+
+  // Firebase Auth gestiona la persistencia de sesión automáticamente
+  authMod.onAuthStateChanged(auth, async (fbUser) => {
+    if (!fbUser) { showScreen('s-login'); return; }
+    try {
+      const snap = await fbMod.getDoc(fbMod.doc(db, 'users', fbUser.uid));
+      if (!snap.exists() || snap.data().active !== true) {
+        await authMod.signOut(auth);
+        showScreen('s-login');
+        return;
+      }
+      const profile = snap.data();
+      const role = profile.role;
+
+      // ── GATE RAMIFICABLE POR ROL (F0: solo super) ─────────────────────────
+      // Hoy: solo 'super' entra (paridad exacta con ops.html).
+      // Costura para el feature futuro "inventario asignable a colaborador":
+      //   al habilitarlo, agregar 'collaborator' a ALLOWED y ramificar la vista
+      //   (super = acceso total; collaborator = solo su inventario asignado).
+      //   El andamiaje queda listo para ramificar sin reescritura. Ver ROADMAP.
+      const ALLOWED = ['super'];
+      if (!ALLOWED.includes(role)) {
+        await authMod.signOut(auth);
+        showScreen('s-login');
+        showLoginErr('No tienes acceso a esta sección.');
+        return;
+      }
+      // ──────────────────────────────────────────────────────────────────────
+
+      currentUser = { uid: fbUser.uid, email: fbUser.email, name: profile.name || fbUser.email, role };
+      goHome();
+    } catch (e) {
+      console.error('Auth check error:', e);
+      showScreen('s-login');
+    }
+  });
+}
+
+function showScreen(id) {
+  document.querySelectorAll('.scr').forEach(s => s.classList.remove('on'));
+  $(id).classList.add('on');
+  window.scrollTo(0, 0);
+}
+
+function showLoginErr(msg) {
+  const el = $('rep-login-err');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+/* ═══════════════════════════════════
+   NAVEGACIÓN
+═══════════════════════════════════ */
+function goHome() {
+  if (currentUser) $('rh-user').textContent = `${currentUser.name} · ${getTodaySV()}`;
+  showScreen('s-home');
+}
+window.goHome = goHome;
+
+// Entradas de sección — STUBS en F0; F1–F3 reemplazan estas funciones por las migradas.
+window.goInventario   = () => showScreen('s-inventario');
+window.goTrazabilidad = () => showScreen('s-trazabilidad');
+
+/* ═══════════════════════════════════
+   TEMA
+═══════════════════════════════════ */
+function applyDark(on) {
+  document.body.classList.toggle('dark', on);
+  const icon = on ? '☀️' : '🌙';
+  ['theme-btn', 'theme-btn-login'].forEach(id => {
+    const el = $(id);
+    if (el) el.textContent = icon;
+  });
+}
+window.toggleDark = () => {
+  const isDark = document.body.classList.contains('dark');
+  applyDark(!isDark);
+  localStorage.setItem(THEME_KEY, isDark ? 'light' : 'dark');
+};
+
+/* ═══════════════════════════════════
+   AUTH (login / logout)
+═══════════════════════════════════ */
+window.doRepLogin = async () => {
+  const email = $('rep-email').value.trim();
+  const pw    = $('rep-pw').value;
+  const btn   = $('btn-rep-login');
+  if (!email || !pw) { showLoginErr('Completa todos los campos.'); return; }
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span>Ingresando...';
+  $('rep-login-err').style.display = 'none';
+  const AUTH_ERRORS = {
+    'auth/user-not-found':     'Correo no registrado',
+    'auth/wrong-password':     'Contraseña incorrecta',
+    'auth/invalid-credential': 'Correo o contraseña incorrectos',
+    'auth/invalid-email':      'Correo no válido',
+    'auth/too-many-requests':  'Demasiados intentos. Espera unos minutos',
+  };
+  try {
+    await authMod.signInWithEmailAndPassword(auth, email, pw);
+    // onAuthStateChanged maneja la navegación
+  } catch (e) {
+    showLoginErr(AUTH_ERRORS[e.code] || 'Error al ingresar.');
+    btn.disabled = false;
+    btn.textContent = 'Ingresar →';
+  }
+};
+
+window.doLogout = async () => {
+  currentUser = null;
+  if (authMod && auth) await authMod.signOut(auth);
+  // onAuthStateChanged mostrará s-login automáticamente
+};
+
+
+/* ═══════════════════════════════════
+   MÓDULO REPOSICIÓN (migrado F1)
+═══════════════════════════════════ */
+const REP_SNAMES = {
+  'BODEGA CENTRAL':            'B02',
+  'BODEGA MATRIX SF':          'B01',
+  'BODEGA ORIENTE':            'B03',
+  'ZODITECH':                  'S06',
+  'ZONA DIGITAL MATRIX':       'M01',
+  'ZONA DIGITAL SAN MIGUEL':   'S03',
+  'ZONA DIGITAL SAN SALVADOR': 'S02',
+  'ZONA DIGITAL SOYAPANGO':    'S04',
+  'ZONA DIGITAL USULUTAN':     'S07',
+};
+const REP_DESTS    = ['M01','S02','S04','S03','S07','S06'];
+const REP_LBLS     = { M01:'M01 Merliot', S02:'S02 Sv', S03:'S03 S.Miguel',
+                       S04:'S04 Soya.',   S06:'S06 Zoditech', S07:'S07 Usulután',
+                       B03:'B03 Oriente' };
+const REP_FNAMES   = { M01:'Merliot', S02:'SanSalvador', S03:'SanMiguel',
+                       S04:'Soyapango', S06:'Zoditech', S07:'Usulutan',
+                       B03:'Oriente' };
+const REP_PRIORITY_ORDER   = ['M01','S02','S04','S03','S07','S06'];
+// Destinos que cada origen abastece. B03 solo despacha a S03/S07.
+// Orígenes sin entrada sirven a todos los destinos.
+const REP_ORIGIN_DESTS = { B03: ['S03', 'S07'] };
+function repOriginServes(sid) {
+  const allowed = REP_ORIGIN_DESTS[repOrigin];
+  return !allowed || allowed.includes(sid);
+}
+// Destinos del flujo de reposición normal, según el origen seleccionado.
+// Origen B-bodega (B01+B02/B01/B02): B03 es destino (en su prioridad tras S04).
+// Origen B03: B03 es la fuente, así que solo las 6 sucursales.
+const REP_DESTS_B03 = ['M01','S02','S04','B03','S03','S07','S06'];
+function repTargets() { return repOrigin === 'B03' ? REP_DESTS : REP_DESTS_B03; }
+function repOriginLabel() { return repOrigin === 'B01B02' ? 'B01+B02' : repOrigin; }
+const REP_MINIMUMS_DEFAULT = { M01:5, S02:5, S04:3, S03:2, S07:2, S06:2, B03:0 };
+let   REP_MINIMUMS         = { ...REP_MINIMUMS_DEFAULT };
+const REP_MAXIMUMS_DEFAULT = { M01:10, S02:10, S04:6, S03:5, S07:4, S06:5, B03:10 };
+let   REP_MAXIMUMS         = { ...REP_MAXIMUMS_DEFAULT };
+// Mínimo de B03 por categoría: solo mantiene existencias de estos tipos voluminosos
+// para alimentar S03/S07; el resto, 0.
+const REP_B03_CATEGORIES = new Set(['Gaming Chairs','Monitores','Cases','Smart TV','Escritorios','Sillas']);
+// Lista blanca de categorías activas del sistema (137). El parser solo acepta
+// como categoría lo que esté aquí; lo demás se ignora (evita productos colados).
+const REP_CATEGORIES = new Set([
+  'ACCESORIOS APPLE', 'Accesorios Protección', 'Accesorios Tablets', 'Accesorios de Impresión',
+  'Accesorios para Carro', 'Accesorios para Laptop', 'Accesorios para Móviles', 'Accesorios para PC',
+  'Accesorios para Pantallas', 'Accesorios para Redes', 'Access Point', 'Adaptadores Computo',
+  'Adaptadores de Audio', 'Antenas de Red', 'Antivirus y Seguridad', 'Audífonos para PC', 'Baterías',
+  'Bobinas Cable UTP', 'Bocinas Portátiles', 'Bocinas para PC', 'Bolsones y Estuches',
+  'Cables Celular MicroUSB', 'Cables Celular Tipo C', 'Cables Computo', 'Cables de Audio', 'Cables de Red',
+  'Cables para Iphone', 'Cables para Pantallas', 'Calculadoras Básicas', 'Calculadoras Científicas',
+  'Cargadores para Celular', 'Cartuchos de Tinta', 'Cases', 'Celulares', 'Cintas', 'Coleccionables',
+  'Controles para TV', 'Cámara de Acción', 'Cámaras Fotográficas', 'Cámaras de Vigilancia', 'Discos Duros',
+  'Discos Externos', 'Dispositivos', 'Earphones 3.5MM', 'Earphones Bluetooth', 'Earphones Bluetooth O',
+  'Ecommerce Costos', 'Enclosures', 'Enfriamiento Líquido', 'Enfriamiento por Aire', 'Equipos RF',
+  'Escritorios', 'Extensores de Red', 'Fuentes de Poder', 'Gamepads', 'Gaming Chairs', 'Gaming Goodies',
+  'Gaming Headset', 'Gaming Keyboards', 'Gaming Mouse', 'Gaming Mousepad', 'HEADPHONES USB-C',
+  'Headphones 3.5MM', 'Headphones Bluetooth', 'Herramientas', 'Herramientas de Red', 'Impresores Láser',
+  'Impresores Matriciales', 'Impresores Térmicos', 'Impresores de Inyección', 'Impresores de Tanque',
+  'Juguetes Educativos', 'Juguetes RC', 'Kits de Vigilancia', 'Laptops', 'Laptops Gamer', 'Laptops RF',
+  'Limpieza', 'Liquidación', 'Media', 'Memorias TFlash', 'Memorias USB', 'Microfono PC', 'Micrófono Aux',
+  'Mobiliario y Equipo', 'Monitores', 'Monitores RF', 'Motherboards AMD', 'Motherboards INTEL',
+  'Mouse Inalámbricos', 'Mouse USB Opticos', 'Mousepads', 'Nintendo', 'Ofimática', 'Otros Muebles',
+  'PC Desktop', 'PC Gamer', 'Papelería', 'Pasta Térmica', 'Playstation', 'Procesadores AMD',
+  'Procesadores Intel', 'Productos Pulled', 'Proyectores', 'Racks para TV', 'Ram para Laptop', 'Ram para PC',
+  'Reguladores', 'Routers', 'Scaners', 'Servidores', 'Sillas', 'Sistemas Operativos', 'Smart Home',
+  'Smart TV', 'Smartwatch', 'Switch de Red', 'Tabletas Gráficas', 'Tablets', 'Tarjetas PCI',
+  'Tarjetas de Red PCI', 'Tarjetas de Red USB', 'Tarjetas de Video', 'Teclados', 'Televisores',
+  'Tintas Refill', 'Tóner', 'UPS', 'Unidades DVR-NVR', 'Unidades Opticas', 'Unidades SSD M.2',
+  'Unidades SSD Sata', 'Varios Electrónicos', 'Varios RF', 'Ventilación para Case', 'WebCams', 'XBOX',
+]);
+const REP_B03_MIN = 6;
+function repMinFor(p, sid) {
+  if (sid === 'B03') return REP_B03_CATEGORIES.has((p.cat || '').trim()) ? REP_B03_MIN : 0;
+  return REP_MINIMUMS[sid] || 0;
+}
+let   REP_B01_RESERVE      = 2;
+let   REP_DIST_PCT         = 85;
+let   REP_FILL_TO_MAX      = false;
+
+// ── Helpers de disponibilidad por origen ─────────────────────────────────────
+// Centralizan el cálculo de "disponible" antes duplicado. origin: 'B01B02'
+// (default) | 'B01' | 'B02' | 'B03'. Por ahora solo se usa 'B01B02', así que el
+// comportamiento es idéntico al anterior.
+const REP_ORIGIN_SOURCES = {
+  B01B02: ['B01', 'B02'],
+  B01:    ['B01'],
+  B02:    ['B02'],
+  B03:    ['B03'],
+};
+// Reserva por bodega. B01 usa el valor configurable REP_B01_RESERVE; el resto
+// sin reserva por ahora (la config por bodega llega en una fase posterior).
+function repReserveFor(w) { return w === 'B01' ? REP_B01_RESERVE : 0; }
+// Disponible para SUGERENCIAS: descuenta la reserva de cada bodega del origen.
+function repAvailable(p, origin = 'B01B02') {
+  const srcs = REP_ORIGIN_SOURCES[origin] || REP_ORIGIN_SOURCES.B01B02;
+  return srcs.reduce((sum, w) =>
+    sum + Math.max(0, (p.stock[w] || 0) - repReserveFor(w)), 0);
+}
+// Tope MANUAL: stock físico completo del origen, sin descontar reserva.
+function repPoolCeiling(p, origin = 'B01B02') {
+  const srcs = REP_ORIGIN_SOURCES[origin] || REP_ORIGIN_SOURCES.B01B02;
+  return srcs.reduce((sum, w) => sum + (p.stock[w] || 0), 0);
+}
+// Pool en vivo: unidades del producto ya asignadas a destinos distintos al actual.
+function repAssignedElsewhere(code, exceptSuc) {
+  let sum = 0;
+  for (const sid of repTargets()) {
+    if (sid === exceptSuc) continue;
+    sum += (repSendData[sid] && repSendData[sid][code]) || 0;
+  }
+  return sum;
+}
+const REP_KNOWN_BRANDS = [
+  'BLUE MICROPHONE','THONET & VANDER','WESTERN DIGITAL','FORMULA V LINE','NIPPON AMERICA',
+  'COOLER MASTER','EAGLE WARRIOR','HARMAN KARDON','SILICON POWER','BIT DEFENDER',
+  'STEEL SERIES','TURTLE BEACH','KLIP XTREME','PLANTRONICS','PLAYSTATION',
+  'SKULL CANDY','THERMALTAKE','CASE LOGIC','SONY MUSIC','BANPRESTO',
+  'DATALOGIC','EA SPORTS','ENERGIZER','HIKVISION','HONEYWELL',
+  'KASPERSKY','MICROSOFT','PROVISION','SMARTBITT','TEAMGROUP',
+  'TRANSCEND','TRIPPLITE','VERTAGEAR','VIEWSONIC','AEROCOOL',
+  'BEMATECH','DEEPCOOL','FUJIFILM','FURUKAWA','GIGABYTE',
+  'GLORIOUS','INSTA360','KINGSTON','LOGITECH','MERCUSYS',
+  'MOTOROLA','NANOLEAF','NINTENDO','PLAYSEAT','POLAROID',
+  'PUREGEAR','REDRAGON','SAPPHIRE','SEASONIC','SHARKOON',
+  'STARLINK','T-DAGGER','UBIQUITI','VERBATIM','ABLEREX',
+  'ALCATEL','ANDROID','BIOSTAR','BROTHER','CORSAIR',
+  'CRUCIAL','FORMULA','GAMESIR','GATEWAY','GRIZZLY',
+  'HHGEARS','HIKSEMI','HISENSE','HITACHI','HYUNDAI',
+  'INFOCUS','KINGWIN','KLIPSCH','LIAN LI','LINKSYS',
+  'MUSHKIN','NETGEAR','ORBITEC','PATRIOT','PHILIPS',
+  'POWER A','SAMSUNG','SANDISK','SAT PCS','SEAGATE',
+  'TECHMAN','TOSHIBA','TP-LINK','UNITECH','3NSTAR',
+  'AGILER','AMAZON','ARCTIC','ARZOPA','ASROCK',
+  'AVTECH','BELKIN','COUGAR','ELGATO','ETOUCH',
+  'GENIUS','GOOGLE','GSKILL','HILOOK','HUAWEI',
+  'HYPERX','LENOVO','MARLEY','MAXELL','MOPHIE',
+  'NOCTUA','ORAIMO','PRIMUS','SCRIBE','UCTECH',
+  'UGREEN','VSEVEN','XIAOMI','ZKTECO','ADATA',
+  'ALTEC','ANKER','ANTEC','APPLE','ARGOM',
+  'CANON','CASIO','CISCO','DAHUA','DLINK',
+  'EPSON','EZVIZ','FORZA','GOPRO','GOVEE',
+  'HAIER','HYNIX','INTEL','JABRA','LEXAR',
+  'LOGIC','MAONO','MARVO','NACON','NEMAX',
+  'NETIS','NEXXT','NOKIA','OMEGA','PALIT',
+  'PANDA','RAZER','REMAX','TENDA','THULE',
+  'WACOM','XTECH','ZEBRA','ZOTAC','ZYXEL',
+  '@ONE','ACER','AIWA','ASUS','AZZA',
+  'BENQ','CUDY','DELL','ESET','EVGA',
+  'EZRA','FURY','HORI','HYTE','ILUV',
+  'IMOU','NZXT','QNAP','ROKU','SABO',
+  'SONY','UNNO','ZAGG','AKG','AMD',
+  'AOC','APC','CDP','DJI','ECS',
+  'ELO','HPE','JAM','JBL','KTC',
+  'MSI','PNY','RDS','ROG','XPG',
+  '3M','HP','KZ','LG',
+];
+
+const REP_STORAGE_KEY = 'rep_session_v1';
+
+function saveRepSession() {
+  try {
+    sessionStorage.setItem(REP_STORAGE_KEY, JSON.stringify({
+      loadedAt:    repLoadedAt,
+      products:    repProducts,
+      sendData:    repSendData,
+      loadedFiles: repLoadedFiles,
+      activeTab:   repActiveTab,
+      activeCat:   repActiveCat,
+      activeBrand: repActiveBrand,
+      sortBy:      repSortBy,
+      distPct:     REP_DIST_PCT,
+      b01Reserve:  REP_B01_RESERVE,
+      minimums:    REP_MINIMUMS,
+      maximums:    REP_MAXIMUMS,
+      fillToMax:      REP_FILL_TO_MAX,
+      repMode:        repMode,
+      compraProducts: repCompraProducts,
+      compraData:     repCompraData,
+      compraFiles:    repCompraFiles,
+      redistData:     repRedistData,
+    }));
+  } catch(e) { console.warn('saveRepSession:', e); }
+}
+
+let _repSaveTimer = null;
+function saveRepSessionDebounced() {
+  clearTimeout(_repSaveTimer);
+  _repSaveTimer = setTimeout(saveRepSession, 600);
+}
+
+function loadRepSession() {
+  try {
+    const raw = sessionStorage.getItem(REP_STORAGE_KEY);
+    if (!raw) return false;
+    const d = JSON.parse(raw);
+    repLoadedAt    = d.loadedAt    || null;
+    repProducts    = d.products    || [];
+    repSendData    = d.sendData    || {};
+    repLoadedFiles = d.loadedFiles || [];
+    repActiveTab   = d.activeTab   || 'M01';
+    repActiveCat   = d.activeCat   || '';
+    repActiveBrand = d.activeBrand || '';
+    repSortBy      = d.sortBy      || 'suggested';
+    if (d.distPct    !== undefined) REP_DIST_PCT    = d.distPct;
+    if (d.b01Reserve !== undefined) REP_B01_RESERVE = d.b01Reserve;
+    if (d.minimums   !== undefined) REP_MINIMUMS    = { ...REP_MINIMUMS_DEFAULT, ...d.minimums };
+    if (d.maximums   !== undefined) REP_MAXIMUMS    = { ...REP_MAXIMUMS_DEFAULT, ...d.maximums };
+    if (d.fillToMax  !== undefined) REP_FILL_TO_MAX = d.fillToMax;
+    repMode           = d.repMode          || 'stock';
+    repCompraProducts = d.compraProducts   || [];
+    repCompraData     = d.compraData       || {};
+    repCompraFiles    = d.compraFiles      || [];
+    repRedistData     = d.redistData       || {};
+    repProductMap.clear();
+    repProducts.forEach(p => repProductMap.set(p.code, p));
+    return repProducts.length > 0;
+  } catch(e) { console.warn('loadRepSession:', e); return false; }
+}
+
+window.repDragOver = e => {
+  e.preventDefault();
+  e.stopPropagation();
+  e.currentTarget.classList.add('drag-over');
+};
+
+window.repDragLeave = e => {
+  e.preventDefault();
+  e.stopPropagation();
+  e.currentTarget.classList.remove('drag-over');
+};
+
+window.repDrop = e => {
+  e.preventDefault();
+  e.stopPropagation();
+  e.currentTarget.classList.remove('drag-over');
+  const files = Array.from(e.dataTransfer.files)
+    .filter(f => /\.(xls|xlsx)$/i.test(f.name));
+  if (!files.length) return;
+  const dt = new DataTransfer();
+  files.forEach(f => dt.items.add(f));
+  const fakeInput = { files: dt.files, value: '' };
+  handleRepFiles(fakeInput);
+};
+
+window.toggleRepConfig = () => {
+  const p = document.getElementById('rep-config-panel');
+  if (!p) return;
+  p.style.display = p.style.display === 'none' ? '' : 'none';
+};
+
+/* ═══════════════════════════════════
+   MÓDULO 8b — INVENTARIO FÍSICO
+═══════════════════════════════════ */
+
+// ── Navegación ──────────────────────
+
+window.goReposicion = () => {
+  showScreen('s-reposicion');
+  if (!repProducts.length && loadRepSession()) {
+    showRepState('data');
+    if (repMode === 'compra') {
+      enterCompraMode();
+    } else {
+      renderRepFull();
+    }
+  }
+};
+
+window.goBackFromReposicion = () => { showScreen('s-home'); };
+
+window.clearRepSession = () => {
+  if (repLoadedFiles.length && !confirm('¿Limpiar todo y empezar de nuevo?')) return;
+  sessionStorage.removeItem(REP_STORAGE_KEY);
+  repProductMap.clear();
+  repLoadedAt       = null;
+  repProducts       = [];
+  repSendData       = {};
+  repLoadedFiles    = [];
+  repActiveCat      = '';
+  repActiveBrand    = '';
+  repSearch         = '';
+  repMode           = 'stock';
+  repCompraProducts = [];
+  repCompraData     = {};
+  repCompraFiles    = [];
+  repCompraTouched  = {};
+  repDisplayLimit   = 300;
+  repRedistData       = {};
+  repRedistActiveOrig = 'M01';
+  const compraPanel = $('rep-compra-panel');
+  if (compraPanel) compraPanel.style.display = 'none';
+  const redistPanel = $('rep-redist-panel');
+  if (redistPanel) redistPanel.style.display = 'none';
+  const btnCompra = $('btn-compra-mode');
+  if (btnCompra) btnCompra.style.display = '';
+  const btnRedist = $('btn-redist-mode');
+  if (btnRedist) btnRedist.style.display = '';
+  showRepState('empty');
+  $('rep-err').style.display = 'none';
+  // Resetear parámetros a valores por defecto
+  REP_FILL_TO_MAX = false;
+  REP_B01_RESERVE = 2;
+  REP_DIST_PCT    = 85;
+  REP_MINIMUMS    = { ...REP_MINIMUMS_DEFAULT };
+  REP_MAXIMUMS    = { ...REP_MAXIMUMS_DEFAULT };
+};
+
+function showRepState(state) {
+  $('rep-empty').style.display   = state === 'empty'   ? '' : 'none';
+  $('rep-loading').style.display = state === 'loading' ? '' : 'none';
+  $('rep-data').style.display    = state === 'data'    ? '' : 'none';
+}
+
+window.handleRepFiles = async inputEl => {
+  if (typeof XLSX === 'undefined') {
+    alert('SheetJS no cargado. Recargá la página.');
+    return;
+  }
+  const files = Array.from(inputEl.files);
+  inputEl.value = '';
+  if (!files.length) return;
+
+  const newFiles = files.filter(f =>
+    !repLoadedFiles.some(lf => lf.name === f.name)
+  );
+  if (!newFiles.length) return;
+
+  showRepState('loading');
+  $('rep-err').style.display = 'none';
+  if ($('rep-warn')) $('rep-warn').style.display = 'none';
+
+  try {
+    for (const file of newFiles) {
+      const buf   = await file.arrayBuffer();
+      const wb    = XLSX.read(buf, { type: 'array' });
+      const brand = detectRepBrand(file.name);
+      const { added, enriched } = parseRepXLS(wb, brand);
+      repLoadedFiles.push({ name: file.name, brand: brand || '', added, enriched });
+    }
+    repLoadedAt = Date.now();   // snapshot de stock fresco a esta hora
+    const clamped = repClampAll();
+    computeRepSuggestions(true);   // carga = solo mínimos (el excedente queda para el botón IA)
+    showRepState('data');
+    renderRepFull();
+    saveRepSession();
+    if (clamped > 0) {
+      const w = $('rep-warn');
+      if (w) {
+        w.textContent = `⚠ ${clamped} ${clamped === 1 ? 'producto ajustado' : 'productos ajustados'}: bajó el stock tras la carga y se recortó el exceso (prioridad inversa).`;
+        w.style.display = '';
+      }
+    }
+  } catch(e) {
+    showRepState(repLoadedFiles.length ? 'data' : 'empty');
+    if (repLoadedFiles.length) renderRepFull();
+    $('rep-err').textContent = '⚠ ' + e.message;
+    $('rep-err').style.display = '';
+    console.error('handleRepFiles:', e);
+  }
+};
+
+// Recorta asignaciones que excedan el pool del origen tras un re-upload que bajó stock.
+// Prioridad INVERSA: lo último en entrar (sucursales de menor prioridad) sale primero.
+// Devuelve cuántos productos se ajustaron.
+function repClampAll() {
+  const order   = repTargets();
+  const reverse = order.slice().reverse();
+  const codes = new Set();
+  for (const dest of order) {
+    const m = repSendData[dest];
+    if (m) for (const c in m) if (m[c] > 0) codes.add(c);
+  }
+  let adjusted = 0;
+  for (const code of codes) {
+    const p = repProductMap.get(code);
+    if (!p) continue;
+    const ceiling = repPoolCeiling(p, repOrigin);
+    let total = 0;
+    for (const dest of order) total += (repSendData[dest] && repSendData[dest][code]) || 0;
+    let excess = total - ceiling;
+    if (excess <= 0) continue;
+    for (const dest of reverse) {
+      if (excess <= 0) break;
+      const cur = (repSendData[dest] && repSendData[dest][code]) || 0;
+      if (cur <= 0) continue;
+      const cut  = Math.min(cur, excess);
+      const next = cur - cut;
+      if (next > 0) repSendData[dest][code] = next;
+      else          delete repSendData[dest][code];
+      excess -= cut;
+    }
+    adjusted++;
+  }
+  return adjusted;
+}
+
+function detectRepBrand(filename) {
+  const base = filename.replace(/\.[^.]+$/, '');
+
+  const prefixes = [
+    'InventarioGerencial','ReporteGerencial',
+    'Gerencial','Inventario','Reporte'
+  ];
+  let candidate = base;
+  for (const prefix of prefixes) {
+    if (base.toLowerCase().startsWith(prefix.toLowerCase())) {
+      candidate = base.slice(prefix.length);
+      break;
+    }
+  }
+
+  const norm = s => s.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const cuNorm = norm(candidate);
+  for (const b of REP_KNOWN_BRANDS) {
+    if (cuNorm === norm(b)) return b;
+    if (cuNorm.includes(norm(b)) && norm(b).length >= 3) return b;
+  }
+  return '';
+}
+
+function parseRepXLS(workbook, brand) {
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  const rows  = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+  const SKIP_RE = /Existencias|Fecha Imp|Usuario Imp|^Sucursal$|Unidad\. m|^C[oó]digo$|^Descripci/i;
+
+  function matchSuc(v) {
+    const u = v.toUpperCase().replace(/\s+/g, ' ');
+    for (const [name, id] of Object.entries(REP_SNAMES)) {
+      if (u.includes(name)) return id;
+    }
+    return null;
+  }
+
+  let cur = null, localCat = '', added = 0, enriched = 0;
+  const repRejectedCats = [];
+
+  for (const row of rows) {
+    const c1 = String(row[1] ?? '').trim();
+    if (!c1 || c1 === 'nan') continue;
+    if (SKIP_RE.test(c1)) continue;
+    if (/^\d+$/.test(c1)) continue;
+    if (/garantia|exhibi/i.test(c1)) { continue; }
+
+    const sucId = matchSuc(c1);
+
+    if (sucId) {
+      if (cur) {
+        const qty = Math.round(parseFloat(String(row[3] ?? '').replace(',', '.')) || 0);
+        if (!cur.stock[sucId]) cur.stock[sucId] = qty;
+      }
+    } else if (c1.includes(' ') && /\d/.test(c1.split(/\s+/)[0])) {
+      const spIdx = c1.search(/\s/);
+      const code  = c1.slice(0, spIdx);
+      const name  = c1.slice(spIdx).trim();
+
+      if (repProductMap.has(code)) {
+        cur = repProductMap.get(code);
+        if (brand && !cur.brand) { cur.brand = brand; enriched++; }
+        if (localCat) cur.cat = localCat;  // refresca la categoría con el parse actual (ya filtrado por whitelist)
+      } else {
+        const detectedBrand = brand || detectBrandFromName(name);
+        cur = {
+          code, name,
+          brand: detectedBrand,
+          cat:   localCat,
+          stock: { B01:0, B02:0, B03:0, M01:0, S02:0, S03:0, S04:0, S06:0, S07:0 },
+        };
+        repProductMap.set(code, cur);
+        repProducts.push(cur);
+        added++;
+      }
+    } else if (REP_CATEGORIES.has(c1)) {
+      localCat = c1;
+      cur = null;
+    } else {
+      // No es categoría conocida (nombre de producto suelto, fragmento, etc.):
+      // se ignora para no contaminar el filtro. Se suelta el producto actual para
+      // que las filas de stock siguientes no se le atribuyan.
+      repRejectedCats.push(c1);
+      cur = null;
+    }
+  }
+  if (repRejectedCats.length) {
+    console.log('[reposición] filas ignoradas (no son categorías conocidas):',
+                [...new Set(repRejectedCats)]);
+  }
+  return { added, enriched };
+}
+
+function detectBrandFromName(name) {
+  const norm = s => s.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const nameNorm = norm(name);
+  for (const b of REP_KNOWN_BRANDS) {
+    if (nameNorm.includes(norm(b))) return b;
+  }
+  return '';
+}
+
+function computeRepSuggestions(minimumsOnly = false) {
+  repTargets().forEach(sid => { if (!repSendData[sid]) repSendData[sid] = {}; });
+  // Solo destinos que el origen activo abastece (B03 → S03/S07).
+  const dests = repTargets().filter(repOriginServes);
+
+  repProducts.forEach(p => {
+    const touched = repTargets().some(sid => (repSendData[sid][p.code] || 0) > 0);
+    if (touched) return;
+
+    const totalB    = repPoolCeiling(p, repOrigin);
+    const byReserve = repAvailable(p, repOrigin);
+    const byPct     = Math.floor(totalB * REP_DIST_PCT / 100);
+    let available   = Math.min(byReserve, byPct);
+    if (available <= 0) return;
+
+    const WEIGHTS = { M01:4, S02:4, S04:4, S03:3, S07:3, S06:2, B03:0 };
+
+    // Fase 1: cubrir mínimos en orden de prioridad
+    let remaining = available;
+    for (const sid of dests) {
+      if (remaining <= 0) break;
+      const cur  = p.stock[sid] || 0;
+      const need = Math.max(0, repMinFor(p, sid) - cur);
+      if (need > 0) {
+        const send = Math.min(need, remaining);
+        repSendData[sid][p.code] = send;
+        remaining -= send;
+      }
+    }
+
+    // Fase 2: distribuir excedente (se omite en modo solo-mínimos, p.ej. al cargar)
+    if (remaining > 0 && !minimumsOnly) {
+      if (REP_FILL_TO_MAX) {
+        // Modo "completar al tope": cada sucursal recibe lo que le falta para llegar a su tope
+        dests.forEach(sid => {
+          if (remaining <= 0) return;
+          const alreadySending = repSendData[sid][p.code] || 0;
+          const currentStock   = p.stock[sid] || 0;
+          const maxAllowed     = REP_MAXIMUMS[sid] || 999;
+          const gap = Math.max(0, maxAllowed - currentStock - alreadySending);
+          if (gap > 0) {
+            const send = Math.min(gap, remaining);
+            repSendData[sid][p.code] = alreadySending + send;
+            remaining -= send;
+          }
+        });
+      } else {
+        // Modo proporcional (comportamiento original)
+        const totalW = dests.reduce((a,sid) => a + (WEIGHTS[sid] || 0), 0) || 1;
+        let   given  = 0;
+        const extras = {};
+        dests.forEach(sid => {
+          const share = Math.floor(remaining * (WEIGHTS[sid] || 0) / totalW);
+          extras[sid] = share;
+          given += share;
+        });
+        if (given < remaining && dests[0]) extras[dests[0]] = (extras[dests[0]] || 0) + (remaining - given);
+        dests.forEach(sid => {
+          if ((extras[sid] || 0) > 0) {
+            const currentStock = p.stock[sid] || 0;
+            const maxAllowed   = REP_MAXIMUMS[sid] || 999;
+            if (currentStock < maxAllowed) {
+              repSendData[sid][p.code] = (repSendData[sid][p.code] || 0) + extras[sid];
+            }
+          }
+        });
+      }
+    }
+  });
+}
+
+window.applyRepConfig = () => {
+  REP_FILL_TO_MAX = $('cfg-fill-to-max').checked;
+  REP_B01_RESERVE = parseInt($('cfg-b01-reserve').value) || 2;
+  REP_DIST_PCT    = parseInt($('cfg-dist-pct').value)    || 85;
+  ['M01','S02','S04','S03','S07','S06'].forEach(sid => {
+    REP_MINIMUMS[sid] = parseInt($(`cfg-min-${sid}`).value) || 0;
+    REP_MAXIMUMS[sid] = parseInt($(`cfg-max-${sid}`).value) || 999;
+  });
+  repTargets().forEach(sid => {
+    Object.keys(repSendData[sid] || {}).forEach(c => delete repSendData[sid][c]);
+  });
+  computeRepSuggestions();
+  if (repCompraProducts.length) {
+    REP_DESTS.forEach(sid => {
+      Object.keys(repCompraData[sid] || {}).forEach(c => delete repCompraData[sid][c]);
+    });
+    computeComprasSuggestions();
+  }
+  renderRepTabs();
+  renderRepTable();
+  renderRepGlobalTotals();
+  saveRepSession();
+};
+
+window.resetRepConfig = () => {
+  REP_FILL_TO_MAX = false;
+  $('cfg-fill-to-max').checked = false;
+  REP_B01_RESERVE = 2;
+  REP_DIST_PCT    = 85;
+  REP_MINIMUMS    = { ...REP_MINIMUMS_DEFAULT };
+  REP_MAXIMUMS    = { ...REP_MAXIMUMS_DEFAULT };
+  $('cfg-b01-reserve').value = 2;
+  $('cfg-dist-pct').value    = 85;
+  ['M01','S02','S04','S03','S07','S06'].forEach(sid => {
+    $(`cfg-min-${sid}`).value = REP_MINIMUMS_DEFAULT[sid];
+    $(`cfg-max-${sid}`).value = REP_MAXIMUMS_DEFAULT[sid];
+  });
+  applyRepConfig();
+};
+
+function getTotalesGlobales() {
+  return repTargets().map(sid => {
+    const send  = repSendData[sid] || {};
+    const total = Object.values(send).reduce((s,v) => s+v, 0);
+    const lines = Object.values(send).filter(v => v > 0).length;
+    return { sid, total, lines };
+  });
+}
+
+function stkCls(v) {
+  if (!v || v <= 0) return 'stk-zero';
+  if (v < 3)        return 'stk-low';
+  return 'stk-ok';
+}
+
+function renderRepFull() {
+  renderRepFileList();
+  renderRepOrigin();
+  renderRepTabs();
+  renderRepGlobalTotals();
+  renderRepFilters();
+  renderRepTable();
+}
+
+function renderRepGlobalTotals() {
+  if (repMode === 'compra') {
+    $('rep-global-totals').style.display = 'none';
+    return;
+  }
+  const _src = repMode === 'compra' ? repCompraData : repSendData;
+  const totales = (repMode === 'compra' ? REP_DESTS : repTargets()).map(sid => {
+    const send  = _src[sid] || {};
+    const total = Object.values(send).reduce((s,v) => s+v, 0);
+    const lines = Object.values(send).filter(v => v > 0).length;
+    return { sid, total, lines };
+  });
+  const grandTotal = totales.reduce((s,t) => s + t.total, 0);
+  if (!grandTotal) { $('rep-global-totals').style.display = 'none'; return; }
+
+  $('rep-global-totals').style.display = '';
+  $('rep-global-totals').innerHTML = totales.map(t => `
+    <span style="
+      display:inline-flex;align-items:center;gap:5px;
+      padding:3px 10px;border-radius:var(--r);
+      background:${t.total > 0 ? 'var(--done-bg)' : 'var(--surface2)'};
+      border:1px solid ${t.total > 0 ? 'var(--done-bd)' : 'var(--border2)'};
+      font-size:.61rem;
+    ">
+      <span style="color:var(--muted);font-weight:600">${REP_LBLS[t.sid].split(' ')[0]}</span>
+      <strong style="color:${t.total > 0 ? 'var(--done-tx)' : 'var(--muted)'}">
+        ${t.total}
+      </strong>
+      ${t.lines ? `<span style="color:var(--muted);font-size:.57rem">(${t.lines})</span>` : ''}
+    </span>`).join('') +
+    `<span style="margin-left:6px;font-size:.61rem;font-weight:700;color:var(--text)">
+      = ${grandTotal} uds total
+    </span>`;
+}
+
+// Refresca rep-summary (asignado/líneas) + pie TOTAL GENERAL sin re-render de filas.
+// Solo modo stock; compra/redist tienen sus propios totales.
+function refreshRepStockTotals() {
+  if (repMode !== 'stock') return;
+  const sucId    = repActiveTab;
+  const send     = repSendData[sucId] || {};
+  const filtered = repProducts.filter(repRowMatches);
+  const totalB     = filtered.reduce((s,p) => s + repPoolCeiling(p, repOrigin), 0);
+  const totalSend  = Object.values(send).reduce((s,v) => s+v, 0);
+  const totalSendF = filtered.reduce((s,p) => s+(send[p.code]||0), 0);
+  const filled     = Object.values(send).filter(v => v > 0).length;
+  const sumEl = $('rep-summary');
+  if (sumEl) sumEl.innerHTML =
+    `${filtered.length} productos · disponible ${repOriginLabel()}: <strong>${totalB}</strong> · ` +
+    `asignado: <strong>${totalSend}</strong> · líneas: <strong>${filled}</strong>`;
+  const foot = $('rep-foot-send');
+  if (foot) foot.textContent = totalSendF > 0 ? totalSendF.toLocaleString() : '—';
+  const fb01 = $('rep-foot-b01'), fb02 = $('rep-foot-b02'), fb03 = $('rep-foot-b03');
+  if (fb01 || fb02 || fb03) {
+    let rB01 = 0, rB02 = 0, rB03 = 0;
+    filtered.forEach(p => {
+      const a = repAllocate(p.code);
+      rB01 += a.remain.B01 !== undefined ? a.remain.B01 : (p.stock.B01 || 0);
+      rB02 += a.remain.B02 !== undefined ? a.remain.B02 : (p.stock.B02 || 0);
+      rB03 += a.remain.B03 !== undefined ? a.remain.B03 : (p.stock.B03 || 0);
+    });
+    if (fb01) fb01.textContent = rB01.toLocaleString();
+    if (fb02) fb02.textContent = rB02.toLocaleString();
+    if (fb03) fb03.textContent = rB03.toLocaleString();
+  }
+}
+
+function renderRepFileList() {
+  $('rep-filelist').innerHTML = repLoadedFiles.map(f => `
+    <div class="rep-file-item">
+      <span class="rep-file-icon">✓</span>
+      <span class="rep-file-name" title="${escHtml(f.name)}">${escHtml(f.name)}</span>
+      ${f.brand ? `<span class="rep-file-brand">${escHtml(f.brand)}</span>` : ''}
+      <span class="rep-file-count">
+        ${f.added > 0 ? `${f.added.toLocaleString()} nuevos` : ''}
+        ${f.enriched > 0 ? `${f.enriched} marcas` : ''}
+        ${f.added === 0 && f.enriched === 0 ? '0 nuevos' : ''}
+      </span>
+    </div>`).join('');
+}
+
+function renderRepOrigin() {
+  const el = $('rep-origin');
+  if (!el) return;
+  const opts = [['B01B02','B01+B02'],['B01','B01'],['B02','B02'],['B03','B03']];
+  el.innerHTML = opts.map(([id,lbl]) =>
+    `<button class="rorigin-btn${id===repOrigin?' on':''}" onclick="setRepOrigin('${id}')">${lbl}</button>`
+  ).join('');
+}
+window.setRepOrigin = (o) => {
+  if (o === repOrigin) return;
+  repOrigin = o;
+  const dests = repTargets();
+  if (!dests.includes(repActiveTab)) repActiveTab = dests[0];
+  ['M01','S02','S04','B03','S03','S07','S06'].forEach(sid => {
+    if (repSendData[sid]) Object.keys(repSendData[sid]).forEach(c => delete repSendData[sid][c]);
+  });
+  computeRepSuggestions(true);   // cambio de origen = re-llenar solo mínimos
+  renderRepOrigin();
+  renderRepTabs();
+  renderRepTable();
+  renderRepGlobalTotals();
+  saveRepSession();
+};
+function renderRepTabs() {
+  if (repMode === 'redist') { renderRedistTabs(); return; }
+  const _tabSrc = repMode === 'compra' ? repCompraData : repSendData;
+  $('rep-tabs').innerHTML = repTargets().map(id => {
+    const n     = Object.values(_tabSrc[id] || {}).filter(v => v > 0).length;
+    const badge = n ? `<span class="rtab-badge">${n}</span>` : '';
+    const unserved = repMode !== 'compra' && !repOriginServes(id) ? ' rtab-unserved' : '';
+    return `<button class="rtab${id === repActiveTab ? ' on' : ''}${unserved}" id="rtab-${id}"
+      onclick="switchRepTab('${id}')">${REP_LBLS[id]}${badge}</button>`;
+  }).join('');
+}
+
+function renderRepFilters() {
+  if (repMode === 'compra') {
+    $('rep-filters').innerHTML = `
+      <input type="search" class="rep-search" placeholder="Buscar código o producto…"
+        value="${escHtml(repSearch)}" oninput="onRepSearch(this.value)"/>`;
+    return;
+  }
+  const cats = [...new Set(
+    repProducts.map(p => (p.cat || '').trim()).filter(Boolean)
+  )].sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
+
+  const brands = [...new Set(
+    repProducts.map(p => (p.brand || '').trim().toUpperCase()).filter(Boolean)
+  )].sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
+
+  const catOpts = [
+    '<option value="">Todas las categorías</option>',
+    ...cats.map(c =>
+      `<option value="${escHtml(c)}"${repActiveCat===c?' selected':''}>${escHtml(c)}</option>`)
+  ].join('');
+
+  const brandSel = brands.length ? `
+    <select class="rep-filter-sel" onchange="setRepBrand(this.value)">
+      <option value="">Todas las marcas</option>
+      ${brands.map(b =>
+        `<option value="${escHtml(b)}"${repActiveBrand.toUpperCase()===b?' selected':''}>${escHtml(b)}</option>`
+      ).join('')}
+    </select>` : '';
+
+  $('rep-filters').innerHTML = `
+    <select class="rep-filter-sel" onchange="setRepCat(this.value)">${catOpts}</select>
+    ${brandSel}
+    <input type="search" class="rep-search" placeholder="Buscar código o producto…"
+      value="${escHtml(repSearch)}" oninput="onRepSearch(this.value)"/>
+    <select class="rep-filter-sel" onchange="setRepSort(this.value)"
+      style="min-width:130px">
+      <option value="suggested" ${repSortBy==='suggested' ?'selected':''}>▲ Sugeridos primero</option>
+      <option value="stock_asc" ${repSortBy==='stock_asc' ?'selected':''}>Suc. stock ↑ (más urgente)</option>
+      <option value="b_desc"    ${repSortBy==='b_desc'    ?'selected':''}>B01+B02 disponible ↓</option>
+      <option value="name_asc"  ${repSortBy==='name_asc'  ?'selected':''}>Nombre A→Z</option>
+      <option value="code_asc"  ${repSortBy==='code_asc'  ?'selected':''}>Código ↑</option>
+    </select>`;
+}
+
+function repRowMatches(p) {
+  if (repActiveCat   && p.cat   !== repActiveCat)  return false;
+  if (repActiveBrand && (p.brand||'').toUpperCase().trim() !== repActiveBrand) return false;
+  if (repSearch) {
+    const normSearch = s => String(s).toLowerCase()
+      .normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .replace(/[^a-z0-9]/g, '');
+    const terms    = repSearch.trim().split(/\s+/).filter(Boolean).map(normSearch);
+    const nameNorm = normSearch(p.name);
+    const codeNorm = normSearch(p.code);
+    if (!terms.every(t => nameNorm.includes(t) || codeNorm.includes(t))) return false;
+  }
+  return true;
+}
+
+function renderRepTable() {
+  if (repMode === 'compra') { renderCompraTable(); return; }
+  if (repMode === 'redist') { renderRedistTable(); return; }
+  const sucId    = repActiveTab;
+  const send     = repSendData[sucId] || {};
+  const hasBrand = repProducts.some(p => p.brand);
+
+  const filtered = repProducts.filter(repRowMatches);
+
+  const totalB01  = filtered.reduce((s,p) => { const a = repAllocate(p.code);
+    return s + (a.remain.B01 !== undefined ? a.remain.B01 : (p.stock.B01||0)); }, 0);
+  const totalB02  = filtered.reduce((s,p) => { const a = repAllocate(p.code);
+    return s + (a.remain.B02 !== undefined ? a.remain.B02 : (p.stock.B02||0)); }, 0);
+  const totalB03  = filtered.reduce((s,p) => { const a = repAllocate(p.code);
+    return s + (a.remain.B03 !== undefined ? a.remain.B03 : (p.stock.B03||0)); }, 0);
+  const totalB    = filtered.reduce((s,p) => s + repPoolCeiling(p, repOrigin), 0);
+  const totalSuc  = filtered.reduce((s,p) => s+(p.stock[sucId]||0), 0);
+  const totalSend = Object.values(send).reduce((s,v) => s+v, 0);
+  const totalSendF= filtered.reduce((s,p) => s+(send[p.code]||0), 0);
+  const filled    = Object.values(send).filter(v => v > 0).length;
+  const totalSug  = filtered.reduce((s,p) => {
+    const sst      = p.stock[sucId]||0;
+    const _minimum = repMinFor(p, sucId);
+    const avail    = repAvailable(p, repOrigin);
+    return s + ((sst < _minimum && avail > 0) ? Math.min(_minimum - sst, avail) : 0);
+  }, 0);
+  $('rep-summary').innerHTML =
+    `${filtered.length} productos · disponible ${repOriginLabel()}: <strong>${totalB}</strong> · ` +
+    `asignado: <strong>${totalSend}</strong> · líneas: <strong>${filled}</strong>`;
+
+  if (!filtered.length) {
+    $('rep-table-wrap').innerHTML = `<div class="empty-state">
+      <div class="empty-icon">🔍</div>
+      <div class="empty-text">Sin productos para este filtro.</div></div>`;
+    return;
+  }
+
+  const LIMIT    = 300;
+  const sorted = [...filtered].sort((a, b) => {
+    const sendA   = send[a.code] || 0;
+    const sendB   = send[b.code] || 0;
+    const sugA = ((a.stock[sucId]||0) < repMinFor(a, sucId) && repAvailable(a, repOrigin) > 0) ? 1 : 0;
+    const sugB = ((b.stock[sucId]||0) < repMinFor(b, sucId) && repAvailable(b, repOrigin) > 0) ? 1 : 0;
+    const bavailA = repPoolCeiling(a, repOrigin);
+    const bavailB = repPoolCeiling(b, repOrigin);
+
+    switch (repSortBy) {
+      case 'stock_asc':
+        if (sendA !== sendB) return sendB - sendA;
+        return (a.stock[sucId]||0) - (b.stock[sucId]||0);
+      case 'b_desc':
+        if (sendA !== sendB) return sendB - sendA;
+        return bavailB - bavailA;
+      case 'name_asc':
+        if (sendA !== sendB) return sendB - sendA;
+        return a.name.localeCompare(b.name, 'es');
+      case 'code_asc':
+        if (sendA !== sendB) return sendB - sendA;
+        return a.code.localeCompare(b.code);
+      case 'col': {
+        const valA = (() => {
+          if (repSortCol==='sug') {
+            const m=repMinFor(a, sucId), av=repAvailable(a, repOrigin);
+            return (repOriginServes(sucId) && (a.stock[sucId]||0)<m&&av>0) ? Math.min(m-(a.stock[sucId]||0),av) : 0;
+          }
+          switch(repSortCol){case'b01':return a.stock.B01||0;case'b02':return a.stock.B02||0;case'b03':return a.stock.B03||0;case'suc':return a.stock[sucId]||0;}
+          return 0;
+        })();
+        const valB = (() => {
+          if (repSortCol==='sug') {
+            const m=repMinFor(b, sucId), av=repAvailable(b, repOrigin);
+            return (repOriginServes(sucId) && (b.stock[sucId]||0)<m&&av>0) ? Math.min(m-(b.stock[sucId]||0),av) : 0;
+          }
+          switch(repSortCol){case'b01':return b.stock.B01||0;case'b02':return b.stock.B02||0;case'b03':return b.stock.B03||0;case'suc':return b.stock[sucId]||0;}
+          return 0;
+        })();
+        return repSortDir==='desc' ? valB-valA : valA-valB;
+      }
+      case 'suggested':
+      default:
+        if (sendA !== sendB) return sendB - sendA;
+        if (sugA  !== sugB)  return sugB  - sugA;
+        return a.name.localeCompare(b.name, 'es');
+    }
+  });
+  const toRender = sorted.slice(0, repDisplayLimit);
+  const extraRow = filtered.length > repDisplayLimit ? `<tr><td colspan="${hasBrand?8:7}"
+    style="text-align:center;padding:14px;font-size:.65rem;color:var(--muted)">
+    Mostrando ${repDisplayLimit} de ${filtered.length}
+    <button class="btn btn-outline" style="font-size:.6rem;margin-left:10px"
+      onclick="repLoadMore()">Cargar 300 más ↓</button>
+    </td></tr>` : '';
+
+  const rows = toRender.map(p => {
+    const qty   = send[p.code] || 0;
+    const alloc = repAllocate(p.code);      // remanente vivo por bodega (Paso 2)
+    const b01   = alloc.remain.B01 !== undefined ? alloc.remain.B01 : (p.stock.B01 || 0);
+    const b02   = alloc.remain.B02 !== undefined ? alloc.remain.B02 : (p.stock.B02 || 0);
+    const b03   = alloc.remain.B03 !== undefined ? alloc.remain.B03 : (p.stock.B03 || 0);
+    const sst   = p.stock[sucId] || 0;
+    const avail      = repAvailable(p, repOrigin);
+    const minimum    = repMinFor(p, sucId);
+    const sug        = (repOriginServes(sucId) && sst < minimum && avail > 0)
+      ? Math.min(minimum - sst, avail) : 0;
+
+    // Pool en vivo: tope duro y zonas según lo ya asignado en otros destinos.
+    // avail = repAvailable (stock - reserva) = límite de zona verde.
+    const ceiling       = repPoolCeiling(p, repOrigin);
+    const elsewhere     = repAssignedElsewhere(p.code, sucId);
+    const totalAssigned = elsewhere + qty;
+    const zoneCls = qty <= 0 ? ''
+      : totalAssigned >= ceiling ? ' is-full'
+      : totalAssigned >  avail   ? ' is-warn'
+      : ' has-qty';
+    return `<tr>
+      <td class="td-code">${escHtml(p.code)}</td>
+      <td class="td-name">${escHtml(p.name)}</td>
+      ${hasBrand ? `<td class="td-brand">
+        ${p.brand
+          ? `<span style="
+              display:inline-block;padding:1px 5px;border-radius:3px;
+              font-size:.58rem;font-weight:700;letter-spacing:.03em;
+              background:var(--surface2);border:1px solid var(--border2);
+              color:var(--text2);max-width:50px;overflow:hidden;
+              text-overflow:ellipsis;white-space:nowrap;
+              " title="${escAttr(p.brand)}">${escHtml(p.brand)}</span>`
+          : '<span style="color:var(--border)">—</span>'}
+      </td>` : ''}
+      <td class="td-stk ${stkCls(b01)}${repStkPassive('B01')?' td-stk-passive':''}" data-stk="B01">${b01 > 0 ? b01 : '<span style="color:var(--border)">0</span>'}</td>
+      <td class="td-stk ${stkCls(b02)}${repStkPassive('B02')?' td-stk-passive':''}" data-stk="B02">${b02 > 0 ? b02 : '<span style="color:var(--border)">0</span>'}</td>
+      <td class="td-stk ${stkCls(b03)}${repStkPassive('B03')?' td-stk-passive':''}" data-stk="B03">${b03 > 0 ? b03 : '<span style="color:var(--border)">0</span>'}</td>
+      <td class="td-stk ${stkCls(sst)}">${sst > 0 ? sst : '<span style="color:var(--border)">0</span>'}</td>
+      <td class="td-sug">${sug>0?`<span class="sug-badge">▲${sug}</span>`:'—'}</td>
+      <td class="td-send">
+        <input type="number" min="0" step="1" value="${qty||''}"
+          class="rep-qty${zoneCls}"
+          data-code="${escAttr(p.code)}" data-suc="${sucId}"
+          placeholder="0" oninput="onRepQtyInput(this)"/>
+      </td>
+    </tr>`;
+  }).join('');
+
+  const brandTh = hasBrand ? '<th style="width:52px">Marca</th>' : '';
+  $('rep-table-wrap').innerHTML = `
+    <table class="rep-table">
+      <thead><tr>
+        <th>Código</th><th>Producto</th>${brandTh}
+        ${['b01','b02','b03','suc','sug'].map(col => {
+          const labels = {b01:'B01',b02:'B02',b03:'B03',suc:'Suc.',sug:'Sug.'};
+          const titles = {b01:'Stock B01',b02:'Stock B02',b03:'Stock B03',
+                          suc:`Stock ${REP_LBLS[sucId]}`,sug:'Sugerido'};
+          const arrow = repSortCol===col ? (repSortDir==='desc'?'↓':'↑') : '';
+          const wh    = {b01:'B01',b02:'B02',b03:'B03'}[col];
+          const dim   = wh && repStkPassive(wh) ? ';opacity:.42' : '';
+          return `<th title="${titles[col]}" style="cursor:pointer;user-select:none${dim}"
+            onclick="toggleRepSort('${col}')">${labels[col]}${arrow}</th>`;
+        }).join('')}
+        <th>Enviar</th>
+      </tr></thead>
+      <tbody>${rows}${extraRow}</tbody>
+      <tfoot><tr class="rep-total-row">
+        <td colspan="${hasBrand ? 3 : 2}" class="rep-total-label">TOTAL GENERAL</td>
+        <td class="td-stk${repStkPassive('B01')?' td-stk-passive':''}" id="rep-foot-b01">${totalB01.toLocaleString()}</td>
+        <td class="td-stk${repStkPassive('B02')?' td-stk-passive':''}" id="rep-foot-b02">${totalB02.toLocaleString()}</td>
+        <td class="td-stk${repStkPassive('B03')?' td-stk-passive':''}" id="rep-foot-b03">${totalB03.toLocaleString()}</td>
+        <td class="td-stk">${totalSuc.toLocaleString()}</td>
+        <td class="td-sug">${totalSug > 0 ? `<span class="sug-badge">▲${totalSug}</span>` : '—'}</td>
+        <td class="td-send" id="rep-foot-send">${totalSendF > 0 ? totalSendF.toLocaleString() : '—'}</td>
+      </tr></tfoot>
+    </table>`;
+}
+
+window.repLoadMore = () => {
+  repDisplayLimit += 300;
+  renderRepTable();
+};
+
+window.switchRepTab = id => {
+  repDisplayLimit = 300;
+  repActiveTab = id;
+  const _stSrc = repMode === 'compra' ? repCompraData : repSendData;
+  (repMode === 'compra' ? REP_DESTS : repTargets()).forEach(sid => {
+    const btn = $(`rtab-${sid}`);
+    if (!btn) return;
+    const n     = Object.values(_stSrc[sid]||{}).filter(v=>v>0).length;
+    const badge = n ? `<span class="rtab-badge">${n}</span>` : '';
+    const unserved = repMode !== 'compra' && !repOriginServes(sid) ? ' rtab-unserved' : '';
+    btn.className = `rtab${sid===id?' on':''}${unserved}`;
+    btn.innerHTML = `${REP_LBLS[sid]}${badge}`;
+  });
+  renderRepTable();
+};
+
+window.setRepCat    = cat   => { repActiveCat   = cat;                         repDisplayLimit = 300; renderRepTable(); };
+window.setRepBrand  = brand => { repActiveBrand = brand.toUpperCase().trim();  repDisplayLimit = 300; renderRepTable(); };
+window.setRepSort   = val   => { repSortBy      = val; repSortCol = '';        repDisplayLimit = 300; renderRepTable(); };
+window.toggleRepSort = col => {
+  if (repSortCol === col) {
+    repSortDir = repSortDir === 'desc' ? 'asc' : 'desc';
+  } else {
+    repSortCol = col;
+    repSortDir = 'desc';
+  }
+  repSortBy = 'col';
+  renderRepTable();
+};
+
+let _repSearchTimer = null;
+window.onRepSearch = val => {
+  clearTimeout(_repSearchTimer);
+  _repSearchTimer = setTimeout(() => { repSearch = val.trim(); repDisplayLimit = 300; renderRepTable(); }, 220);
+};
+
+window.onRepQtyInput = inp => {
+  let v          = parseInt(inp.value, 10);
+  const code     = inp.dataset.code;
+  const suc      = inp.dataset.suc;
+  const isCompra = inp.dataset.mode === 'compra';
+  const _target  = isCompra ? repCompraData : repSendData;
+  if (!_target[suc]) _target[suc] = {};
+
+  if (!isCompra) {
+    // ── Pool en vivo: tope DURO + zonas ámbar/rojo ──
+    const p = repProductMap.get(code);
+    if (p) {
+      const ceiling   = repPoolCeiling(p, repOrigin);
+      const softAvail = repAvailable(p, repOrigin);   // stock - reserva
+      const elsewhere = repAssignedElsewhere(code, suc);
+      const hardCap   = Math.max(0, ceiling - elsewhere);
+      if (!(v > 0)) v = 0;
+      if (v > hardCap) { v = hardCap; inp.value = v || ''; }   // no deja asignar de más
+
+      if (v > 0) _target[suc][code] = v; else delete _target[suc][code];
+
+      const totalAssigned = elsewhere + v;
+      inp.classList.remove('has-qty', 'is-warn', 'is-full');
+      if (v > 0) {
+        if (totalAssigned >= ceiling)       inp.classList.add('is-full');
+        else if (totalAssigned > softAvail) inp.classList.add('is-warn');
+        else                                inp.classList.add('has-qty');
+      }
+      // Paso 2 (B): drenar en vivo las columnas de bodega de esta fila
+      const alloc = repAllocate(code);
+      const tr = inp.closest('tr');
+      if (tr) ['B01', 'B02', 'B03'].forEach(w => {
+        if (alloc.remain[w] === undefined) return;
+        const cell = tr.querySelector(`[data-stk="${w}"]`);
+        if (!cell) return;
+        const rv = alloc.remain[w];
+        cell.className = 'td-stk ' + stkCls(rv);
+        cell.innerHTML = rv > 0 ? rv : '<span style="color:var(--border)">0</span>';
+      });
+    } else {
+      if (v > 0) { _target[suc][code] = v; inp.classList.add('has-qty'); }
+      else        { delete _target[suc][code]; inp.classList.remove('has-qty'); }
+    }
+  } else {
+    if (v > 0) { _target[suc][code] = v; inp.classList.add('has-qty'); }
+    else        { delete _target[suc][code]; inp.classList.remove('has-qty'); }
+  }
+
+  const btn = $(`rtab-${suc}`);
+  if (btn) {
+    const n     = Object.values(_target[suc]).filter(x=>x>0).length;
+    const badge = n ? `<span class="rtab-badge">${n}</span>` : '';
+    btn.innerHTML = `${REP_LBLS[suc]}${badge}`;
+  }
+
+  if (isCompra) {
+    if (!repCompraTouched[code]) repCompraTouched[code] = new Set();
+    repCompraTouched[code].add(suc);
+    redistributeCompraPool(code);
+  }
+
+  renderRepGlobalTotals();
+  refreshRepStockTotals();
+  saveRepSessionDebounced();
+};
+
+const REP_FRESH_WINDOW_MIN = 90;   // ventana de frescura del Gerencial
+
+function repFmtElapsed(ms) {
+  const min = Math.floor(ms / 60000);
+  if (min < 60) return `${min} min`;
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return m ? `${h} h ${m} min` : `${h} h`;
+}
+
+// Re-chequeo liviano: corre el repartidor y reporta los tres bordes.
+// Solo recorre códigos con cantidad asignada → barato, se llama al click.
+function repPreflightCheck() {
+  const served        = repTargets();
+  const overRequested = [];
+  const unservedDests = new Set();
+  const orphans       = [];
+
+  const codes = new Set();
+  for (const dest of Object.keys(repSendData)) {
+    const m = repSendData[dest] || {};
+    for (const code of Object.keys(m)) if (m[code] > 0) codes.add(code);
+  }
+
+  for (const code of codes) {
+    if (!repProductMap.has(code)) { orphans.push(code); continue; }
+    let req = 0;
+    for (const dest of served) req += (repSendData[dest] && repSendData[dest][code]) || 0;
+    const { perDest } = repAllocate(code);
+    let alloc = 0;
+    for (const dest of Object.keys(perDest)) {
+      const split = perDest[dest] || {};
+      for (const w of Object.keys(split)) alloc += split[w] || 0;
+    }
+    if (req > alloc) overRequested.push({ code, by: req - alloc });
+  }
+
+  for (const dest of Object.keys(repSendData)) {
+    const m = repSendData[dest] || {};
+    if (Object.values(m).some(v => v > 0) && !repOriginServes(dest)) unservedDests.add(dest);
+  }
+
+  return { overRequested, unservedDests: [...unservedDests], orphans };
+}
+
+// Gate único. Devuelve true si se debe generar (limpio+fresco, o el usuario
+// confirma "generar igual"). false aborta.
+function repPreflightGate() {
+  const lines = [];
+
+  // Pieza 1 — frescura
+  if (repLoadedAt) {
+    const ageMs = Date.now() - repLoadedAt;
+    if (ageMs > REP_FRESH_WINDOW_MIN * 60000) {
+      lines.push(`• El Gerencial se cargó hace ${repFmtElapsed(ageMs)}. Si hubo ventas, el stock pudo bajar.`);
+    }
+  }
+
+  // Pieza 2 — re-chequeo interno
+  const { overRequested, unservedDests, orphans } = repPreflightCheck();
+
+  if (overRequested.length) {
+    const ej = overRequested.slice(0, 3).map(o => o.code).join(', ');
+    const mas = overRequested.length > 3 ? '…' : '';
+    lines.push(`• ${overRequested.length} ${overRequested.length === 1 ? 'producto quedó sobre-pedido' : 'productos quedaron sobre-pedidos'} (el pool no alcanza): ${ej}${mas}.`);
+  }
+  if (unservedDests.length) {
+    const labels = unservedDests.map(d => REP_LBLS[d] || d).join(', ');
+    lines.push(`• Hay líneas hacia destinos que ${repOriginLabel()} no surte: ${labels}.`);
+  }
+  if (orphans.length) {
+    const ej = orphans.slice(0, 3).join(', ');
+    const mas = orphans.length > 3 ? '…' : '';
+    lines.push(`• ${orphans.length} ${orphans.length === 1 ? 'producto ya no está' : 'productos ya no están'} en el Gerencial (sesión restaurada): ${ej}${mas}.`);
+  }
+
+  if (!lines.length) return true;   // limpio y fresco → genera directo, sin clicks extra
+
+  const msg = '⚠ Revisión antes de generar:\n\n' + lines.join('\n') +
+    '\n\n¿Generar de todas formas?\n(Aceptar = generar igual · Cancelar = volver y recargar/ajustar)';
+  return confirm(msg);
+}
+
+window.generateActiveRepXLS = () => {
+  if (repMode === 'compra') { generateCompraRepXLS(repActiveTab); return; }
+  if (repMode === 'redist') { generateRedistXLS(repRedistActiveOrig); return; }
+  if (!repPreflightGate()) return;   // gate solo en flujo stock
+  generateRepXLS(repActiveTab);
+};
+
+window.generateAllRepXLS = () => {
+  if (repMode === 'compra') {
+    const activos = REP_DESTS.filter(id =>
+      Object.values(repCompraData[id] || {}).some(v => v > 0)
+    );
+    if (!activos.length) { alert('Sin cantidades asignadas en ninguna sucursal.'); return; }
+    let delay = 0;
+    activos.forEach(sucId => { setTimeout(() => generateCompraRepXLS(sucId), delay); delay += 450; });
+    return;
+  }
+  if (repMode === 'stock' && !repPreflightGate()) return;   // gate solo en flujo stock
+  const activos = repTargets().filter(id =>
+    Object.values(repSendData[id] || {}).some(v => v > 0)
+  );
+  if (!activos.length) {
+    alert('Sin cantidades asignadas en ninguna sucursal.');
+    return;
+  }
+  let delay = 0;
+  activos.forEach(sucId => {
+    const bySource = assignOrigins(sucId);
+    const sources  = Object.keys(bySource).filter(w =>
+      Object.values(bySource[w]).some(v => v > 0));
+    if (sources.length) {
+      setTimeout(() => generateRepXLS(sucId), delay);
+      delay += sources.length > 1 ? 900 : 450;
+    }
+  });
+};
+
+// Export por FILTRO activo: XLS solo de los productos visibles bajo el filtro
+// (cat/marca/búsqueda) PARA LA PESTAÑA/DESTINO ACTIVO. Acción separada — no
+// reemplaza "XLS activo" (destino activo, todo) ni "Todos" (todos los destinos).
+// Registra en trazabilidad con marca { parcial: true }. Solo flujo stock.
+window.generateFilteredRepXLS = () => {
+  if (repMode !== 'stock') {
+    alert('El export por filtro solo aplica a reposición normal (stock).');
+    return;
+  }
+  if (!(repActiveCat || repActiveBrand || repSearch)) {
+    alert('No hay filtro activo. Para el export completo usá "XLS activo" o "Todos".');
+    return;
+  }
+  const sucId   = repActiveTab;
+  const codeSet = new Set(repProducts.filter(repRowMatches).map(p => p.code));
+  const hay = Object.entries(repSendData[sucId] || {})
+    .some(([code, v]) => v > 0 && codeSet.has(code));
+  if (!hay) {
+    alert(`El filtro activo no tiene cantidades asignadas en ${REP_LBLS[sucId]}.`);
+    return;
+  }
+  if (!repPreflightGate()) return;
+  generateRepXLS(sucId, codeSet);
+};
+
+// Repartidor GLOBAL: para un producto reparte los envíos de TODOS los destinos
+// entre las bodegas del origen, drenando en el orden de srcs (B01 antes que B02)
+// y recorriendo destinos en orden de prioridad (repTargets()). Así ninguna bodega
+// queda sobre-asignada. Devuelve el split por destino y el remanente vivo por
+// bodega (este último alimenta las columnas en el Paso 2).
+function repAllocate(code) {
+  const p    = repProductMap.get(code);
+  const srcs = REP_ORIGIN_SOURCES[repOrigin] || REP_ORIGIN_SOURCES.B01B02;
+  const remain = {};
+  srcs.forEach(w => { remain[w] = p ? (p.stock[w] || 0) : 0; });
+  const perDest = {};
+  if (!p) return { perDest, remain };
+  for (const dest of repTargets()) {            // ya viene en orden de prioridad
+    let qty = (repSendData[dest] && repSendData[dest][code]) || 0;
+    const split = {};
+    for (const w of srcs) {                       // drena B01 y luego B02
+      if (qty <= 0) break;
+      const take = Math.min(qty, remain[w]);
+      if (take > 0) { split[w] = take; remain[w] -= take; qty -= take; }
+    }
+    perDest[dest] = split;
+  }
+  return { perDest, remain };
+}
+
+// Reparto por bodega de UN destino, leyendo del repartidor global.
+// Devuelve { B01:{code:qty}, B02:{...}, ... } según las bodegas del origen.
+function assignOrigins(sucId) {
+  const srcs     = REP_ORIGIN_SOURCES[repOrigin] || REP_ORIGIN_SOURCES.B01B02;
+  const bySource = {};
+  srcs.forEach(w => { bySource[w] = {}; });
+  const send = repSendData[sucId] || {};
+  for (const code of Object.keys(send)) {
+    if (!(send[code] > 0)) continue;
+    const { perDest } = repAllocate(code);
+    const split = perDest[sucId] || {};
+    for (const w of Object.keys(split)) {
+      if (split[w] > 0) bySource[w][code] = split[w];
+    }
+  }
+  return bySource;
+}
+
+const REP_ORIGIN_NAMES = {
+  B01: 'HangarSF',
+  B02: 'BodegaCentral',
+  B03: 'BodegaOriente',
+};
+
+// Paso 2b: bodega pasiva = no pertenece al origen activo → columna atenuada y estática.
+function repStkPassive(w) {
+  return !(REP_ORIGIN_SOURCES[repOrigin] || REP_ORIGIN_SOURCES.B01B02).includes(w);
+}
+
+function generateRepXLS(sucId, codeSet) {
+  if (typeof XLSX === 'undefined') return;
+  const bySource = assignOrigins(sucId);
+
+  let generated = 0;
+  Object.entries(bySource).forEach(([originId, sendMap]) => {
+    const entries = Object.entries(sendMap)
+      .filter(([code, v]) => v > 0 && (!codeSet || codeSet.has(code)));
+    if (!entries.length) return;
+    const rows      = entries.map(([code, qty]) => [code, qty]);
+    const recordMap = Object.fromEntries(entries);   // trazabilidad = solo lo exportado
+
+    setTimeout(() => {
+      const ws = XLSX.utils.aoa_to_sheet([['Código', 'Cantidad'], ...rows]);
+      ws['!cols'] = [{ wch: 22 }, { wch: 10 }];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Reposicion');
+      const fecha = getTodaySV();
+      const suf   = codeSet ? '_filtrado' : '';
+      XLSX.writeFile(wb,
+        `Reposicion_${REP_ORIGIN_NAMES[originId]}_${REP_FNAMES[sucId]}${suf}_${fecha}.xls`,
+        { bookType: 'biff8' }
+      );
+      saveReposicionRecord(originId, sucId, recordMap, fecha, codeSet ? { parcial: true } : undefined);
+    }, generated++ * 400);
+  });
+
+  if (!generated) alert(`Sin cantidades para ${REP_LBLS[sucId]}.`);
+}
+
+async function saveReposicionRecord(origen, destino, sendMap, fecha, extra) {
+  if (!db) return;
+  try {
+    const { collection, addDoc } = fbMod;
+    const productos = Object.entries(sendMap)
+      .filter(([,qty]) => qty > 0)
+      .map(([codigo, cantidad]) => {
+        const p = repProductMap.get(codigo);
+        return { codigo, nombre: p ? p.name : codigo, cantidad };
+      });
+    if (!productos.length) return;
+    await addDoc(collection(db, 'reposiciones'), {
+      fecha,
+      timestamp: Date.now(),
+      origen,
+      destino,
+      productos,
+      totalUnidades: productos.reduce((s, p) => s + p.cantidad, 0),
+      generadoPor: currentUser?.name || 'ops',
+      ...(extra || {})
+    });
+  } catch (e) {
+    console.warn('saveReposicionRecord:', e);
+  }
+}
+
+// ── MODO COMPRA ──────────────────────────────────────────────────────────────
+
+function parseCompraXLS(workbook) {
+  const seen = new Map();
+  workbook.SheetNames.forEach(sheetName => {
+    const sheet = workbook.Sheets[sheetName];
+    const rows  = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+    let inData  = false;
+    for (const row of rows) {
+      const col = row.map(v => String(v == null ? '' : v));
+      if (!inData) {
+        if (col[1] && col[1].trim() === 'Unidades' && col[3] && col[3].trim() === 'Código') {
+          inData = true;
+        }
+        continue;
+      }
+      const rawCode = (col[3] || '').trim();
+      const rawQty  = (col[2] || '').trim();
+      const name    = (col[4] || '').trim();
+      if (!/^[A-Za-z0-9]{3,}$/.test(rawCode)) continue;
+      const qty = parseFloat(rawQty);
+      if (!qty || qty <= 0) continue;
+      if (seen.has(rawCode)) {
+        seen.get(rawCode).qty += Math.round(qty);
+      } else {
+        seen.set(rawCode, { code: rawCode, name: name || rawCode, qty: Math.round(qty) });
+      }
+    }
+  });
+  return Array.from(seen.values());
+}
+
+function computeComprasSuggestions() {
+  REP_DESTS.forEach(sid => { if (!repCompraData[sid]) repCompraData[sid] = {}; });
+  const WEIGHTS = { M01:4, S02:4, S04:4, S03:3, S07:3, S06:2 };
+  repCompraProducts.forEach(p => {
+    const touched = REP_DESTS.some(sid => (repCompraData[sid][p.code] || 0) > 0);
+    if (touched) return;
+    const available = getCompraPool(p);
+    if (available <= 0) return;
+    const stockMap = repProductMap.get(p.code);
+    const getStock = sid => stockMap ? (stockMap.stock[sid] || 0) : 0;
+    let remaining = available;
+    for (const sid of REP_PRIORITY_ORDER) {
+      if (remaining <= 0) break;
+      const cur  = getStock(sid);
+      const need = Math.max(0, (REP_MINIMUMS[sid] || 0) - cur);
+      if (need > 0) {
+        const send = Math.min(need, remaining);
+        repCompraData[sid][p.code] = send;
+        remaining -= send;
+      }
+    }
+    if (remaining > 0) {
+      if (REP_FILL_TO_MAX) {
+        REP_PRIORITY_ORDER.forEach(sid => {
+          if (remaining <= 0) return;
+          const already    = repCompraData[sid][p.code] || 0;
+          const maxAllowed = REP_MAXIMUMS[sid] || 999;
+          const gap = Math.max(0, maxAllowed - getStock(sid) - already);
+          if (gap > 0) {
+            const send = Math.min(gap, remaining);
+            repCompraData[sid][p.code] = already + send;
+            remaining -= send;
+          }
+        });
+      } else {
+        const totalW = Object.values(WEIGHTS).reduce((a,b) => a+b, 0);
+        let given = 0;
+        const extras = {};
+        REP_PRIORITY_ORDER.forEach(sid => {
+          const share = Math.floor(remaining * WEIGHTS[sid] / totalW);
+          extras[sid] = share;
+          given += share;
+        });
+        if (given < remaining) extras['M01'] = (extras['M01'] || 0) + (remaining - given);
+        REP_PRIORITY_ORDER.forEach(sid => {
+          if ((extras[sid] || 0) > 0 && getStock(sid) < (REP_MAXIMUMS[sid] || 999)) {
+            repCompraData[sid][p.code] = (repCompraData[sid][p.code] || 0) + extras[sid];
+          }
+        });
+      }
+    }
+  });
+}
+
+function renderCompraPanelFiles() {
+  const uploadEl   = $('rep-compra-upload');
+  const filelistEl = $('rep-compra-filelist');
+  if (!uploadEl || !filelistEl) return;
+  if (repCompraFiles.length) {
+    uploadEl.style.display   = 'none';
+    filelistEl.style.display = '';
+    filelistEl.innerHTML = repCompraFiles.map(f => `
+      <div class="rep-file-item">
+        <span class="rep-file-icon">✓</span>
+        <span class="rep-file-name" title="${escHtml(f.name)}">${escHtml(f.name)}</span>
+        <span class="rep-file-count">${repCompraProducts.length} productos</span>
+      </div>`).join('') +
+      `<button class="btn btn-outline" style="font-size:.58rem;margin-left:4px"
+        onclick="document.getElementById('rep-compra-input').click()">+ Agregar más</button>
+       <button id="btn-compra-post-mode" class="btn btn-outline" style="font-size:.58rem;${repCompraPostMode?'color:var(--done-tx);border-color:var(--done-bd);':''}}"
+        onclick="toggleCompraPostMode()">📦 ${repCompraPostMode ? 'Usando stock Gerencial' : 'Usar stock Gerencial'}</button>
+       <button class="btn btn-outline" style="font-size:.58rem;color:var(--err-tx);border-color:var(--err-tx)"
+        onclick="clearCompraFiles()">⊘ Limpiar compras</button>`;
+  } else {
+    uploadEl.style.display   = '';
+    filelistEl.style.display = 'none';
+  }
+}
+
+function renderCompraTable() {
+  const sucId = repActiveTab;
+  const send  = repCompraData[sucId] || {};
+
+  const normSearch = s => String(s).toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]/g, '');
+
+  const filtered = repCompraProducts.filter(p => {
+    if (!repSearch) return true;
+    const terms    = repSearch.trim().split(/\s+/).filter(Boolean).map(normSearch);
+    const nameNorm = normSearch(p.name);
+    const codeNorm = normSearch(p.code);
+    return terms.every(t => nameNorm.includes(t) || codeNorm.includes(t));
+  });
+
+  const totalAvail = repCompraProducts.reduce((s,p) => s + getCompraPool(p), 0);
+  const totalSend  = Object.values(send).reduce((s,v) => s+v, 0);
+  $('rep-summary').innerHTML =
+    `${repCompraProducts.length} productos en compra · disponible a distribuir: <strong>${totalAvail}</strong> · asignado: <strong>${totalSend}</strong>`;
+
+  if (!filtered.length) {
+    $('rep-table-wrap').innerHTML = `<div class="empty-state">
+      <div class="empty-icon">🔍</div>
+      <div class="empty-text">Sin productos para este filtro.</div></div>`;
+    return;
+  }
+
+  const totalCompra = filtered.reduce((s,p) => s + p.qty, 0);
+  const totalSuc    = filtered.reduce((s,p) => s + (repProductMap.get(p.code)?.stock[sucId] ?? 0), 0);
+  const totalSendF  = filtered.reduce((s,p) => s + (send[p.code] || 0), 0);
+
+  const rows = filtered.map(p => {
+    const qty  = send[p.code] || 0;
+    const sst  = repProductMap.get(p.code)?.stock[sucId] ?? 0;
+    const avail = getCompraPool(p);
+    const min   = REP_MINIMUMS[sucId] || 0;
+    const sug   = (sst < min && avail > 0) ? Math.min(min - sst, avail) : 0;
+    const poolDisplay = repCompraPostMode
+      ? (() => { const sm = repProductMap.get(p.code); return sm ? repAvailable(sm, 'B01B02') : 0; })()
+      : p.qty;
+    return `<tr>
+      <td class="td-code">${escHtml(p.code)}</td>
+      <td class="td-name">${escHtml(p.name)}</td>
+      <td class="td-stk">${poolDisplay}</td>
+      <td class="td-stk ${stkCls(sst)}">${sst > 0 ? sst : '<span style="color:var(--border)">0</span>'}</td>
+      <td class="td-sug">${sug > 0 ? `<span class="sug-badge">▲${sug}</span>` : '—'}</td>
+      <td class="td-send">
+        <input type="number" min="0" step="1" value="${qty||''}"
+          class="rep-qty${qty>0?' has-qty':''}"
+          data-code="${escAttr(p.code)}" data-suc="${sucId}" data-mode="compra"
+          placeholder="0" oninput="onRepQtyInput(this)"/>
+      </td>
+    </tr>`;
+  }).join('');
+
+  $('rep-table-wrap').innerHTML = `
+    <table class="rep-table">
+      <thead><tr>
+        <th>Código</th><th>Producto</th>
+        <th title="${repCompraPostMode ? 'Stock B01+B02 del Gerencial' : 'Cantidad en factura de compra'}">${repCompraPostMode ? 'B01+B02' : 'Compra'}</th>
+        <th title="Stock ${escHtml(REP_LBLS[sucId])}">Suc.</th>
+        <th title="Sugerido">Sug.</th>
+        <th>Enviar</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+      <tfoot><tr class="rep-total-row">
+        <td colspan="2" class="rep-total-label">TOTAL</td>
+        <td class="td-stk">${totalCompra.toLocaleString()}</td>
+        <td class="td-stk">${totalSuc.toLocaleString()}</td>
+        <td class="td-sug">—</td>
+        <td class="td-send">${totalSendF > 0 ? totalSendF.toLocaleString() : '—'}</td>
+      </tr></tfoot>
+    </table>`;
+}
+
+window.clearCompraFiles = () => {
+  repCompraFiles    = [];
+  repCompraProducts = [];
+  repCompraData     = {};
+  repCompraTouched  = {};
+  repCompraPostMode = false;
+  renderCompraPanelFiles();
+  renderRepFull();
+  saveRepSession();
+};
+
+window.toggleCompraPostMode = () => {
+  repCompraPostMode = !repCompraPostMode;
+  // Limpiar asignaciones para recalcular con el nuevo pool
+  repCompraData    = {};
+  repCompraTouched = {};
+  computeComprasSuggestions();
+  renderCompraPanelFiles();
+  renderRepFull();
+};
+
+// Helper: pool disponible por producto según modo activo
+function getCompraPool(p) {
+  if (!repCompraPostMode) {
+    return Math.max(0, p.qty - REP_B01_RESERVE);
+  }
+  const stockMap = repProductMap.get(p.code);
+  if (!stockMap) return 0;
+  return repAvailable(stockMap, 'B01B02');
+}
+
+function redistributeCompraPool(code) {
+  const product = repCompraProducts.find(p => p.code === code);
+  if (!product) return;
+
+  const touched = repCompraTouched[code] || new Set();
+
+  // Calcular pool libre = pool disponible - suma de lo asignado a todas las sucursales
+  const totalAsigned = REP_DESTS.reduce((sum, sid) => sum + (repCompraData[sid]?.[code] || 0), 0);
+  let pool = getCompraPool(product) - totalAsigned;
+
+  // Primero liberar pool de sucursales no tocadas (se van a recalcular)
+  REP_DESTS.forEach(sid => {
+    if (!touched.has(sid)) {
+      pool += (repCompraData[sid]?.[code] || 0);
+      if (repCompraData[sid]) delete repCompraData[sid][code];
+    }
+  });
+
+  // Redistribuir pool siguiendo REP_PRIORITY_ORDER, solo sucursales no tocadas bajo su mínimo
+  const stockMap = repProductMap ? repProductMap.get(code) : null;
+  const getStock = sid => stockMap ? (stockMap.stock?.[sid] || 0) : 0;
+
+  for (const sid of REP_PRIORITY_ORDER) {
+    if (pool <= 0) break;
+    if (touched.has(sid)) continue;
+    if (!repCompraData[sid]) repCompraData[sid] = {};
+    const stockSuc = getStock(sid);
+    const min      = REP_MINIMUMS[sid] || 0;
+    const need     = Math.max(0, min - stockSuc);
+    if (need > 0) {
+      const send = Math.min(need, pool);
+      repCompraData[sid][code] = send;
+      pool -= send;
+    }
+  }
+
+  // Actualizar inputs en el DOM sin re-renderizar toda la tabla
+  REP_DESTS.forEach(sid => {
+    if (touched.has(sid)) return;
+    const inp = document.querySelector(
+      `input[data-code="${code}"][data-suc="${sid}"][data-mode="compra"]`
+    );
+    if (!inp) return;
+    const val = repCompraData[sid]?.[code] || 0;
+    inp.value = val > 0 ? val : '';
+    inp.classList.toggle('has-qty', val > 0);
+  });
+
+  // Actualizar badges de tabs
+  REP_DESTS.forEach(sid => {
+    const btn = $(`rtab-${sid}`);
+    if (!btn) return;
+    const n = Object.values(repCompraData[sid] || {}).filter(v => v > 0).length;
+    const badge = n ? `<span class="rtab-badge">${n}</span>` : '';
+    btn.className = `rtab${sid === repActiveTab ? ' on' : ''}`;
+    btn.innerHTML = `${REP_LBLS[sid]}${badge}`;
+  });
+
+  // Banner de advertencia si el pool quedó negativo
+  const totalFinal = REP_DESTS.reduce((sum, sid) => sum + (repCompraData[sid]?.[code] || 0), 0);
+  const deficit = totalFinal - getCompraPool(product);
+  const summaryEl = $('rep-summary');
+  if (summaryEl && deficit > 0) {
+    summaryEl.innerHTML = `<span style="color:var(--err-tx);font-weight:600">
+      ⚠ Asignado supera la compra por ${deficit} unidades en código ${code}
+    </span>`;
+  } else if (summaryEl) {
+    // Limpiar aviso si ya no hay deficit
+    if (summaryEl.innerHTML.includes('Asignado supera')) summaryEl.innerHTML = '';
+  }
+}
+
+// ── MODO REDISTRIBUCIÓN ──────────────────────────────────────────────────────
+
+window.enterRedistMode = () => {
+  repMode = 'redist';
+  $('rep-redist-panel').style.display = '';
+  $('rep-compra-panel').style.display = 'none';
+  $('rep-global-totals').style.display = 'none';
+  const btnCompra = $('btn-compra-mode');
+  if (btnCompra) btnCompra.style.display = 'none';
+  const btnRedist = $('btn-redist-mode');
+  if (btnRedist) btnRedist.style.display = 'none';
+  computeRedistSuggestions();
+  renderRepFull();
+};
+
+window.exitRedistMode = () => {
+  repMode = 'stock';
+  $('rep-redist-panel').style.display = 'none';
+  const btnCompra = $('btn-compra-mode');
+  if (btnCompra) btnCompra.style.display = '';
+  const btnRedist = $('btn-redist-mode');
+  if (btnRedist) btnRedist.style.display = '';
+  repRedistData       = {};
+  repRedistActiveOrig = 'M01';
+  repRedistDestFilter = null;
+  renderRepFull();
+  renderRepGlobalTotals();
+};
+
+function computeRedistSuggestions() {
+  repRedistData = {};
+  // Para cada producto, detectar sucursales con sobrestock y sucursales con déficit
+  repProducts.forEach(p => {
+    REP_DESTS.forEach(orig => {
+      const stockOrig = p.stock[orig] || 0;
+      const topeOrig  = REP_MAXIMUMS[orig] || 999;
+      const excedente = stockOrig - topeOrig;
+      if (excedente <= 0) return; // no tiene sobrestock
+      let restante = excedente;
+      // Distribuir excedente a sucursales con déficit en orden de prioridad
+      for (const dest of REP_PRIORITY_ORDER) {
+        if (dest === orig) continue;
+        if (restante <= 0) break;
+        const stockDest = p.stock[dest] || 0;
+        const minDest   = REP_MINIMUMS[dest] || 0;
+        const deficit   = minDest - stockDest;
+        if (deficit <= 0) continue;
+        const mover = Math.min(deficit, restante);
+        const key   = `${orig}->${dest}`;
+        if (!repRedistData[key]) repRedistData[key] = {};
+        repRedistData[key][p.code] = mover;
+        restante -= mover;
+      }
+    });
+  });
+}
+
+function getRedistOrigenes() {
+  // Sucursales que tienen al menos un producto para redistribuir
+  return REP_DESTS.filter(orig =>
+    Object.keys(repRedistData).some(key => key.startsWith(`${orig}->`) &&
+      Object.values(repRedistData[key]).some(v => v > 0))
+  );
+}
+
+function renderRedistTabs() {
+  const origenes = getRedistOrigenes();
+  if (!origenes.length) {
+    $('rep-tabs').innerHTML = `<span style="font-size:.63rem;color:var(--muted);padding:5px 8px">
+      Sin excedentes detectados entre sucursales.</span>`;
+    return;
+  }
+  if (!origenes.includes(repRedistActiveOrig)) repRedistActiveOrig = origenes[0];
+  $('rep-tabs').innerHTML = origenes.map(id => {
+    const total = Object.keys(repRedistData)
+      .filter(k => k.startsWith(`${id}->`))
+      .reduce((s, k) => s + Object.values(repRedistData[k]).filter(v => v > 0).length, 0);
+    const badge = total ? `<span class="rtab-badge">${total}</span>` : '';
+    return `<button class="rtab${id === repRedistActiveOrig ? ' on' : ''}"
+      onclick="switchRedistTab('${id}')">${REP_LBLS[id]}${badge}</button>`;
+  }).join('');
+}
+
+window.toggleRedistDestFilter = dest => {
+  repRedistDestFilter = repRedistDestFilter === dest ? null : dest;
+  renderRedistTable();
+};
+
+window.switchRedistTab = id => {
+  repRedistActiveOrig = id;
+  repRedistDestFilter = null;
+  renderRedistTabs();
+  renderRedistTable();
+};
+
+function renderRedistTable() {
+  const orig    = repRedistActiveOrig;
+  const origenes = getRedistOrigenes();
+
+  if (!origenes.length) {
+    $('rep-filters').innerHTML = '';
+    $('rep-table-wrap').innerHTML = `
+      <div style="text-align:center;padding:3rem 1rem;font-size:.7rem;color:var(--muted)">
+        ✓ No hay excedentes detectados entre sucursales con la configuración actual.
+      </div>`;
+    return;
+  }
+
+  // Filtro de búsqueda
+  $('rep-filters').innerHTML = `
+    <input type="search" class="rep-search" placeholder="Buscar código o producto…"
+      value="${escHtml(repSearch)}" oninput="onRepSearch(this.value)"/>`;
+
+  // Destinos que reciben desde este origen
+  const destinos = REP_PRIORITY_ORDER.filter(dest => {
+    if (dest === orig) return false;
+    const key = `${orig}->${dest}`;
+    return repRedistData[key] && Object.values(repRedistData[key]).some(v => v > 0);
+  });
+
+  // Productos con movimiento desde este origen
+  const normSearch = s => String(s).toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]/g, '');
+
+  const productCodes = [...new Set(
+    Object.keys(repRedistData)
+      .filter(k => k.startsWith(`${orig}->`))
+      .flatMap(k => Object.keys(repRedistData[k]))
+  )].filter(code => {
+    if (!repSearch) return true;
+    const p = repProductMap.get(code);
+    if (!p) return false;
+    const terms = repSearch.trim().split(/\s+/).filter(Boolean).map(normSearch);
+    const nameN = normSearch(p.name);
+    const codeN = normSearch(p.code);
+    return terms.every(t => nameN.includes(t) || codeN.includes(t));
+  });
+
+  if (!productCodes.length) {
+    $('rep-table-wrap').innerHTML = `
+      <div style="text-align:center;padding:2rem 1rem;font-size:.7rem;color:var(--muted)">
+        Sin productos para mostrar.</div>`;
+    return;
+  }
+
+  // Aplicar filtro de columna si está activo
+  const productCodesFil = repRedistDestFilter
+    ? productCodes.filter(code => {
+        const key = `${orig}->${repRedistDestFilter}`;
+        return (repRedistData[key] || {})[code] > 0;
+      })
+    : productCodes;
+
+  const destHeaders = destinos.map(dest => {
+    const isActive = repRedistDestFilter === dest;
+    return `<th title="${isActive ? 'Quitar filtro' : 'Filtrar por ' + REP_LBLS[dest]}"
+      style="min-width:90px;cursor:pointer;user-select:none;
+        ${isActive ? 'background:var(--done-bg);color:var(--done-tx);border-bottom:2px solid var(--done-tx)' : ''}"
+      onclick="toggleRedistDestFilter('${dest}')">
+      ${REP_LBLS[dest].split(' ')[0]}${isActive ? ' ▲' : ''}<br/>
+      <span style="font-size:.55rem;color:${isActive ? 'var(--done-tx)' : 'var(--muted)'};font-weight:400">
+        ${isActive ? 'filtrado' : 'destino'}
+      </span>
+    </th>`;
+  }).join('');
+
+  const rows = productCodesFil.map(code => {
+    const p        = repProductMap.get(code);
+    if (!p) return '';
+    const stkOrig  = p.stock[orig] || 0;
+    const topeOrig = REP_MAXIMUMS[orig] || 999;
+    const excedente = Math.max(0, stkOrig - topeOrig);
+
+    const destCells = destinos.map(dest => {
+      const key     = `${orig}->${dest}`;
+      const qty     = (repRedistData[key] || {})[code] || 0;
+      const stkDest = p.stock[dest] || 0;
+      const minDest = REP_MINIMUMS[dest] || 0;
+      return `<td class="td-send">
+        <div style="font-size:.55rem;color:var(--muted);margin-bottom:2px;text-align:center">
+          stk:${stkDest} min:${minDest}
+        </div>
+        <input type="number" min="0" step="1" value="${qty || ''}"
+          class="rep-qty${qty > 0 ? ' has-qty' : ''}"
+          data-code="${escAttr(code)}" data-orig="${escAttr(orig)}" data-dest="${escAttr(dest)}"
+          data-mode="redist"
+          placeholder="0" oninput="onRedistQtyInput(this)"/>
+      </td>`;
+    }).join('');
+
+    return `<tr>
+      <td class="td-code">${escHtml(code)}</td>
+      <td class="td-name">${escHtml(p.name)}</td>
+      <td class="td-stk ${stkCls(stkOrig)}">${stkOrig}</td>
+      <td class="td-stk" style="color:var(--warn-tx);font-weight:700">+${excedente}</td>
+      ${destCells}
+    </tr>`;
+  }).join('');
+
+  $('rep-table-wrap').innerHTML = `
+    <table class="rep-table">
+      <thead><tr>
+        <th>Código</th>
+        <th>Producto</th>
+        <th title="Stock en ${REP_LBLS[orig]}">Stock</th>
+        <th title="Excedente sobre tope">Excedente</th>
+        ${destHeaders}
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+window.onRedistQtyInput = inp => {
+  const v    = parseInt(inp.value, 10);
+  const code = inp.dataset.code;
+  const orig = inp.dataset.orig;
+  const dest = inp.dataset.dest;
+  const key  = `${orig}->${dest}`;
+  if (!repRedistData[key]) repRedistData[key] = {};
+  if (v > 0) { repRedistData[key][code] = v; inp.classList.add('has-qty'); }
+  else        { delete repRedistData[key][code]; inp.classList.remove('has-qty'); }
+  renderRedistTabs();
+  saveRepSessionDebounced();
+};
+
+function generateRedistXLS(orig) {
+  if (typeof XLSX === 'undefined') return;
+  const fecha = getTodaySV();
+  const destinos = ['M01','S02','S04','S03','S07','S06'].filter(dest => {
+    if (dest === orig) return false;
+    const key = `${orig}->${dest}`;
+    return repRedistData[key] && Object.values(repRedistData[key]).some(v => v > 0);
+  });
+  if (!destinos.length) { alert(`Sin cantidades para redistribuir desde ${REP_LBLS[orig]}.`); return; }
+  let delay = 0;
+  destinos.forEach(dest => {
+    setTimeout(() => {
+      const key  = `${orig}->${dest}`;
+      const send = repRedistData[key] || {};
+      const rows = Object.entries(send).filter(([,v]) => v > 0).map(([code, qty]) => [code, qty]);
+      if (!rows.length) return;
+      const ws = XLSX.utils.aoa_to_sheet([['Código', 'Cantidad'], ...rows]);
+      ws['!cols'] = [{ wch: 22 }, { wch: 10 }];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Redistribucion');
+      XLSX.writeFile(wb,
+        `Redistribucion_${REP_FNAMES[orig]}_${REP_FNAMES[dest]}_${fecha}.xls`,
+        { bookType: 'biff8' }
+      );
+      saveReposicionRecord(orig, dest, send, fecha);
+    }, delay);
+    delay += 450;
+  });
+}
+
+window.enterCompraMode = () => {
+  repMode = 'compra';
+  $('rep-compra-panel').style.display = '';
+  $('rep-global-totals').style.display = 'none';
+  const btnCompra = $('btn-compra-mode');
+  if (btnCompra) btnCompra.style.display = 'none';
+  renderCompraPanelFiles();
+  if (repCompraProducts.length) renderRepFull();
+};
+
+window.exitCompraMode = () => {
+  repMode = 'stock';
+  $('rep-compra-panel').style.display = 'none';
+  const btnCompra = $('btn-compra-mode');
+  if (btnCompra) btnCompra.style.display = '';
+  renderRepFull();
+  renderRepGlobalTotals();
+};
+
+window.compraDragOver  = e => { e.preventDefault(); e.stopPropagation(); e.currentTarget.classList.add('drag-over'); };
+window.compraDragLeave = e => { e.preventDefault(); e.stopPropagation(); e.currentTarget.classList.remove('drag-over'); };
+window.compraDrop = e => {
+  e.preventDefault(); e.stopPropagation();
+  e.currentTarget.classList.remove('drag-over');
+  const files = Array.from(e.dataTransfer.files).filter(f => /\.(xls|xlsx)$/i.test(f.name));
+  if (!files.length) return;
+  const dt = new DataTransfer();
+  files.forEach(f => dt.items.add(f));
+  handleCompraFile({ files: dt.files, value: '' });
+};
+
+window.handleCompraFile = async inputEl => {
+  if (typeof XLSX === 'undefined') { alert('SheetJS no cargado. Recargá la página.'); return; }
+  const files = Array.from(inputEl.files);
+  inputEl.value = '';
+  if (!files.length) return;
+  try {
+    // Merge map: código → { name, qty } — conservar productos ya cargados
+    const mergeMap = {};
+    repCompraProducts.forEach(p => { mergeMap[p.code] = { name: p.name, qty: p.qty }; });
+
+    const newFileEntries = [];
+    for (const file of files) {
+      const buf      = await file.arrayBuffer();
+      const wb       = XLSX.read(buf, { type: 'array' });
+      const products = parseCompraXLS(wb);
+      if (!products.length) {
+        alert(`"${file.name}" no tiene productos reconocibles. Se omitió.`);
+        continue;
+      }
+      products.forEach(p => {
+        if (mergeMap[p.code]) {
+          // Mismo código → sumar cantidad, conservar nombre existente
+          mergeMap[p.code].qty += (p.qty || 0);
+        } else {
+          mergeMap[p.code] = { name: p.name, qty: p.qty || 0 };
+        }
+      });
+      newFileEntries.push({ name: file.name, added: new Date().toISOString() });
+    }
+
+    if (!newFileEntries.length) return; // todos los archivos fallaron
+
+    repCompraFiles    = [...repCompraFiles, ...newFileEntries];
+    repCompraProducts = Object.entries(mergeMap).map(([code, d]) => ({ code, name: d.name, qty: d.qty }));
+    repCompraData     = {};
+    repCompraTouched  = {};
+    computeComprasSuggestions();
+    renderCompraPanelFiles();
+    renderRepFull();
+    saveRepSession();
+  } catch(e) {
+    alert('Error al procesar archivo: ' + e.message);
+    console.error('handleCompraFile:', e);
+  }
+};
+
+function generateCompraRepXLS(sucId) {
+  if (typeof XLSX === 'undefined') return;
+  const send = repCompraData[sucId] || {};
+  const rows = Object.entries(send).filter(([,v]) => v > 0).map(([code, qty]) => [code, qty]);
+  if (!rows.length) { alert(`Sin cantidades para ${REP_LBLS[sucId]}.`); return; }
+  const ws = XLSX.utils.aoa_to_sheet([['Código', 'Cantidad'], ...rows]);
+  ws['!cols'] = [{ wch: 22 }, { wch: 10 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Reposicion');
+  const fecha = getTodaySV();
+  XLSX.writeFile(wb,
+    `Compra_${REP_ORIGIN_NAMES['B01']}_${REP_FNAMES[sucId]}_${fecha}.xls`,
+    { bookType: 'biff8' }
+  );
+  saveReposicionRecord('B01', sucId, send, fecha);
+}
+
+window.analyzeWithAI = async () => {
+  const filtered = repProducts.filter(p => {
+    if (repActiveCat   && p.cat   !== repActiveCat)   return false;
+    if (repActiveBrand && p.brand !== repActiveBrand)  return false;
+    return true;
+  });
+  if (!filtered.length) {
+    alert('Aplicá un filtro de categoría o marca antes de usar la IA.');
+    return;
+  }
+  const btn = $('btn-ai-rep');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span>Analizando…';
+  try {
+    const products = filtered.slice(0,250).map(p => ({
+      code: p.code, name: p.name.substring(0,50), stock: p.stock,
+    }));
+    let idToken = '';
+    try {
+      if (authMod && auth?.currentUser) {
+        idToken = await authMod.getIdToken(auth.currentUser);
+      }
+    } catch(e) { console.warn('getIdToken error:', e.message); }
+
+    const resp = await fetch(
+      'https://us-central1-despacho-ordenes.cloudfunctions.net/suggestReplenishment',
+      { method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {})
+        },
+        body: JSON.stringify({ products }) }
+    );
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error);
+    (data.suggestions||[]).forEach(s => {
+      repTargets().forEach(sid => {
+        if (!repSendData[sid]) repSendData[sid] = {};
+        const v = s[sid] || 0;
+        if (v > 0) repSendData[sid][s.code] = v;
+        else       delete repSendData[sid][s.code];
+      });
+    });
+    renderRepTabs();
+    renderRepTable();
+  } catch(e) {
+    alert('Error al analizar con IA: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '✨ IA';
+  }
+};
+
+init();
+</script>
+</body>
+</html>

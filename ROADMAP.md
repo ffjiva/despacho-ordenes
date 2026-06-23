@@ -348,6 +348,20 @@ Revisión minuciosa de los tres archivos. 25 bugs corregidos en total.
 
 ## Pendientes
 
+### 🚧 Modularización reposición → reposicion.html (EN CURSO)
+4ª app standalone (modelo `moto.html`) que reúne Reposición + Inventario + Trazabilidad. Init Firebase propio (resuelve el estado compartido). Acceso **solo vía ops**, gate **super-only** con costura ramificable por rol (para el futuro inventario asignable a colaborador). Home con 3 botones; back `← Ops`.
+- **F0** ✅ Andamiaje (login + gate + home + mini-router + CSS base). Deploy + smoke OK.
+- **F1** ✅ Reposición (stock/compra/redist) migrada vía `migrate_f1.js` (extracción por anclas de texto, `node --check` OK, sin duplicados, idempotente). Smoke 1–4 OK. `ops.html` **intacto** (limpieza diferida a F4).
+- **F2** ⬜ Trazabilidad (módulo 7) → reposicion.html.
+- **F3** ⬜ Inventario (módulo 8b) → reposicion.html.
+- **F4** ⬜ Limpieza `ops.html`: borrar JS/HTML/CSS migrados + convertir botones topbar/drawer en links a `reposicion.html` + actualizar ROADMAP.
+
+### 🐞 Issues conocidos — fase IA reposición (post-migración)
+Detectados al validar F1. **Idénticos a `ops.html`** — no introducidos por la extracción (código copiado verbatim). Se atacan junto al rework de **sugerencias por historial**:
+1. **La IA sugiere envíos no surtibles por el origen.** `analyzeWithAI` solo manda `{code, name, stock}` al CF; la IA no conoce la disponibilidad por origen (B01+B02), así que sugiere enviar códigos que el origen no stockea → se pintan rojo (`is-full`, exceden el pool). Falta pasar la restricción origen/disponibilidad al prompt.
+2. **`suggestReplenishment` (CF) devuelve HTTP 500 / JSON truncado.** El cliente hace `resp.json()` y truena ("Expected ',' or ']'…", ~pos 7531 = array cortado a la mitad). Causa probable: tope `max_tokens` de Haiku con sets grandes. Endurecer el CF (límite/validación/streaming) + fallback en cliente.
+3. *(Menor, por diseño)* `analyzeWithAI` aplica sugerencias a **todas** las sucursales (`repTargets()`), no a la pestaña activa. Documentado para no confundir.
+
 ### 🔧 Deuda técnica
 
 **[RESUELTO 21 Jun 2026] — Cerrar grifo `config/team`** *(index.html)*
