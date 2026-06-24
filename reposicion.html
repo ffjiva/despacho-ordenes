@@ -3145,6 +3145,18 @@ window.analyzeWithAI = async () => {
     return;
   }
 
+  // Guard: evitar correr la IA sobre el catálogo completo por error
+  const BATCH_GUARD = 300;
+  if (filtered.length > BATCH_GUARD) {
+    const lotes = Math.ceil(filtered.length / 60);
+    const mins  = Math.max(1, Math.round(lotes * 4 / 60));
+    if (!confirm(
+      `Vas a analizar ${filtered.length} productos en ${lotes} lotes ` +
+      `(~${mins} min y consumo de API alto).\n\n` +
+      `Normalmente conviene filtrar por marca o categoría primero.\n\n¿Continuar igual?`
+    )) return;
+  }
+
   const served = repTargets().filter(repOriginServes);
   if (!served.length) { alert('El origen seleccionado no surte ningún destino.'); return; }
 
