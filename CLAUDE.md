@@ -50,5 +50,14 @@ ops.html, moto.html, reposicion.html). Sin frameworks, sin build step.
   persiste por tokens FCM legacy)
 - Siempre manejar errores de red con feedback visual al usuario
 
+## Flujo de deploy (obligatorio)
+Siempre en este orden — nunca saltarse el commit:
+1. `git add <archivos>`
+2. `git commit -m "..."`
+3. `firebase deploy --only hosting` y/o `firebase deploy --only functions`
+
+Si se deploya antes de commitear, Firebase verá el código como "sin cambios"
+en el siguiente deploy y lo saltará silenciosamente (bug difícil de detectar).
+
 ## Para cambios en Cloud Functions
 Indicarlo por separado — no modificar index.html por esos cambios.
