@@ -508,38 +508,55 @@ exports.suggestReplenishment = onRequest(
   const user = await verifyFirebaseToken(req, res);
   if (!user) return;
 
-  const { products } = req.body;
+  const { products, origin = 'B01B02', servedDests } = req.body;
   if (!products?.length) { res.status(400).json({ error: 'No products' }); return; }
 
   const apiKey = process.env.ANTHROPIC_KEY;
   if (!apiKey) { res.status(500).json({ error: 'API key not configured' }); return; }
 
-  const lines = products.map(p =>
-    `${p.code}|${(p.name||'').substring(0,40)}` +
-    `|B01:${p.stock.B01||0}|B02:${p.stock.B02||0}` +
-    `|M01:${p.stock.M01||0}|S02:${p.stock.S02||0}` +
-    `|S03:${p.stock.S03||0}|S04:${p.stock.S04||0}` +
-    `|S06:${p.stock.S06||0}|S07:${p.stock.S07||0}`
-  ).join('\n');
+  // Bodegas que forman el pool del origen seleccionado
+  const ORIGIN_SRC = { B01B02: ['B01','B02'], B01: ['B01'], B02: ['B02'], B03: ['B03'] };
+  const srcs = ORIGIN_SRC[origin] || ['B01','B02'];
+
+  // Destinos que este origen surte (el cliente los manda; fallback a todos)
+  const ALL_DESTS = ['M01','S02','S03','S04','S06','S07'];
+  const dests = Array.isArray(servedDests) && servedDests.length
+    ? servedDests.filter(d => ALL_DESTS.includes(d))
+    : ALL_DESTS;
+
+  const lines = products.map(p => {
+    const st   = p.stock || {};
+    const pool = srcs.reduce((s, w) => s + (st[w] || 0), 0);
+    const cols = dests.map(d => `${d}:${st[d] || 0}`).join('|');
+    return `${p.code}|${(p.name || '').substring(0,40)}|orig:${pool}|${cols}`;
+  }).join('\n');
+
+  const schema = `{"suggestions":[{"code":"COD",${dests.map(d => `"${d}":0`).join(',')}}]}`;
 
   const prompt = `Sos un asistente de gestión de inventario para una distribuidora tecnológica en El Salvador.
 
-REGLAS DE NEGOCIO:
+ORIGEN de este envío: ${origin}. Solo podés sugerir envíos a estos destinos: ${dests.join(', ')}.
+
+REGLAS DE NEGOCIO (prioridad de atención):
 - M01 (Merliot) y S02 (San Salvador): PRIORIDAD ALTA. Nunca deben quedar en 0. Atendelas primero.
 - S04 (Soyapango): PRIORIDAD MEDIA. Reponer si llega a 0.
 - S03 (San Miguel), S06 (Zoditech), S07 (Usulután): PRIORIDAD BAJA. Con lo que quede.
-- B01 y B02 son bodegas origen. NUNCA sugerís más de lo disponible en B01+B02.
-- Si B01+B02 = 0, todas las sugerencias son 0.
 
-INVENTARIO (Código|Nombre|B01|B02|M01|S02|S03|S04|S06|S07):
+RESTRICCIÓN DURA DE ORIGEN (obligatoria):
+- "orig" = unidades disponibles en el ORIGEN (${origin}) para ese código en este envío.
+- La SUMA de tus sugerencias de un código entre todos los destinos NUNCA puede superar su "orig".
+- Si orig = 0, todas las sugerencias de ese código son 0.
+- Solo sugerí destinos de la lista permitida (${dests.join(', ')}). Para cualquier otro, 0.
+
+INVENTARIO (Código|Nombre|orig|${dests.join('|')}):
 ${lines}
 
 Respondé ÚNICAMENTE con JSON válido sin markdown:
-{"suggestions":[{"code":"COD","M01":0,"S02":0,"S03":0,"S04":0,"S06":0,"S07":0}]}`;
+${schema}`;
 
   const body = JSON.stringify({
     model: 'claude-haiku-4-5',
-    max_tokens: 4096,
+    max_tokens: 8192,
     messages: [{ role: 'user', content: prompt }],
   });
 
@@ -562,6 +579,9 @@ Respondé ÚNICAMENTE con JSON válido sin markdown:
       try {
         const parsed = JSON.parse(data);
         if (parsed.error) throw new Error(parsed.error.message);
+        if (parsed.stop_reason === 'max_tokens') {
+          throw new Error('Respuesta truncada (lote demasiado grande). Reducí el tamaño del lote.');
+        }
         const text = parsed.content.filter(b => b.type === 'text').map(b => b.text).join('').trim()
           .replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim();
         const result = JSON.parse(text.match(/\{[\s\S]*\}/)[0]);

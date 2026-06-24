@@ -3026,6 +3026,7 @@ function generateRedistXLS(orig) {
 
 window.enterCompraMode = () => {
   repMode = 'compra';
+  const _aiBtn = $('btn-ai-rep'); if (_aiBtn) _aiBtn.style.display = 'none';
   $('rep-compra-panel').style.display = '';
   $('rep-global-totals').style.display = 'none';
   const btnCompra = $('btn-compra-mode');
@@ -3036,6 +3037,7 @@ window.enterCompraMode = () => {
 
 window.exitCompraMode = () => {
   repMode = 'stock';
+  const _aiBtn = $('btn-ai-rep'); if (_aiBtn) _aiBtn.style.display = '';
   $('rep-compra-panel').style.display = 'none';
   const btnCompra = $('btn-compra-mode');
   if (btnCompra) btnCompra.style.display = '';
@@ -3119,50 +3121,87 @@ function generateCompraRepXLS(sucId) {
 }
 
 window.analyzeWithAI = async () => {
+  if (repMode !== 'stock') {
+    alert('La sugerencia con IA solo está disponible en reposición normal.');
+    return;
+  }
+
   const filtered = repProducts.filter(p => {
     if (repActiveCat   && p.cat   !== repActiveCat)   return false;
-    if (repActiveBrand && p.brand !== repActiveBrand)  return false;
+    if (repActiveBrand && p.brand !== repActiveBrand) return false;
+    if (repSearch) {
+      const normSearch = s => String(s).toLowerCase()
+        .normalize('NFD').replace(/[̀-ͯ]/g, '')
+        .replace(/[^a-z0-9]/g, '');
+      const terms    = repSearch.trim().split(/\s+/).filter(Boolean).map(normSearch);
+      const nameNorm = normSearch(p.name);
+      const codeNorm = normSearch(p.code);
+      if (!terms.every(t => nameNorm.includes(t) || codeNorm.includes(t))) return false;
+    }
     return true;
   });
   if (!filtered.length) {
     alert('Aplicá un filtro de categoría o marca antes de usar la IA.');
     return;
   }
+
+  const served = repTargets().filter(repOriginServes);
+  if (!served.length) { alert('El origen seleccionado no surte ningún destino.'); return; }
+
   const btn = $('btn-ai-rep');
   btn.disabled = true;
-  btn.innerHTML = '<span class="spin"></span>Analizando…';
-  try {
-    const products = filtered.slice(0,250).map(p => ({
-      code: p.code, name: p.name.substring(0,50), stock: p.stock,
-    }));
-    let idToken = '';
-    try {
-      if (authMod && auth?.currentUser) {
-        idToken = await authMod.getIdToken(auth.currentUser);
-      }
-    } catch(e) { console.warn('getIdToken error:', e.message); }
 
-    const resp = await fetch(
-      'https://us-central1-despacho-ordenes.cloudfunctions.net/suggestReplenishment',
-      { method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {})
-        },
-        body: JSON.stringify({ products }) }
-    );
-    const data = await resp.json();
-    if (data.error) throw new Error(data.error);
-    (data.suggestions||[]).forEach(s => {
-      repTargets().forEach(sid => {
+  const BATCH  = 60;
+  const chunks = [];
+  for (let i = 0; i < filtered.length; i += BATCH) chunks.push(filtered.slice(i, i + BATCH));
+
+  let idToken = '';
+  try {
+    if (authMod && auth?.currentUser) idToken = await authMod.getIdToken(auth.currentUser);
+  } catch(e) { console.warn('getIdToken error:', e.message); }
+
+  const allSuggestions = [];
+  try {
+    for (let i = 0; i < chunks.length; i++) {
+      btn.innerHTML = `<span class="spin"></span>Lote ${i + 1}/${chunks.length}…`;
+      const products = chunks[i].map(p => ({
+        code: p.code, name: p.name.substring(0,50), stock: p.stock,
+      }));
+      const resp = await fetch(
+        'https://us-central1-despacho-ordenes.cloudfunctions.net/suggestReplenishment',
+        { method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {})
+          },
+          body: JSON.stringify({ products, origin: repOrigin, servedDests: served }) }
+      );
+      const data = await resp.json();
+      if (data.error) throw new Error(data.error);
+      (data.suggestions || []).forEach(s => allSuggestions.push(s));
+    }
+
+    allSuggestions.forEach(s => {
+      served.forEach(sid => {
         if (!repSendData[sid]) repSendData[sid] = {};
         const v = s[sid] || 0;
         if (v > 0) repSendData[sid][s.code] = v;
         else       delete repSendData[sid][s.code];
       });
     });
+
+    const trimmed = repClampAll();
+
     renderRepTabs();
     renderRepTable();
+    refreshRepStockTotals();
+    saveRepSession();
+
+    if (trimmed > 0) {
+      const sum = $('rep-summary');
+      if (sum) sum.innerHTML =
+        `<span style="color:var(--warn-tx);font-weight:600">⚠ IA aplicada · ${trimmed} código(s) ajustado(s) al pool del origen</span>`;
+    }
   } catch(e) {
     alert('Error al analizar con IA: ' + e.message);
   } finally {
