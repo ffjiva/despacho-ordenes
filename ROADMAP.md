@@ -349,6 +349,28 @@ Revisión minuciosa de los tres archivos. 25 bugs corregidos en total.
 
 ## Pendientes
 
+### 🎯 Línea de acción — orden de trabajo (23 Jun 2026)
+
+Criterio rector: **impacto en la operación diaria**. Orden acordado:
+
+1. **A1+A2 — Reposición IA confiable** *(CF + reposicion.html)*. Robustecer
+   `suggestReplenishment` (HTTP 500 / JSON truncado) + pasar restricción de
+   origen a `analyzeWithAI` para que no sugiera lo no surtible. Ver "Issues
+   conocidos — fase IA reposición".
+2. **Paridad de pool en vivo en modo compra** *(reposicion.html)*. El modo
+   compra NO drena el pool en vivo ni aplica los topes duros ámbar/rojo como
+   la reposición normal. Fernando usa modo compra A DIARIO → prioridad alta.
+   Feature por derecho propio: NO mezclar con A1+A2 (otro blast radius, regla
+   de fases). Confirmar en frío si `analyzeWithAI` corre también en compra.
+3. **Pasada de Picking** *(index.html)*. Bloque de bugs/fricción del picker
+   (ver backlog triado 🟢). Bajo riesgo, un solo archivo.
+4. **A3 — Sugerencias por historial** *(reposicion.html)*. Feature grande, 3
+   fases, sobre base de IA ya confiable.
+5. Frente moto (envío prioritario + imágenes) y resto del backlog triado.
+
+Parqueado (no suma operatividad diaria): mapas/geocodificación, ruta
+optimizada, rediseño general, pixelart. Sub-proyectos dedicados.
+
 ### ✅ Modularización reposición → reposicion.html (COMPLETA)
 4ª app standalone (modelo `moto.html`) que reúne Reposición + Inventario + Trazabilidad. Init Firebase propio (resuelve el estado compartido). Acceso **solo vía ops**, gate **super-only** con costura ramificable por rol (para el futuro inventario asignable a colaborador). Home con 3 botones; back `← Ops`.
 - **F0** ✅ Andamiaje (login + gate + home + mini-router + CSS base). Deploy + smoke OK.
@@ -447,6 +469,57 @@ raíz-relativos (`/?orden=`). Los previews ya no saltan a producción. Verificad
 inmediatos en cola — el próximo gran paso es modularizar ops.html (en chat nuevo, ver Backlog).
 
 ---
+
+### 📥 Backlog triado por impacto operativo (23 Jun 2026)
+
+Incidencias registradas y clasificadas. 🐞 = bug (puede saltar prioridad
+dentro de su grupo).
+
+**🟢 DIARIO — fricción real cada día**
+- 🐞 Picking: en modo único, al escanear no viaja/scrollea al producto
+  marcado → sin confirmación visual de qué se chequeó. *(index.html)*
+- 🐞 Picking: barra de búsqueda + botón escáner no son sticky; al hacer
+  scroll quedan arriba y el operador debe volver al inicio para reusarlos.
+  Deben viajar en el encabezado. *(index.html)*
+- 🐞 Picking: al filtrar pendientes y chequear un ítem, desaparece demasiado
+  rápido; falta "gracia visual" (quedar unos segundos antes de removerse).
+  *(index.html)*
+- 🐞 Pendientes: al completar, el ítem desaparece al instante; mismo patrón
+  de "gracia visual" que picking. *(ops.html)* — un solo mecanismo cubre ambos.
+- 🐞 Fotos de preparación: aparentemente inaccesibles cuando la orden está
+  completada. Posible regresión — revisar en frío. *(index.html)*
+- Envío prioritario: botón que salta la viñeta al inicio y avisa al usuario,
+  como en vueltas. *(moto.html)* — patrón ya existe, bajo riesgo.
+
+**🟡 SOPORTE — operativo, no es tarea diaria / habilita delegación**
+- Imágenes en envíos (hoy solo en vueltas). *(moto.html)* — patrón ya existe.
+- Geocodificar dirección del XLS de envíos → ubicación en la ficha de moto,
+  para que Anderson tenga mejor referencia. *(moto.html)* ⚠️ Bandera de costo:
+  Google Geocoding API es de paga (cupo gratis mensual). Alternativa gratis:
+  OpenStreetMap/Nominatim, alineada con la preferencia de no sumar pagos y con
+  el Leaflet ya previsto para Módulo 9b. Direcciones SV informales → precisión
+  variable. Comparar Google-pago vs OSM-gratis con números antes de decidir.
+- (Ya en ROADMAP) Auto-sucursal en inventario desde XLS → ver "Mejoras
+  inventario — post-migración" punto 3. No duplicar.
+
+**⚪ MENOR — calidad de vida**
+- 🐞 Picking: el botón escáner pierde su texto tras el primer uso, queda solo
+  el ícono de cámara. *(index.html)*
+- Picking: mejor visualización de productos con comentario (hoy solo una marca
+  naranja pequeña). *(index.html)*
+- Picking: mostrar tiempo de trabajo activo en las viñetas de listas (solo
+  tiempo activo del usuario) para ver de un vistazo cuánto tardó. *(index.html)*
+
+**🔭 FUTURO — no suma operatividad (palabras de Fernando), pero se abordará**
+- Ruta sugerida optimizada para entregas (TSP): con direcciones geocodificadas,
+  armar recorrido que minimice tiempo/distancia. Depende de la geocodificación.
+  Ruta gratis posible: OSRM. *(moto.html / nuevo)*
+- Rediseño general: el diseño se siente genérico de IA; el funcionamiento es
+  correcto. Explorar dirección visual propia respetando el Design System de
+  CLAUDE.md (IBM Plex Mono, tema olive-black, industrial/utilitario).
+  Sub-proyecto dedicado.
+- Pixelart al completar ciertos procesos (estético, no operativo). Ver también
+  "Mejoras inventario" punto 4. Sub-proyecto dedicado.
 
 ### 🔭 Ideas a futuro (diseñadas, sin fecha)
 
