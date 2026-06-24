@@ -15,7 +15,7 @@
 |---|---|
 | Frontend | HTML + CSS + JS vanilla — un archivo por app |
 | Base de datos | Firebase Firestore (real-time) |
-| Autenticación | Firebase Auth (email/password) — unificado en los 3 archivos |
+| Autenticación | Firebase Auth (email/password) — unificado en los 4 archivos |
 | Backend / IA | Google Cloud Functions (Node.js) — `functions/index.js` |
 | IA de extracción | Claude API via Cloud Function `parseDocument` (claude-haiku-4-5) |
 | Hosting | Firebase Hosting |
@@ -33,9 +33,10 @@
 
 | Archivo | Descripción | Líneas aprox. |
 |---|---|---|
-| `index.html` | Despacho Manager — picking con IA | ~3,214 |
-| `ops.html` | Operaciones — pendientes, vueltas, entregas, métricas, reposición | ~7,170 |
+| `index.html` | Despacho Manager — picking con IA | ~3,111 |
+| `ops.html` | Operaciones — pendientes, vueltas, entregas, métricas | ~3,944 |
 | `moto.html` | Portal Motorista | ~1,569 |
+| `reposicion.html` | Reposición + Inventario + Trazabilidad | ~3,965 |
 | `functions/index.js` | Cloud Functions | ~660 |
 
 ---
@@ -529,4 +530,4 @@ Al abrir una sesión de implementación:
 
 ---
 
-*Última actualización: 21 Junio 2026 (tarde)*
+*Última actualización: 23 Junio 2026*
