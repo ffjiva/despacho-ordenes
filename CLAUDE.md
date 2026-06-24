@@ -2,13 +2,18 @@
 
 Archivo de convenciones para Claude Code. Leer antes de cualquier tarea.
 
+El estado real y la cola priorizada del proyecto viven en ROADMAP.md —
+leerlo primero.
+
 ## Contexto del proyecto
 App web operativa de bodega. Usuarios: pickers con celular Android/iOS,
 a veces con guantes, bajo presión de tiempo. También supervisores en laptop.
-Stack: HTML + CSS + JS vanilla en un solo archivo index.html. Sin frameworks.
+Stack: HTML + CSS + JS vanilla, una app standalone por archivo (index.html,
+ops.html, moto.html, reposicion.html). Sin frameworks, sin build step.
 
 ## Reglas de desarrollo
-- Todo el frontend vive en index.html (+ ops.html, moto.html para módulos separados)
+- Cada app vive en su propio archivo standalone: index.html, ops.html,
+  moto.html, reposicion.html
 - Sin frameworks externos (sin React, sin Vue, sin jQuery)
 - Respetar variables CSS del :root existente — nunca hardcodear colores
 - Priorizar usabilidad móvil antes que desktop
@@ -38,8 +43,11 @@ Stack: HTML + CSS + JS vanilla en un solo archivo index.html. Sin frameworks.
 4. Consistencia con componentes existentes: .btn, .badge, .ic, .dcard, .box
 
 ## Firestore / Firebase
-- Colección principal: despachos/{id}
-- Config de equipo: config/team
+- Colecciones: despachos, users, vueltas, domicilios, reposiciones,
+  inventarios (esquema completo en ROADMAP.md)
+- Usuarios y roles: users/{uid} (role: super | collaborator | motorista)
+- config/team está DEPRECADO — NO usar como fuente de usuarios (solo
+  persiste por tokens FCM legacy)
 - Siempre manejar errores de red con feedback visual al usuario
 
 ## Para cambios en Cloud Functions
