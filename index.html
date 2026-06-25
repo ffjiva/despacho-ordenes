@@ -372,6 +372,14 @@ html, body {
   letter-spacing: .04em;
   padding: 3px 8px;
 }
+/* B6: producto con nota */
+.tag-note {
+  background: var(--warn-bg);
+  color: var(--warn-tx);
+  border-color: var(--warn-bd);
+  font-weight: 700;
+}
+.ic.has-nota .note-in { color: var(--warn-tx); }
 .ic-qty-wrap { flex-shrink: 0; text-align: right; }
 .ic-qty { font-size: 1rem; font-weight: 700; color: var(--muted); line-height: 1; }
 .ic.done .ic-qty { color: var(--done-tx); }
@@ -2250,6 +2258,7 @@ function buildItem(p, ckData, leaving = false) {
           <div class="ic-tags">
             ${p.code ? `<span class="tag tag-code">${esc(p.code)}</span>` : ''}
             <span class="tag">${esc(p.family)}</span>
+            ${hasNota ? `<span class="tag tag-note">📝 nota</span>` : ''}
           </div>
         </div>
         <div class="ic-qty-wrap">
