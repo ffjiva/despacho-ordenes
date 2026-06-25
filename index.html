@@ -308,6 +308,18 @@ html, body {
   0%, 100% { box-shadow: none; }
   50%       { box-shadow: 0 0 0 3px var(--warn-bd); }
 }
+/* Gracia visual (B3): ítem chequeado que aún no se remueve del filtro Pendientes */
+.ic.ic-leaving { animation: ic-grace 3s ease-in forwards; }
+@keyframes ic-grace {
+  0%, 70% { opacity: 1; }
+  100%    { opacity: .3; }
+}
+/* Flash de confirmación (B1): tras escanear en modo único */
+.ic.ic-flash { animation: ic-flash 1.2s ease-in-out; }
+@keyframes ic-flash {
+  0%, 100% { box-shadow: none; }
+  30%, 60% { box-shadow: 0 0 0 3px var(--done-tx); }
+}
 .ic-main { display: flex; align-items: flex-start; gap: 10px; padding: 14px 10px 12px; cursor: pointer; }
 .chk {
   width: 26px; height: 26px; flex-shrink: 0; margin-top: 0;
@@ -2098,6 +2110,34 @@ async function doOpenDespacho(id, readOnly = false, lockedBy = '') {
   }
 }
 
+/* ── Gracia visual (B3) + flash de confirmación (B1) ── */
+const pickGrace = new Map();   // pid → timeoutId
+const PICK_GRACE_MS = 3000;
+
+function pickGraceAdd(pid) {
+  if (pickGrace.has(pid)) clearTimeout(pickGrace.get(pid));
+  pickGrace.set(pid, setTimeout(() => {
+    pickGrace.delete(pid);
+    renderPick();
+  }, PICK_GRACE_MS));
+}
+function pickGraceClear(pid) {
+  if (pickGrace.has(pid)) { clearTimeout(pickGrace.get(pid)); pickGrace.delete(pid); }
+}
+function pickFlash(pid) {
+  // No interferir con la celebración de orden completa.
+  if ($('celebr-overlay')?.classList.contains('on')) return;
+  requestAnimationFrame(() => {
+    const el = document.getElementById('ic-' + pid);
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el.classList.remove('ic-flash');
+    void el.offsetWidth;        // reflow → reinicia la animación
+    el.classList.add('ic-flash');
+    setTimeout(() => el.classList.remove('ic-flash'), 1200);
+  });
+}
+
 function renderPick() {
   if (!curData) return;
   const { products = [], checked = {}, name = '', createdAt, assignedTo = '', origin = '', destination = '', originalUrl = '' } = curData;
@@ -2128,7 +2168,7 @@ function renderPick() {
   // Apply filter
   let fl = products;
   if (pickFilter === 'done')    fl = products.filter(p => checked[p.id]?.done);
-  if (pickFilter === 'pending') fl = products.filter(p => !checked[p.id]?.done);
+  if (pickFilter === 'pending') fl = products.filter(p => !checked[p.id]?.done || pickGrace.has(p.id));
 
   // Apply search
   if (pickSearch.trim()) {
@@ -2166,7 +2206,10 @@ function renderPick() {
   if (pickSort === 'alpha') {
     // Alphabetical: flat list sorted by name
     const sorted = [...fl].sort((a,b) => a.name.localeCompare(b.name));
-    sorted.forEach(p => { html += buildItem(p, checked[p.id]); });
+    sorted.forEach(p => {
+      const leaving = pickFilter === 'pending' && checked[p.id]?.done && pickGrace.has(p.id);
+      html += buildItem(p, checked[p.id], leaving);
+    });
   } else {
     // Category: grouped by family, alphabetical within each group
     const groups = {};
@@ -2177,7 +2220,8 @@ function renderPick() {
     Object.keys(groups).sort().forEach(fam => {
       html += `<div class="group-hd">${fam}</div>`;
       groups[fam].sort((a,b) => a.name.localeCompare(b.name)).forEach(p => {
-        html += buildItem(p, checked[p.id]);
+        const leaving = pickFilter === 'pending' && checked[p.id]?.done && pickGrace.has(p.id);
+        html += buildItem(p, checked[p.id], leaving);
       });
     });
   }
@@ -2186,13 +2230,13 @@ function renderPick() {
   renderPickPhotos();
 }
 
-function buildItem(p, ckData) {
+function buildItem(p, ckData, leaving = false) {
   const ok    = !!ckData?.done;
   const time  = ckData?.time || '';
   const note    = (ckData?.note || '').replace(/"/g, '&quot;');
   const hasNota = !!(ckData?.note || '').trim();
   return `
-    <div class="ic${ok?' done':''}${hasNota?' has-nota':''}" id="ic-${p.id}">
+    <div class="ic${ok?' done':''}${hasNota?' has-nota':''}${leaving?' ic-leaving':''}" id="ic-${p.id}">
       <div class="ic-main" ${isReadOnly ? 'style="cursor:default;opacity:.7"' : `onclick="toggleItem('${p.id}')"`}>
         <div class="chk"><span class="chkm">✓</span></div>
         <div class="ic-content">
@@ -2222,8 +2266,10 @@ window.toggleItem = async pid => {
   const ck = { ...(curData.checked || {}) };
   if (ck[pid]?.done) {
     delete ck[pid];
+    pickGraceClear(pid);
   } else {
     ck[pid] = { done: true, time: fmtTime(), note: ck[pid]?.note || '' };
+    pickGraceAdd(pid);
   }
   await applyUpdate({ checked: ck });
 
@@ -3077,6 +3123,7 @@ async function handleScan(code) {
       setScannerMsg('neutral', 'Apunta al código del producto...');
     } else {
       closeScanner();
+      pickFlash(product.id);
     }
   }, 1500);
 }
@@ -3085,6 +3132,7 @@ async function markItemFromScanner(pid) {
   if (isReadOnly || !curData) return;
   const ck = { ...(curData.checked || {}) };
   ck[pid] = { done: true, time: fmtTime(), note: ck[pid]?.note || '' };
+  pickGraceAdd(pid);
   await applyUpdate({ checked: ck });
 
   const prods = curData.products || [];
