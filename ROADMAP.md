@@ -357,12 +357,12 @@ Criterio rector: **impacto en la operación diaria**. Orden acordado:
    `suggestReplenishment` (HTTP 500 / JSON truncado) + pasar restricción de
    origen a `analyzeWithAI` para que no sugiera lo no surtible. Ver "Issues
    conocidos — fase IA reposición".
-2. **Paridad de pool en vivo en modo compra** *(reposicion.html)*. El modo
-   compra NO drena el pool en vivo ni aplica los topes duros ámbar/rojo como
-   la reposición normal. Fernando usa modo compra A DIARIO → prioridad alta.
-   Feature por derecho propio: NO mezclar con A1+A2 (otro blast radius, regla
-   de fases). Confirmar en frío si `analyzeWithAI` corre también en compra.
-3. **Pasada de Picking** *(index.html)*. Bloque de bugs/fricción del picker
+2. ✅ **Paridad de pool en vivo en modo compra** *(reposicion.html)*.
+   (23 Jun 2026) — modo compra ahora calca stock: tope duro + zonas ámbar/rojo
+   + drenado en vivo del pool; carga solo mínimos (ENVIAR = SUG); se retiró el
+   auto-reparto post-hoc (redistributeCompraPool) y la Fase 2 de excedente en
+   computeComprasSuggestions. El excedente se reparte a mano.
+3. **→ FRENTE ACTIVO: Pasada de Picking** *(index.html)*. Bloque de bugs/fricción del picker
    (ver backlog triado 🟢). Bajo riesgo, un solo archivo.
 4. **A3 — Sugerencias por historial** *(reposicion.html)*. Feature grande, 3
    fases, sobre base de IA ya confiable.
