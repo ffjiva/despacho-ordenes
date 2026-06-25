@@ -876,6 +876,7 @@ let supDestFilter = '';
 let lastDashList = null;
 let pickSort = 'alpha';
 let lockSet = false;
+let lockSessionStart = 0;  // inicio de la sesión de trabajo actual (para acumular activeMs)
 let isReadOnly = false;
 let currentUser = null;  // { uid, email, name, role }
 let currentRole  = '';  // convenience copy of currentUser.role
@@ -959,8 +960,9 @@ function startDashTicker() {
   if (_dashTimer) return;
   _dashTimer = setInterval(() => {
     document.querySelectorAll('.dcard-time-live').forEach(el => {
-      const s = Number(el.getAttribute('data-started')) || 0;
-      if (s) el.textContent = '⏱ ' + fmtClock(Date.now() - s);
+      const base  = Number(el.getAttribute('data-base'))  || 0;
+      const since = Number(el.getAttribute('data-since')) || 0;
+      if (since) el.textContent = '⏱ ' + fmtClock(base + Math.max(0, Date.now() - since));
     });
   }, 1000);
 }
@@ -1291,8 +1293,11 @@ window.goHome = async () => {
   if (co) co.classList.remove('on');
   // Clear lock if we set it
   if (curId && lockSet && !isLocal) {
-    try { await dbUpdate(curId, { lockedBy: null, lockedAt: null }); } catch{}
+    const _base = Number(curData?.activeMs) || 0;
+    const _add  = lockSessionStart ? Math.max(0, Date.now() - lockSessionStart) : 0;
+    try { await dbUpdate(curId, { lockedBy: null, lockedAt: null, activeMs: _base + _add }); } catch{}
     lockSet = false;
+    lockSessionStart = 0;
   }
   if (unsub) { unsub(); unsub = null; }
   curId = null; curData = null;
@@ -1422,15 +1427,14 @@ function cardHtml(d, archived = false) {
   const units = prods.reduce((s,p) => s+(Number(p.qty)||0), 0);
   const fin = don === tot && tot > 0;
 
-  // B7 — tiempo activo (startedAt → fin); en vivo si sigue en proceso.
-  const _endT = d.completedAt || d.dispatchedAt || null;
+  // B7 — tiempo de trabajo acumulado (solo corre mientras la orden está abierta).
+  const _base = Number(d.activeMs) || 0;
+  const _openNow = d.lockedBy && (Date.now() - (d.lockedAt || 0)) < LOCK_TTL_MS;
   let timeChip = '';
-  if (d.startedAt) {
-    if (_endT && _endT > d.startedAt) {
-      timeChip = `<span class="dcard-time">⏱ ${fmtClock(_endT - d.startedAt)}</span>`;
-    } else if (!_endT) {
-      timeChip = `<span class="dcard-time dcard-time-live" data-started="${d.startedAt}">⏱ ${fmtClock(Date.now() - d.startedAt)}</span>`;
-    }
+  if (_openNow) {
+    timeChip = `<span class="dcard-time dcard-time-live" data-base="${_base}" data-since="${d.lockedAt || 0}">⏱ ${fmtClock(_base + Math.max(0, Date.now() - (d.lockedAt || 0)))}</span>`;
+  } else if (_base > 0) {
+    timeChip = `<span class="dcard-time">⏱ ${fmtClock(_base)}</span>`;
   }
 
   const lockAge = Date.now() - (d.lockedAt || 0);
@@ -2101,12 +2105,14 @@ async function doOpenDespacho(id, readOnly = false, lockedBy = '') {
   } else {
     if (!readOnly) {
       // Set lock (no crítico — timeout de 5s)
+      const _sessionStart = Date.now();
       try {
         await Promise.race([
-          dbUpdate(id, { lockedBy: currentUser?.uid, lockedByName: currentUser?.name, lockedAt: Date.now() }),
+          dbUpdate(id, { lockedBy: currentUser?.uid, lockedByName: currentUser?.name, lockedAt: _sessionStart }),
           new Promise((_, rej) => setTimeout(() => rej(new Error('lock timeout')), 5000))
         ]);
         lockSet = true;
+        lockSessionStart = _sessionStart;
       } catch(e) {
         console.warn('Lock skipped:', e.message);
       }
