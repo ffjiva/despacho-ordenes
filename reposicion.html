@@ -2201,8 +2201,40 @@ window.onRepQtyInput = inp => {
       else        { delete _target[suc][code]; inp.classList.remove('has-qty'); }
     }
   } else {
-    if (v > 0) { _target[suc][code] = v; inp.classList.add('has-qty'); }
-    else        { delete _target[suc][code]; inp.classList.remove('has-qty'); }
+    // ── Modo compra: mismo pool en vivo que stock (tope duro + zonas + drenado) ──
+    const cp = repCompraProducts.find(x => x.code === code);
+    const sm = repProductMap.get(code);
+    if (cp) {
+      const ceiling   = repCompraPostMode ? (sm ? repPoolCeiling(sm, 'B01B02') : 0) : cp.qty;
+      const softAvail = getCompraPool(cp);
+      const elsewhere = REP_DESTS.reduce((s, sid) =>
+        sid === suc ? s : s + (repCompraData[sid]?.[code] || 0), 0);
+      const hardCap   = Math.max(0, ceiling - elsewhere);
+      if (!(v > 0)) v = 0;
+      if (v > hardCap) { v = hardCap; inp.value = v || ''; }
+
+      if (v > 0) _target[suc][code] = v; else delete _target[suc][code];
+
+      const totalAssigned = elsewhere + v;
+      inp.classList.remove('has-qty', 'is-warn', 'is-full');
+      if (v > 0) {
+        if (totalAssigned >= ceiling)       inp.classList.add('is-full');
+        else if (totalAssigned > softAvail) inp.classList.add('is-warn');
+        else                                inp.classList.add('has-qty');
+      }
+      const tr = inp.closest('tr');
+      if (tr) {
+        const cell = tr.querySelector('[data-cpool]');
+        if (cell) {
+          const rem = Math.max(0, ceiling - totalAssigned);
+          cell.className = 'td-stk ' + stkCls(rem);
+          cell.innerHTML = rem > 0 ? rem : '<span style="color:var(--border)">0</span>';
+        }
+      }
+    } else {
+      if (v > 0) { _target[suc][code] = v; inp.classList.add('has-qty'); }
+      else        { delete _target[suc][code]; inp.classList.remove('has-qty'); }
+    }
   }
 
   const btn = $(`rtab-${suc}`);
@@ -2210,12 +2242,6 @@ window.onRepQtyInput = inp => {
     const n     = Object.values(_target[suc]).filter(x=>x>0).length;
     const badge = n ? `<span class="rtab-badge">${n}</span>` : '';
     btn.innerHTML = `${REP_LBLS[suc]}${badge}`;
-  }
-
-  if (isCompra) {
-    if (!repCompraTouched[code]) repCompraTouched[code] = new Set();
-    repCompraTouched[code].add(suc);
-    redistributeCompraPool(code);
   }
 
   renderRepGlobalTotals();
@@ -2512,7 +2538,6 @@ function parseCompraXLS(workbook) {
 
 function computeComprasSuggestions() {
   REP_DESTS.forEach(sid => { if (!repCompraData[sid]) repCompraData[sid] = {}; });
-  const WEIGHTS = { M01:4, S02:4, S04:4, S03:3, S07:3, S06:2 };
   repCompraProducts.forEach(p => {
     const touched = REP_DESTS.some(sid => (repCompraData[sid][p.code] || 0) > 0);
     if (touched) return;
@@ -2531,36 +2556,9 @@ function computeComprasSuggestions() {
         remaining -= send;
       }
     }
-    if (remaining > 0) {
-      if (REP_FILL_TO_MAX) {
-        REP_PRIORITY_ORDER.forEach(sid => {
-          if (remaining <= 0) return;
-          const already    = repCompraData[sid][p.code] || 0;
-          const maxAllowed = REP_MAXIMUMS[sid] || 999;
-          const gap = Math.max(0, maxAllowed - getStock(sid) - already);
-          if (gap > 0) {
-            const send = Math.min(gap, remaining);
-            repCompraData[sid][p.code] = already + send;
-            remaining -= send;
-          }
-        });
-      } else {
-        const totalW = Object.values(WEIGHTS).reduce((a,b) => a+b, 0);
-        let given = 0;
-        const extras = {};
-        REP_PRIORITY_ORDER.forEach(sid => {
-          const share = Math.floor(remaining * WEIGHTS[sid] / totalW);
-          extras[sid] = share;
-          given += share;
-        });
-        if (given < remaining) extras['M01'] = (extras['M01'] || 0) + (remaining - given);
-        REP_PRIORITY_ORDER.forEach(sid => {
-          if ((extras[sid] || 0) > 0 && getStock(sid) < (REP_MAXIMUMS[sid] || 999)) {
-            repCompraData[sid][p.code] = (repCompraData[sid][p.code] || 0) + extras[sid];
-          }
-        });
-      }
-    }
+    // Excedente omitido a propósito: la carga de compra es solo mínimos (= SUG),
+    // igual que computeRepSuggestions(true) en stock. El resto se reparte a mano
+    // con el tope duro del pool.
   });
 }
 
@@ -2627,13 +2625,14 @@ function renderCompraTable() {
     const avail = getCompraPool(p);
     const min   = REP_MINIMUMS[sucId] || 0;
     const sug   = (sst < min && avail > 0) ? Math.min(min - sst, avail) : 0;
-    const poolDisplay = repCompraPostMode
-      ? (() => { const sm = repProductMap.get(p.code); return sm ? repAvailable(sm, 'B01B02') : 0; })()
-      : p.qty;
+    const sm = repProductMap.get(p.code);
+    const ceiling     = repCompraPostMode ? (sm ? repPoolCeiling(sm, 'B01B02') : 0) : p.qty;
+    const assignedAll = REP_DESTS.reduce((s, sid) => s + (repCompraData[sid]?.[p.code] || 0), 0);
+    const poolDisplay = Math.max(0, ceiling - assignedAll);
     return `<tr>
       <td class="td-code">${escHtml(p.code)}</td>
       <td class="td-name">${escHtml(p.name)}</td>
-      <td class="td-stk">${poolDisplay}</td>
+      <td class="td-stk ${stkCls(poolDisplay)}" data-cpool="${escAttr(p.code)}">${poolDisplay > 0 ? poolDisplay : '<span style="color:var(--border)">0</span>'}</td>
       <td class="td-stk ${stkCls(sst)}">${sst > 0 ? sst : '<span style="color:var(--border)">0</span>'}</td>
       <td class="td-sug">${sug > 0 ? `<span class="sug-badge">▲${sug}</span>` : '—'}</td>
       <td class="td-send">
@@ -2694,78 +2693,6 @@ function getCompraPool(p) {
   const stockMap = repProductMap.get(p.code);
   if (!stockMap) return 0;
   return repAvailable(stockMap, 'B01B02');
-}
-
-function redistributeCompraPool(code) {
-  const product = repCompraProducts.find(p => p.code === code);
-  if (!product) return;
-
-  const touched = repCompraTouched[code] || new Set();
-
-  // Calcular pool libre = pool disponible - suma de lo asignado a todas las sucursales
-  const totalAsigned = REP_DESTS.reduce((sum, sid) => sum + (repCompraData[sid]?.[code] || 0), 0);
-  let pool = getCompraPool(product) - totalAsigned;
-
-  // Primero liberar pool de sucursales no tocadas (se van a recalcular)
-  REP_DESTS.forEach(sid => {
-    if (!touched.has(sid)) {
-      pool += (repCompraData[sid]?.[code] || 0);
-      if (repCompraData[sid]) delete repCompraData[sid][code];
-    }
-  });
-
-  // Redistribuir pool siguiendo REP_PRIORITY_ORDER, solo sucursales no tocadas bajo su mínimo
-  const stockMap = repProductMap ? repProductMap.get(code) : null;
-  const getStock = sid => stockMap ? (stockMap.stock?.[sid] || 0) : 0;
-
-  for (const sid of REP_PRIORITY_ORDER) {
-    if (pool <= 0) break;
-    if (touched.has(sid)) continue;
-    if (!repCompraData[sid]) repCompraData[sid] = {};
-    const stockSuc = getStock(sid);
-    const min      = REP_MINIMUMS[sid] || 0;
-    const need     = Math.max(0, min - stockSuc);
-    if (need > 0) {
-      const send = Math.min(need, pool);
-      repCompraData[sid][code] = send;
-      pool -= send;
-    }
-  }
-
-  // Actualizar inputs en el DOM sin re-renderizar toda la tabla
-  REP_DESTS.forEach(sid => {
-    if (touched.has(sid)) return;
-    const inp = document.querySelector(
-      `input[data-code="${code}"][data-suc="${sid}"][data-mode="compra"]`
-    );
-    if (!inp) return;
-    const val = repCompraData[sid]?.[code] || 0;
-    inp.value = val > 0 ? val : '';
-    inp.classList.toggle('has-qty', val > 0);
-  });
-
-  // Actualizar badges de tabs
-  REP_DESTS.forEach(sid => {
-    const btn = $(`rtab-${sid}`);
-    if (!btn) return;
-    const n = Object.values(repCompraData[sid] || {}).filter(v => v > 0).length;
-    const badge = n ? `<span class="rtab-badge">${n}</span>` : '';
-    btn.className = `rtab${sid === repActiveTab ? ' on' : ''}`;
-    btn.innerHTML = `${REP_LBLS[sid]}${badge}`;
-  });
-
-  // Banner de advertencia si el pool quedó negativo
-  const totalFinal = REP_DESTS.reduce((sum, sid) => sum + (repCompraData[sid]?.[code] || 0), 0);
-  const deficit = totalFinal - getCompraPool(product);
-  const summaryEl = $('rep-summary');
-  if (summaryEl && deficit > 0) {
-    summaryEl.innerHTML = `<span style="color:var(--err-tx);font-weight:600">
-      ⚠ Asignado supera la compra por ${deficit} unidades en código ${code}
-    </span>`;
-  } else if (summaryEl) {
-    // Limpiar aviso si ya no hay deficit
-    if (summaryEl.innerHTML.includes('Asignado supera')) summaryEl.innerHTML = '';
-  }
 }
 
 // ── MODO REDISTRIBUCIÓN ──────────────────────────────────────────────────────
