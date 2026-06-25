@@ -311,6 +311,38 @@ código UPC visible y exportación a XLS. Asignable a cualquier colaborador
 con notificación FCM via `onInventarioAsignado`. Navegación: botón topbar
 desktop + drawer móvil. Desplegado: 03 Jun 2026.
 
+### Pasada de picking — sesión 24 Jun 2026 *(index.html + ops.html)*
+Siete incidencias del backlog triado (🟢 DIARIO + ⚪ MENOR), una por unidad validada.
+
+**🟢 DIARIO:**
+- **B4 — Fotos de preparación tras despachar:** el gate de `renderPickPhotos` solo
+  aceptaba `active`/`done`, así que al pasar a `dispatched`/`dispatched_incomplete`
+  desaparecía el alta de fotos. Ahora diferencia por rol: `super` puede subir también
+  en despachada (ambos estados `dispatched*`); el resto solo en proceso/completada.
+  Las fotos existentes se ven siempre.
+- **B1 + B3 — Gracia visual + flash al escanear:** `Map` global `pickGrace` dentro de
+  `renderPick` (respetado por sus dos vías: `applyUpdate` y el listener). Al chequear
+  bajo el filtro Pendientes, el ítem queda 3s con fade (`ic-leaving`) antes de salir.
+  Al escanear en modo único, tras cerrar el escáner hace `scrollIntoView` + flash verde
+  (`ic-flash`); la gracia lo mantiene vivo para tener a dónde scrollear. Sin flash si
+  saltó la celebración de orden completa.
+- **B3-hermano — Gracia en Pendientes de ops:** mismo patrón inline en `ops.html`
+  (`pendGrace`, `pc-leaving`), 3s al completar antes de removerse de la vista activa.
+- **B2 — Buscador + escáner sticky:** la fila se movió dentro del `.pick-header` (ya
+  sticky) → viaja fija al hacer scroll. Los chips Todos/Pendientes/Listos/A–Z quedan
+  en la `.filter-bar` no-sticky. Cero JS.
+
+**⚪ MENOR:**
+- **B5 — Botón escáner perdía su texto:** era colateral del reflow de la `.filter-bar`
+  al hacer `flex-wrap` en móvil. Cayó de rebote con B2 (fila con ancho estable en el
+  header). Sin cambio adicional.
+- **B6 — Productos con nota más visibles:** badge `📝 nota` en los tags + texto de la
+  nota en ámbar (`.ic.has-nota .note-in`), además del borde izquierdo existente.
+- **B7 — Tiempo activo en cards del home:** chip ⏱ (`startedAt → completado/despachado`)
+  en `dcard-meta`. En proceso tictac en vivo cada 1s (verde, `dcard-time-live` +
+  `setInterval` idempotente); completada/despachada estático (gris). Sin `startedAt`,
+  sin chip. Helper `fmtClock`.
+
 ### Corrección de bugs — sesión 03 Jun 2026 *(index.html + ops.html + moto.html)*
 Revisión minuciosa de los tres archivos. 25 bugs corregidos en total.
 
@@ -476,18 +508,6 @@ Incidencias registradas y clasificadas. 🐞 = bug (puede saltar prioridad
 dentro de su grupo).
 
 **🟢 DIARIO — fricción real cada día**
-- 🐞 Picking: en modo único, al escanear no viaja/scrollea al producto
-  marcado → sin confirmación visual de qué se chequeó. *(index.html)*
-- 🐞 Picking: barra de búsqueda + botón escáner no son sticky; al hacer
-  scroll quedan arriba y el operador debe volver al inicio para reusarlos.
-  Deben viajar en el encabezado. *(index.html)*
-- 🐞 Picking: al filtrar pendientes y chequear un ítem, desaparece demasiado
-  rápido; falta "gracia visual" (quedar unos segundos antes de removerse).
-  *(index.html)*
-- 🐞 Pendientes: al completar, el ítem desaparece al instante; mismo patrón
-  de "gracia visual" que picking. *(ops.html)* — un solo mecanismo cubre ambos.
-- 🐞 Fotos de preparación: aparentemente inaccesibles cuando la orden está
-  completada. Posible regresión — revisar en frío. *(index.html)*
 - Envío prioritario: botón que salta la viñeta al inicio y avisa al usuario,
   como en vueltas. *(moto.html)* — patrón ya existe, bajo riesgo.
 
@@ -501,14 +521,6 @@ dentro de su grupo).
   variable. Comparar Google-pago vs OSM-gratis con números antes de decidir.
 - (Ya en ROADMAP) Auto-sucursal en inventario desde XLS → ver "Mejoras
   inventario — post-migración" punto 3. No duplicar.
-
-**⚪ MENOR — calidad de vida**
-- 🐞 Picking: el botón escáner pierde su texto tras el primer uso, queda solo
-  el ícono de cámara. *(index.html)*
-- Picking: mejor visualización de productos con comentario (hoy solo una marca
-  naranja pequeña). *(index.html)*
-- Picking: mostrar tiempo de trabajo activo en las viñetas de listas (solo
-  tiempo activo del usuario) para ver de un vistazo cuánto tardó. *(index.html)*
 
 **🔭 FUTURO — no suma operatividad (palabras de Fernando), pero se abordará**
 - Ruta sugerida optimizada para entregas (TSP): con direcciones geocodificadas,
@@ -603,4 +615,4 @@ Al abrir una sesión de implementación:
 
 ---
 
-*Última actualización: 23 Junio 2026*
+*Última actualización: 24 Junio 2026*
