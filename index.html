@@ -2262,11 +2262,18 @@ function renderPickPhotos() {
 
   const photos  = curData.photos || [];
   const status  = curData.status || '';
+  const isSuper = currentUser?.role === 'super';
+  // super documenta incluso tras despachar (opción A);
+  // el resto de roles solo en proceso o recién completada (opción B).
+  const uploadStatuses = isSuper
+    ? ['active', 'done', 'dispatched', 'dispatched_incomplete']
+    : ['active', 'done'];
   const canUpload = !isReadOnly
-    && ['active','done'].includes(status)
+    && uploadStatuses.includes(status)
     && photos.length < PICK_PHOTOS_MAX;
 
-  // Mostrar sección si hay fotos o puede subir
+  // Las fotos existentes siempre se ven (cualquier estado/rol);
+  // el alta depende de canUpload.
   const visible = photos.length > 0 || canUpload;
   section.style.display = visible ? '' : 'none';
 
