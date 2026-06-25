@@ -209,6 +209,12 @@ html, body {
   overflow: hidden; transition: border-color .15s;
 }
 .pcard.done { background: var(--done-bg); border-color: var(--done-bd); }
+/* Gracia visual: pendiente recién completado que aún no se remueve de la vista activa */
+.pcard.pc-leaving { animation: pc-grace 3s ease-in forwards; }
+@keyframes pc-grace {
+  0%, 70% { opacity: 1; }
+  100%    { opacity: .3; }
+}
 .pcard-main {
   display: flex; align-items: flex-start; gap: 10px;
   padding: 11px 12px 10px; cursor: pointer;
@@ -1039,6 +1045,19 @@ let authDetermined = false;
 let activeFilter = 'all';
 let showDone = false;
 let _allPendientes = [];
+/* ── Gracia visual al completar (hermano de B3 en index.html) ── */
+const pendGrace = new Map();   // id → timeoutId
+const PEND_GRACE_MS = 3000;
+function pendGraceAdd(id) {
+  if (pendGrace.has(id)) clearTimeout(pendGrace.get(id));
+  pendGrace.set(id, setTimeout(() => {
+    pendGrace.delete(id);
+    renderList(_allPendientes);
+  }, PEND_GRACE_MS));
+}
+function pendGraceClear(id) {
+  if (pendGrace.has(id)) { clearTimeout(pendGrace.get(id)); pendGrace.delete(id); }
+}
 let selectedType = '';
 let selectedUrgency = 'normal';
 let homeUnsub = null;
@@ -1235,7 +1254,7 @@ const URG_ORDER = { high: 0, normal: 1, low: 2 };
 
 function renderList(all) {
   let list = all;
-  list = showDone ? list.filter(p => p.done) : list.filter(p => !p.done);
+  list = showDone ? list.filter(p => p.done) : list.filter(p => !p.done || pendGrace.has(p.id));
   if (activeFilter === 'urg') {
     list = list.filter(p => (p.urgency ?? 'normal') === 'high');
   } else if (activeFilter !== 'all') {
@@ -1262,13 +1281,14 @@ function renderList(all) {
 
   el.innerHTML = list.map(p => {
     const meta    = TYPE_META[p.type] || { label: p.type, cls: 'type-dist' };
+    const leaving = !showDone && p.done && pendGrace.has(p.id);
     const urgCls  = p.urgency === 'high' ? 'urg-high' : p.urgency === 'low' ? 'urg-low' : 'urg-normal';
     const dateStr = p.createdAt
       ? new Date(p.createdAt).toLocaleDateString('es-SV', { day: '2-digit', month: 'short', year: 'numeric' }) + ' ' +
         new Date(p.createdAt).toLocaleTimeString('es-SV', { hour: '2-digit', minute: '2-digit', hour12: false })
       : '';
     return `
-      <div class="pcard ${urgCls}${p.done ? ' done' : ''}" id="pc-${p.id}">
+      <div class="pcard ${urgCls}${p.done ? ' done' : ''}${leaving ? ' pc-leaving' : ''}" id="pc-${p.id}">
         <div class="pcard-main" onclick="togglePend('${p.id}')">
           <div class="pchk"><span class="pchkm">✓</span></div>
           <div class="pcard-body">
@@ -1323,9 +1343,12 @@ window.togglePend = async id => {
     const snap = await fbMod.getDoc(ref);
     if (!snap.exists()) return;
     const cur = snap.data();
-    await fbMod.updateDoc(ref, cur.done
-      ? { done: false, doneAt: null, doneBy: null }
-      : { done: true,  doneAt: Date.now(), doneBy: currentUser?.name || '' }
+    const becomingDone = !cur.done;
+    if (becomingDone && !showDone) pendGraceAdd(id);
+    else pendGraceClear(id);
+    await fbMod.updateDoc(ref, becomingDone
+      ? { done: true,  doneAt: Date.now(), doneBy: currentUser?.name || '' }
+      : { done: false, doneAt: null, doneBy: null }
     );
   } catch(e) { console.error(e); }
 };
