@@ -82,6 +82,7 @@ checked:        { [productId]: { done, time, note } }
 status:         'pending'|'active'|'done'|'dispatched'|'dispatched_incomplete'
 lockedBy, lockedAt, archived, originalUrl
 startedAt, completedAt, dispatchedAt, createdAt: number
+activeMs: number   ← tiempo de trabajo acumulado; corre solo con la orden abierta (lock activo)
 users/{uid}
 (ver arriba)
 vueltas/{id}
@@ -338,10 +339,14 @@ Siete incidencias del backlog triado (🟢 DIARIO + ⚪ MENOR), una por unidad v
   header). Sin cambio adicional.
 - **B6 — Productos con nota más visibles:** badge `📝 nota` en los tags + texto de la
   nota en ámbar (`.ic.has-nota .note-in`), además del borde izquierdo existente.
-- **B7 — Tiempo activo en cards del home:** chip ⏱ (`startedAt → completado/despachado`)
-  en `dcard-meta`. En proceso tictac en vivo cada 1s (verde, `dcard-time-live` +
-  `setInterval` idempotente); completada/despachada estático (gris). Sin `startedAt`,
-  sin chip. Helper `fmtClock`.
+- **B7 — Tiempo de trabajo en cards del home:** chip ⏱ en `dcard-meta` que mide
+  tiempo de trabajo ACUMULADO (`activeMs`), no wall-clock. Solo corre mientras la
+  orden está abierta (lock activo): `goHome` suma `ahora − lockedAt` a `activeMs` al
+  cerrar. Abierta ahora → tictac en vivo (verde, `dcard-time-live`, `base+since`);
+  nadie la tiene abierta → pausado en el acumulado (gris). Sin trabajo acumulado y
+  cerrada → sin chip. Trade-off: cierre sucio pierde hasta 30 min (TTL del lock).
+  Helper `fmtClock`, `setInterval` idempotente. Visible solo para `super`; los
+  demás roles ven el tiempo total únicamente en el modal de celebración al finalizar.
 
 ### Corrección de bugs — sesión 03 Jun 2026 *(index.html + ops.html + moto.html)*
 Revisión minuciosa de los tres archivos. 25 bugs corregidos en total.
