@@ -273,6 +273,24 @@ html, body {
 @media (max-width: 600px) {
   .filter-bar { flex-wrap: wrap; overflow-x: visible; }
 }
+/* B2: fila buscador+escáner dentro del header sticky */
+.pick-search-row {
+  display: flex; gap: 6px; align-items: center;
+  padding-bottom: .7rem;
+}
+.pick-search-row input {
+  flex: 1; min-width: 0;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: .63rem;
+  padding: 5px 12px;
+  outline: none;
+}
+.pick-search-row input:focus { border-color: var(--brand); }
+.pick-search-row .btn { font-size: .7rem; padding: 5px 12px; flex-shrink: 0; }
 .fbtn {
   padding: 4px 12px; border-radius: 20px;
   border: 1px solid var(--border); background: transparent;
@@ -749,6 +767,13 @@ body:not(.dark) input[type="time"] {
         <div class="prog-fill" id="prog-fill" style="width:0%"></div>
       </div>
     </div>
+    <div class="pick-search-row">
+      <input type="search" id="pick-search-input"
+        placeholder="Buscar…"
+        value=""
+        oninput="onPickSearch(this.value)"/>
+      <button id="btn-scanner" class="btn btn-outline" onclick="openScanner()">📷 Escanear</button>
+    </div>
   </div>
   <div id="readonly-banner" style="display:none;background:var(--warn-bg);color:var(--warn-tx);border-bottom:1px solid var(--warn-bd);padding:7px 12px;font-size:.65rem;font-weight:700;letter-spacing:.06em;text-align:center"></div>
   <div id="pick-save-err" style="display:none;background:var(--err-bg);color:var(--err-tx);border-bottom:1px solid var(--err-bd);padding:7px 12px;font-size:.65rem;font-weight:700;letter-spacing:.06em;text-align:center"></div>
@@ -760,25 +785,6 @@ body:not(.dark) input[type="time"] {
     <div class="sort-divider"></div>
     <button class="fbtn on" id="sort-alpha" onclick="setSort('alpha')">A–Z</button>
     <button class="fbtn" id="sort-cat" onclick="setSort('category')">Categorías</button>
-    <div class="sort-divider"></div>
-    <div style="display:flex;gap:6px;flex:1;min-width:100%;margin-top:2px;align-items:center;">
-      <input type="search" id="pick-search-input"
-        placeholder="Buscar…"
-        value=""
-        oninput="onPickSearch(this.value)"
-        style="
-          background: var(--surface2);
-          border: 1px solid var(--border);
-          border-radius: 20px;
-          color: var(--text);
-          font-family: var(--mono);
-          font-size: .63rem;
-          padding: 3px 10px;
-          outline: none;
-          flex: 1;
-        "/>
-      <button id="btn-scanner" class="btn btn-outline" style="font-size:.7rem;padding:5px 12px;flex-shrink:0" onclick="openScanner()">📷 Escanear</button>
-    </div>
   </div>
 
   <div class="pick-list" id="pick-list"></div>
