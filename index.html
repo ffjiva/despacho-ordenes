@@ -1493,7 +1493,7 @@ function cardHtml(d, archived = false) {
         <span>${don}/${tot} productos</span>
         <span>${units} unidades</span>
         <span>${pct}%</span>
-        ${timeChip}
+        ${_isSuper ? timeChip : ''}
         ${assignStr}
       </div>
       <div class="dcard-pbar"><div class="dcard-pfill" style="width:${pct}%"></div></div>
