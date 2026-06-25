@@ -207,6 +207,8 @@ html, body {
 .badge-incomplete { background: var(--warn-bg); color: var(--warn-tx); border-color: var(--warn-bd); }
 .dcard-meta { display: flex; gap: 12px; margin-top: 7px; font-size: .65rem; color: var(--muted); flex-wrap: wrap; align-items: center; }
 .dcard-assign { color: var(--text2); font-weight: 600; }
+.dcard-time { color: var(--text2); font-variant-numeric: tabular-nums; }
+.dcard-time-live { color: var(--accent2); }
 .dcard-pbar { height: 3px; background: var(--border2); margin-top: 9px; border-radius: 2px; overflow: hidden; }
 .dcard-pfill { height: 100%; background: var(--accent2); border-radius: 2px; transition: width .4s; }
 .dcard.fin .dcard-pfill { background: var(--done-tx); }
@@ -942,6 +944,26 @@ function fmtShort(ts) {
 function fmtTime() {
   return new Date().toLocaleTimeString('es-SV', {hour:'2-digit',minute:'2-digit'});
 }
+// B7 — duración activa para las cards: m:ss, o h:mm:ss si pasa de 1h.
+function fmtClock(ms) {
+  if (!ms || ms < 0) ms = 0;
+  const t = Math.floor(ms / 1000);
+  const h = Math.floor(t / 3600);
+  const m = Math.floor((t % 3600) / 60);
+  const s = t % 60;
+  const pad = n => String(n).padStart(2, '0');
+  return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
+}
+let _dashTimer = null;
+function startDashTicker() {
+  if (_dashTimer) return;
+  _dashTimer = setInterval(() => {
+    document.querySelectorAll('.dcard-time-live').forEach(el => {
+      const s = Number(el.getAttribute('data-started')) || 0;
+      if (s) el.textContent = '⏱ ' + fmtClock(Date.now() - s);
+    });
+  }, 1000);
+}
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
 
 function setStatus(msg, type='info', loading=false) {
@@ -1400,6 +1422,17 @@ function cardHtml(d, archived = false) {
   const units = prods.reduce((s,p) => s+(Number(p.qty)||0), 0);
   const fin = don === tot && tot > 0;
 
+  // B7 — tiempo activo (startedAt → fin); en vivo si sigue en proceso.
+  const _endT = d.completedAt || d.dispatchedAt || null;
+  let timeChip = '';
+  if (d.startedAt) {
+    if (_endT && _endT > d.startedAt) {
+      timeChip = `<span class="dcard-time">⏱ ${fmtClock(_endT - d.startedAt)}</span>`;
+    } else if (!_endT) {
+      timeChip = `<span class="dcard-time dcard-time-live" data-started="${d.startedAt}">⏱ ${fmtClock(Date.now() - d.startedAt)}</span>`;
+    }
+  }
+
   const lockAge = Date.now() - (d.lockedAt || 0);
   const isLocked = d.lockedBy && lockAge < LOCK_TTL_MS;
   const lockedByOther = !archived && isLocked && d.lockedBy !== currentUser?.uid;
@@ -1456,6 +1489,7 @@ function cardHtml(d, archived = false) {
         <span>${don}/${tot} productos</span>
         <span>${units} unidades</span>
         <span>${pct}%</span>
+        ${timeChip}
         ${assignStr}
       </div>
       <div class="dcard-pbar"><div class="dcard-pfill" style="width:${pct}%"></div></div>
@@ -1565,6 +1599,7 @@ function renderDash(list) {
   }
 
   el.innerHTML = html;
+  startDashTicker();
 
   // Resumen de progreso para collaborator
   const summaryEl = $('collab-summary');
