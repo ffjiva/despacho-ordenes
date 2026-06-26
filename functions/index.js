@@ -247,7 +247,7 @@ Nunca incluyas duplicados de un mismo código en el resultado final.`;
 
   const body = JSON.stringify({
     model: "claude-haiku-4-5",
-    max_tokens: 8000,
+    max_tokens: 16000,
     messages: [{ role: "user", content: [contentBlock, { type: "text", text: prompt }] }]
   });
 
@@ -270,6 +270,9 @@ apiRes.on("end", () => {
       try {
         const parsed = JSON.parse(data);
         if (parsed.error) throw new Error(parsed.error.message);
+        if (parsed.stop_reason === "max_tokens") {
+          throw new Error("Lista demasiado larga: la respuesta del modelo se truncó (subí max_tokens o dividí el PDF).");
+        }
         let text = parsed.content.map(i => i.text || "").join("").trim();
         console.log("Model response preview:", text.substring(0, 300));
 
