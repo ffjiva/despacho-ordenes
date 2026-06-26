@@ -312,6 +312,22 @@ código UPC visible y exportación a XLS. Asignable a cualquier colaborador
 con notificación FCM via `onInventarioAsignado`. Navegación: botón topbar
 desktop + drawer móvil. Desplegado: 03 Jun 2026.
 
+### Fix extracción de órdenes grandes — sesión 25 Jun 2026 *(functions/index.js)*
+Órdenes con muchos productos (caso real: 109 SKUs, orden 25 → S03 San Miguel)
+fallaban con "No se pudo extraer productos" + HTTP 500. Causa: `parseDocument`
+usaba `max_tokens: 8000` (el límite viejo de Haiku 3.5); la salida JSON se truncaba
+a mitad del array de productos → el header llegaba bien pero `products` no. Haiku 4.5
+admite hasta 64K tokens de salida.
+- **`max_tokens` 8000 → 16000:** ~2× de holgura para esta orden; cubre cómodo hasta
+  ~300 productos, lejos del techo de 64K y sin riesgo de timeout (CF a 300s).
+- **Guard de truncamiento:** se agregó `if (parsed.stop_reason === 'max_tokens')` con
+  mensaje claro ("lista demasiado larga") en vez de un 500 opaco — mismo patrón que
+  `suggestReplenishment`. Red de seguridad para órdenes aún más grandes.
+- Deploy: `firebase deploy --only functions`. Validado: la orden 25 (109 prod / 376
+  unid) extrae completa.
+- A futuro (no accionado): para listas >300 productos, trocear el PDF y extraer por
+  lotes, igual que `suggestReplenishment` (lotes de 60).
+
 ### Pasada de picking — sesión 24 Jun 2026 *(index.html + ops.html)*
 Siete incidencias del backlog triado (🟢 DIARIO + ⚪ MENOR), una por unidad validada.
 
@@ -620,4 +636,4 @@ Al abrir una sesión de implementación:
 
 ---
 
-*Última actualización: 24 Junio 2026*
+*Última actualización: 25 Junio 2026*
