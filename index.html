@@ -1082,27 +1082,10 @@ window.showUsersModal = async () => {
         </div>`).join('')
     : '<div style="color:var(--muted);font-size:.7rem;padding:.5rem 0">Sin usuarios registrados.</div>';
 
-  const addForm = isSuper ? `
-    <div style="margin-top:1rem;border-top:1px solid var(--border2);padding-top:1rem">
-      <div style="font-size:.6rem;font-weight:700;letter-spacing:.1em;color:var(--muted);text-transform:uppercase;margin-bottom:.75rem">Agregar usuario</div>
-      <div class="fld"><label>Nombre</label><input id="nu-name" type="text" placeholder="Juan Pérez" autocomplete="off"/></div>
-      <div class="fld"><label>Email</label><input id="nu-email" type="email" placeholder="juan@empresa.com"/></div>
-      <div class="fld"><label>Contraseña temporal</label><input id="nu-pw" type="password" placeholder="mínimo 6 caracteres"/></div>
-      <div class="fld"><label>Rol</label>
-        <select id="nu-role">
-          <option value="collaborator">Colaborador</option>
-          <option value="motorista">Motorista</option>
-          <option value="super">Supervisor</option>
-        </select>
-      </div>
-      <div id="nu-msg" style="display:none;font-size:.68rem;margin-bottom:.5rem;padding:6px 10px;border-radius:var(--r);border:1px solid"></div>
-      <button class="btn btn-dark btn-full" id="btn-create-user" onclick="window._createUser()">+ Crear usuario</button>
-    </div>` : '';
-
   openModal(
     '👥 Equipo',
-    'Usuarios con acceso al sistema.',
-    `<div id="users-list-wrap">${rows}</div>${addForm}`,
+    'Usuarios con acceso al sistema. Crea cuentas desde la ficha del colaborador en Ops.',
+    `<div id="users-list-wrap">${rows}</div>`,
     [{ label: 'Cerrar', cls: 'btn-outline', fn: 'closeModal(event)' }]
   );
 
@@ -1112,56 +1095,6 @@ window.showUsersModal = async () => {
       closeModal();
       showUsersModal();
     } catch(e) { console.error('Error desactivando usuario:', e); }
-  };
-
-  window._createUser = async () => {
-    const name  = $('nu-name')?.value.trim();
-    const email = $('nu-email')?.value.trim();
-    const pw    = $('nu-pw')?.value;
-    const role  = $('nu-role')?.value;
-    const msgEl = $('nu-msg');
-    const btn   = $('btn-create-user');
-
-    if (!name || !email || !pw) {
-      msgEl.textContent = 'Completa todos los campos.';
-      msgEl.style.cssText = 'display:block;background:var(--err-bg);color:var(--err-tx);border-color:var(--err-bd)';
-      return;
-    }
-    if (pw.length < 6) {
-      msgEl.textContent = 'La contraseña debe tener al menos 6 caracteres.';
-      msgEl.style.cssText = 'display:block;background:var(--err-bg);color:var(--err-tx);border-color:var(--err-bd)';
-      return;
-    }
-
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spin"></span>Creando...';
-
-    try {
-      const idToken = await authMod.getIdToken(auth.currentUser);
-      const resp = await fetch(
-        'https://us-central1-despacho-ordenes.cloudfunctions.net/createUser',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type':  'application/json',
-            'Authorization': 'Bearer ' + idToken
-          },
-          body: JSON.stringify({ name, email, password: pw, role })
-        }
-      );
-      const data = await resp.json();
-      if (!resp.ok) throw new Error(data.error || 'Error desconocido');
-
-      msgEl.textContent = `✓ Usuario "${name}" creado correctamente.`;
-      msgEl.style.cssText = 'display:block;background:var(--done-bg);color:var(--done-tx);border-color:var(--done-bd)';
-      setTimeout(() => { closeModal(); showUsersModal(); }, 1400);
-
-    } catch(e) {
-      msgEl.textContent = e.message || 'Error al crear usuario.';
-      msgEl.style.cssText = 'display:block;background:var(--err-bg);color:var(--err-tx);border-color:var(--err-bd)';
-      btn.disabled = false;
-      btn.textContent = '+ Crear usuario';
-    }
   };
 };
 
@@ -2618,7 +2551,7 @@ window.assignDespacho = async (id, currentAssignUid) => {
   if (!members.length) {
     openModal(
       '👤 Asignar orden',
-      'No hay usuarios en el equipo aún. Agrega usuarios desde el botón 👥 Equipo.',
+      'No hay usuarios activos. Crea cuentas desde la ficha del colaborador en Ops.',
       '',
       [{ label: 'Cerrar', cls: 'btn-outline', fn: 'closeModal(event)' }]
     );

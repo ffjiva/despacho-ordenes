@@ -8,7 +8,7 @@ service cloud.firestore {
     }
     function isSuper() {
       return isAuth() &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super';
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.apps.despacho.role == 'super';
     }
     function isActive() {
       return isAuth() &&
@@ -82,9 +82,8 @@ service cloud.firestore {
 
     // ── inventarios ──────────────────────────────────────────
     match /inventarios/{invId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super';
+      allow read: if isAuth();
+      allow write: if isSuper();
     }
 
     // ── colaboradores ─────────────────────────────────────────

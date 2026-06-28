@@ -3952,25 +3952,55 @@ window.openColabModal = id => {
     cuentaWrap.innerHTML = '';
   } else if (c.uid) {
     cuentaTitle.style.display = '';
+    const CARGO_ENS = { 'Vendedor': true, 'Técnico': true };
     cuentaWrap.innerHTML = `
       <div style="display:flex;align-items:center;gap:8px;font-size:.7rem;color:var(--done-tx);background:var(--done-bg);border:1px solid var(--done-bd);border-radius:var(--r);padding:8px 10px;margin-bottom:8px">
         <span>✓ Cuenta activa</span>
-        <span id="cf-cuenta-email" style="color:var(--muted);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.correo || '…'}</span>
+        <span id="cf-cuenta-email" style="color:var(--muted);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">…</span>
       </div>
-      <button class="btn btn-outline" style="font-size:.65rem;width:100%" id="btn-reset-pw" onclick="restablecerPwColab()">Restablecer contraseña →</button>`;
-    if (!c.correo) {
-      (async () => {
-        try {
-          const userDoc = await fbMod.getDoc(fbMod.doc(db, 'users', c.uid));
-          const emailEl = $('cf-cuenta-email');
-          const resetBtn = $('btn-reset-pw');
-          if (!userDoc.exists() || !emailEl) return;
-          const email = userDoc.data().email || '—';
-          emailEl.textContent = email;
-          if (resetBtn) resetBtn.dataset.email = email;
-        } catch(e) { /* silencioso */ }
-      })();
-    }
+      <div class="fld"><label>Rol en Despacho</label>
+        <select id="cf-acc-despacho-rol" style="color:var(--text);background:var(--surface)" disabled>
+          <option value="collaborator">Colaborador</option>
+          <option value="motorista">Motorista</option>
+          <option value="super">Supervisor</option>
+        </select>
+      </div>
+      <div class="fld" style="display:flex;align-items:center;gap:10px;padding:6px 0">
+        <input type="checkbox" id="cf-acc-ensamblador" disabled style="width:16px;height:16px;accent-color:var(--ensamblador-bd);flex-shrink:0;cursor:pointer"/>
+        <label style="margin:0;cursor:pointer;font-size:.7rem" for="cf-acc-ensamblador">Acceso al Ensamblador</label>
+      </div>
+      <div id="cf-permisos-msg" style="display:none;font-size:.68rem;margin:.25rem 0;padding:6px 10px;border-radius:var(--r);border:1px solid"></div>
+      <div style="display:flex;gap:8px;margin-top:.25rem">
+        <button class="btn btn-dark" style="flex:1;font-size:.65rem" id="btn-guardar-permisos" onclick="guardarPermisosColab()" disabled>Guardar permisos →</button>
+        <button class="btn btn-outline" style="flex:1;font-size:.65rem" id="btn-reset-pw" onclick="restablecerPwColab()">Restablecer contraseña →</button>
+      </div>`;
+    (async () => {
+      try {
+        const userDoc = await fbMod.getDoc(fbMod.doc(db, 'users', c.uid));
+        const emailEl    = $('cf-cuenta-email');
+        const rolSel     = $('cf-acc-despacho-rol');
+        const ensSel     = $('cf-acc-ensamblador');
+        const resetBtn   = $('btn-reset-pw');
+        const guardarBtn = $('btn-guardar-permisos');
+        if (!userDoc.exists() || !emailEl) return;
+        const ud    = userDoc.data();
+        const email = ud.email || c.correo || '—';
+        emailEl.textContent = email;
+        if (resetBtn) resetBtn.dataset.email = email;
+        if (rolSel) {
+          rolSel.value    = ud.apps?.despacho?.role ?? ud.role ?? 'collaborator';
+          rolSel.disabled = false;
+        }
+        if (ensSel) {
+          ensSel.checked  = ud.apps?.ensamblador ? true : !!CARGO_ENS[c.cargo];
+          ensSel.disabled = false;
+        }
+        if (guardarBtn) guardarBtn.disabled = false;
+      } catch(e) {
+        const el = $('cf-cuenta-email');
+        if (el) el.textContent = 'Error al cargar';
+      }
+    })();
   } else {
     cuentaTitle.style.display = '';
     const CARGO_ROL = {
@@ -4038,6 +4068,37 @@ window.crearCuentaColab = async () => {
       <button class="btn btn-outline" style="font-size:.65rem;width:100%" onclick="restablecerPwColab()">Restablecer contraseña →</button>`;
   } catch(e) {
     showErr(e.message || 'Error al crear cuenta.');
+  }
+};
+
+window.guardarPermisosColab = async () => {
+  const rolSel   = $('cf-acc-despacho-rol');
+  const ensSel   = $('cf-acc-ensamblador');
+  const msgEl    = $('cf-permisos-msg');
+  const btn      = $('btn-guardar-permisos');
+  const colab    = colabAll.find(x => x.id === editingColabId);
+  if (!colab?.uid || !rolSel) return;
+  const newRole   = rolSel.value;
+  const ensOn     = ensSel?.checked;
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin"></span>Guardando...'; }
+  try {
+    const updates = { role: newRole, 'apps.despacho.role': newRole };
+    updates['apps.ensamblador'] = ensOn
+      ? { role: newRole === 'super' ? 'admin' : 'colaborador' }
+      : fbMod.deleteField();
+    await fbMod.updateDoc(fbMod.doc(db, 'users', colab.uid), updates);
+    if (msgEl) {
+      msgEl.textContent = '✓ Permisos guardados.';
+      msgEl.style.cssText = 'display:block;background:var(--done-bg);color:var(--done-tx);border-color:var(--done-bd)';
+      setTimeout(() => { if (msgEl) msgEl.style.display = 'none'; }, 3000);
+    }
+  } catch(e) {
+    if (msgEl) {
+      msgEl.textContent = e.message || 'Error al guardar.';
+      msgEl.style.cssText = 'display:block;background:var(--err-bg);color:var(--err-tx);border-color:var(--err-bd)';
+    }
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Guardar permisos →'; }
   }
 };
 
