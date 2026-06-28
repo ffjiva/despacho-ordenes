@@ -30,6 +30,7 @@
   --info-bg: #0c1a2a;
   --info-bd: #1a4a8a;
   --info-tx: #7ab0f0;
+  --ensamblador-bd: #22cac8;
   --mono: 'IBM Plex Mono', monospace;
   --sans: 'IBM Plex Sans', sans-serif;
   --r: 6px;
@@ -494,6 +495,9 @@ html, body {
 .colab-card { display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px solid var(--border); border-radius:var(--r); background:var(--surface); cursor:pointer; transition:.15s; }
 .colab-card:active { transform:scale(.99); }
 .colab-card.colab-inactive { opacity:.5; }
+.colab-card.colab-has-despacho { box-shadow: inset -3px 0 0 var(--warn-tx); }
+.colab-card.colab-has-ensamblador { box-shadow: inset -3px 0 0 var(--ensamblador-bd); }
+.colab-card.colab-has-despacho.colab-has-ensamblador { box-shadow: inset -3px 0 0 var(--warn-tx), inset -6px 0 0 var(--ensamblador-bd); }
 .colab-foto { width:42px; height:42px; border-radius:50%; object-fit:cover; background:var(--surface2); flex-shrink:0; border:1px solid var(--border); }
 .colab-foto-ph { width:42px; height:42px; border-radius:50%; background:var(--surface2); border:1px solid var(--border); flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:1.1rem; color:var(--muted); }
 .colab-body { flex:1; min-width:0; }
@@ -3848,7 +3852,7 @@ window.renderColaboradores = () => {
       ? `<img class="colab-foto" src="${colabEsc(c.fotoUrl)}"/>`
       : `<div class="colab-foto-ph">🧑</div>`;
     return `
-      <div class="colab-card${c.active === false ? ' colab-inactive' : ''}" onclick="openColabModal('${c.id}')">
+      <div class="colab-card${c.active === false ? ' colab-inactive' : ''}${c.uid ? ' colab-has-despacho' : ''}" onclick="openColabModal('${c.id}')">
         ${fotoHtml}
         <div class="colab-body">
           <div class="colab-nombre">${colabEsc(nombreShow)}</div>
@@ -4005,22 +4009,18 @@ window.crearCuentaColab = async () => {
   const role  = $('cf-acc-rol')?.value;
   const msgEl = $('cf-acc-msg');
   const btn   = $('btn-crear-cuenta');
-  if (!email || !pw) {
-    msgEl.textContent = 'Completa email y contraseña.';
-    msgEl.style.cssText = 'display:block;background:var(--err-bg);color:var(--err-tx);border-color:var(--err-bd)';
-    return;
-  }
-  if (pw.length < 6) {
-    msgEl.textContent = 'Mínimo 6 caracteres.';
-    msgEl.style.cssText = 'display:block;background:var(--err-bg);color:var(--err-tx);border-color:var(--err-bd)';
-    return;
-  }
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spin"></span>Creando...';
-  const colab = colabAll.find(x => x.id === editingColabId);
-  const name  = colab?.nombre || email;
+  const showErr = msg => {
+    if (msgEl) { msgEl.textContent = msg; msgEl.style.cssText = 'display:block;background:var(--err-bg);color:var(--err-tx);border-color:var(--err-bd)'; }
+    if (btn)   { btn.disabled = false; btn.textContent = 'Crear cuenta de acceso →'; }
+  };
+  if (!email || !pw) return showErr('Completa email y contraseña.');
+  if (pw.length < 6) return showErr('Mínimo 6 caracteres.');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin"></span>Creando...'; }
   try {
     const idToken = await auth.currentUser?.getIdToken();
+    if (!idToken) throw new Error('Sesión expirada. Recarga la página.');
+    const colab = colabAll.find(x => x.id === editingColabId);
+    const name  = colab?.nombre || email;
     const resp = await fetch('https://us-central1-despacho-ordenes.cloudfunctions.net/createUser', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
@@ -4030,17 +4030,14 @@ window.crearCuentaColab = async () => {
     if (!resp.ok) throw new Error(data.error || 'Error desconocido');
     if (colab) colab.uid = data.uid;
     const cuentaWrap = $('cf-cuenta-wrap');
-    cuentaWrap.innerHTML = `
+    if (cuentaWrap) cuentaWrap.innerHTML = `
       <div style="display:flex;align-items:center;gap:8px;font-size:.7rem;color:var(--done-tx);background:var(--done-bg);border:1px solid var(--done-bd);border-radius:var(--r);padding:8px 10px;margin-bottom:8px">
         <span>✓ Cuenta creada</span>
         <span style="color:var(--muted);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${email}</span>
       </div>
       <button class="btn btn-outline" style="font-size:.65rem;width:100%" onclick="restablecerPwColab()">Restablecer contraseña →</button>`;
   } catch(e) {
-    msgEl.textContent = e.message || 'Error al crear cuenta.';
-    msgEl.style.cssText = 'display:block;background:var(--err-bg);color:var(--err-tx);border-color:var(--err-bd)';
-    btn.disabled = false;
-    btn.textContent = 'Crear cuenta de acceso →';
+    showErr(e.message || 'Error al crear cuenta.');
   }
 };
 
@@ -4377,7 +4374,7 @@ document.addEventListener('DOMContentLoaded', init);
     <div class="fld"><label>Contacto de emergencia 1</label><input id="cf-emer1" type="text" autocomplete="off"/></div>
     <div class="fld"><label>Contacto de emergencia 2</label><input id="cf-emer2" type="text" autocomplete="off"/></div>
 
-    <div class="colab-section-title" id="cf-cuenta-title" style="display:none">Cuenta de acceso</div>
+    <div class="colab-section-title" id="cf-cuenta-title" style="display:none">Cuenta de acceso <span style="font-weight:400;font-size:.6rem;color:var(--muted);text-transform:none;letter-spacing:0">— se gestiona con los botones de esta sección, no con Guardar →</span></div>
     <div id="cf-cuenta-wrap" style="margin-bottom:.5rem"></div>
 
     <div id="colab-err" style="display:none;font-size:.65rem;color:var(--err-tx);margin-bottom:.5rem"></div>
