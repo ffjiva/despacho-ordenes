@@ -327,6 +327,23 @@ código UPC visible y exportación a XLS. Asignable a cualquier colaborador
 con notificación FCM via `onInventarioAsignado`. Navegación: botón topbar
 desktop + drawer móvil. Desplegado: 03 Jun 2026.
 
+### Módulo 9 — Colaboradores · actualización — sesión 28 Jun 2026 *(ops.html)*
+
+**Esquema ampliado** `colaboradores/{id}`:
+- `estadoTipo`: `'vacaciones'` | `'incapacidad'` | `'permiso'` | `null` (null = activo)
+- `estadoDesde`, `estadoHasta`: timestamps (ms) — rango de vigencia del estado
+- `diaDescanso`: `'lunes'..'domingo'` | `null`
+
+**Fixes de UI:**
+- Orden por defecto alfabético, incompletos (sin nombre/dui/teléfono) al final — ordenado en cliente, ya no usa `orderBy` de Firestore.
+- Búsqueda incluye `codigoUsuario`.
+- Labels "(legacy)" → "(Wifin)" en Código/Nombre usuario.
+- Reordenado: Alias ZD ↔ Teléfono; Código/Nombre usuario (Wifin) ahora antes de Fecha ingreso/salida.
+- Contador de colaboradores por filtro de sucursal, en la misma línea que los chips.
+- Badge de estado (🏖/🤒/📋) en la lista, visible solo si hoy cae dentro de `estadoDesde`/`estadoHasta`.
+
+**Idea a futuro:** Brief matutino — mostrar quién tiene estado vigente hoy o cuyo día de descanso es hoy, reusando `colabEstadoActivo(c)`.
+
 ### Fix extracción de órdenes grandes — sesión 25 Jun 2026 *(functions/index.js)*
 Órdenes con muchos productos (caso real: 109 SKUs, orden 25 → S03 San Miguel)
 fallaban con "No se pudo extraer productos" + HTTP 500. Causa: `parseDocument`
@@ -650,4 +667,4 @@ Al abrir una sesión de implementación:
 
 ---
 
-*Última actualización: 25 Junio 2026*
+*Última actualización: 28 Junio 2026*
