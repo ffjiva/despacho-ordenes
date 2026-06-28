@@ -41,31 +41,47 @@
 
 ---
 
-## Sistema de usuarios (unificado — Mayo 2026)
+## Sistema de usuarios (Fundación de Identidad — Jun 2026)
 
 Todos los accesos usan **Firebase Auth (email/password)** + colección `users/{uid}`.
+La identidad de persona vive en `colaboradores/{id}` (directorio); la credencial de
+acceso vive en `users/{uid}`. Ambas se vinculan mutuamente (`colaboradorId` / `uid`).
+
 users/{uid}
-name:      string
-email:     string
-role:      'super' | 'collaborator' | 'motorista'
-active:    boolean
-createdAt: number
-fcmTokens: string[]
+name:         string
+email:        string
+role:         'super' | 'collaborator' | 'motorista'   ← alias (mantener por compatibilidad)
+apps:
+  despacho:   { role: 'super' | 'collaborator' | 'motorista' }   ← FUENTE AUTORITATIVA
+  ensamblador: { role: 'admin' | 'colaborador' }                  ← presente solo si ON
+estado:       'aprobado'
+colaboradorId: string | null    ← FK → colaboradores/{id}
+active:       boolean
+createdAt:    number
+fcmTokens:    string[]
 
-| Rol | index.html | ops.html | moto.html |
-|---|---|---|---|
-| `super` | ✅ acceso total | ✅ acceso total | ✅ puede entrar |
-| `collaborator` | ✅ solo su orden asignada | ❌ bloqueado | ❌ bloqueado |
-| `motorista` | ✅ picking si asignado | ❌ bloqueado | ✅ acceso total |
+colaboradores/{id}  (campos de vinculación)
+uid:          string | null     ← FK → users/{uid} — presente solo cuando tiene cuenta
 
-**Usuarios activos:**
-- Fernando — `super` — ffjiva@gmail.com
-- Miguel — `collaborator` — pedidos@zonadigitalsv.com
-- Memo — `collaborator` — memo@despacho.com
-- Anderson De Sousa — `motorista` — anderson@despacho.com
+| Rol | index.html | ops.html | moto.html | reposicion.html |
+|---|---|---|---|---|
+| `super` | ✅ acceso total | ✅ acceso total | ✅ puede entrar | ✅ acceso total |
+| `collaborator` | ✅ solo su orden asignada | ❌ bloqueado | ❌ bloqueado | ❌ bloqueado |
+| `motorista` | ✅ picking si asignado | ❌ bloqueado | ✅ acceso total | ❌ bloqueado |
+
+Todos los archivos leen `apps?.despacho?.role ?? role` (fallback al alias plano).
+
+**Usuarios activos (28 Jun 2026):**
+- Fernando — `super` — ffjiva@gmail.com — colabId: BZab0b70iiSW96HaORO9
+- Miguel Miranda — `collaborator` — pedidos@zonadigitalsv.com — colabId: F55arT4Age5HXJKrao7R
+- Guillermo Pleitez — `collaborator` — memo@despacho.com — colabId: 35uEzHoQpFr0OBrkUj5P
+- Anderson García — `collaborator` — anderson@despacho.com — colabId: NWnHj4sazyZgGs4L2urP
+- Blanca Estela Rivera — `collaborator` — ensamblador ON
 
 **Cloud Function `createUser`:**
 `https://us-central1-despacho-ordenes.cloudfunctions.net/createUser`
+Acepta parámetro opcional `colaboradorId`; si viene, hace batch atómico:
+escribe `users/{uid}` + actualiza `colaboradores/{colaboradorId}.uid`.
 
 ---
 
@@ -116,7 +132,7 @@ Solo persiste por FCM tokens legacy. No usar para nuevos desarrollos.
 |---|---|
 | `parseDocument` | Extrae productos de PDF/imagen con Claude API. Requiere Firebase Auth token. |
 | `parseXLS` | Parsea reporte de domicilios XLS (SheetJS). Requiere Firebase Auth token. |
-| `createUser` | Crea usuario en Firebase Auth + Firestore sin cerrar sesión del super. |
+| `createUser` | Crea usuario en Firebase Auth + Firestore sin cerrar sesión del super. Acepta `colaboradorId` opcional — si viene, batch atómico escribe `users/{uid}` y actualiza `colaboradores/{id}.uid`. |
 | `onDespachoAssigned` | Trigger Firestore: notificación FCM al asignar orden. Busca por nombre en `users/`, `sendEach()`, limpieza de tokens inválidos. |
 | `onVueltaAssigned` | Trigger Firestore: notificación FCM al asignar vuelta. Mismo patrón que `onDespachoAssigned`. |
 | `onInventarioAsignado` | Trigger Firestore: notificación FCM al asignar validación de inventario físico (módulo 8b). Mismo patrón que `onDespachoAssigned`. |
@@ -160,7 +176,8 @@ nombre, dui, telefono, correo, sucursal, cargo, alias, preferenciaNombre,
 fechaIngreso, fechaSalida, cumpleanos, valoracion, codigoUsuario,
 nombreUsuario, direccion, municipio, departamento, numDependientes,
 dependientesDetalle, contactoEmergencia1, contactoEmergencia2,
-fotoUrl, active, linkedUid, createdAt, updatedAt
+fotoUrl, active, uid,    ← FK → users/{uid} (desde Fundación de Identidad)
+createdAt, updatedAt
 ```
 
 ### Módulo 1 — Autenticación
@@ -326,6 +343,50 @@ sucursal y mes, con secciones colapsables de discrepancias y coincidencias,
 código UPC visible y exportación a XLS. Asignable a cualquier colaborador
 con notificación FCM via `onInventarioAsignado`. Navegación: botón topbar
 desktop + drawer móvil. Desplegado: 03 Jun 2026.
+
+### Fundación de Identidad — sesión 28 Jun 2026 *(todos los archivos)*
+
+Plan de 5 fases para unificar identidad persona↔credencial y preparar el módulo Ensamblador.
+
+**Fase 1 — Cargos controlados** *(ops.html)*
+`<select>` en modal de colaborador con 8 valores canónicos (Administrativo, Bodeguero,
+Cajera, Encargado, Motorista, Redes, Técnico, Vendedor). Migración de los 54 docs de
+`colaboradores`: 17 valores libres → 8 controlados (24 docs actualizados via script admin).
+
+**Fase 2 — Auth gates a `apps.despacho.role`** *(todos los archivos)*
+Todos los archivos leen `apps?.despacho?.role ?? role` en el gate de acceso y en
+`currentUser`. Retrocompatible con docs legacy que solo tienen `role` plano.
+`isSuper()` en `functions/index.js` actualizado al mismo patrón.
+
+**Fase 3 — `createUser` con `colaboradorId`** *(functions/index.js)*
+CF acepta `colaboradorId` opcional; hace batch atómico: crea `users/{uid}` con
+`{ estado: 'aprobado', apps: { despacho: { role } }, colaboradorId }` +
+actualiza `colaboradores/{id}.uid`. Reconciliación manual de 4 usuarios preexistentes
+(match por email + confirmación). 1 usuario de prueba eliminado.
+
+**Fase 4 — Gestión de cuentas desde ficha de colaborador** *(ops.html + index.html + firestore.rules)*
+- `ops.html`: sección "Cuenta de acceso" en el modal de colaborador. Tres estados:
+  sin cuenta (formulario de creación), con cuenta (permisos + reset). Toggle ensamblador
+  con `accent-color: var(--ensamblador-bd)` (cyan). CF `createUser` llamado desde aquí.
+  Función `guardarPermisosColab` escribe `role`, `apps.despacho.role` y
+  `apps.ensamblador` (o `deleteField()` si se desactiva).
+- `index.html`: panel "👥 Equipo" ya no incluye formulario de creación de usuarios.
+  Mensaje vacío actualizado: "Crea cuentas desde la ficha del colaborador en Ops."
+- `firestore.rules`: `isSuper()` actualizado a `apps.despacho.role == 'super'`.
+  Regla `inventarios` consolidada para usar el helper (eliminado el `data.role` inline).
+
+**Indicadores visuales en tarjetas de colaborador** *(ops.html)*
+- Borde derecho ámbar (3px): colaborador con cuenta de despacho (`colab-has-despacho`)
+- Borde derecho cyan (6px): colaborador con cuenta + ensamblador ON (`colab-has-ensamblador`)
+- Doble borde si tiene ambos (`inset -3px` ámbar + `inset -6px` cyan)
+- Implementación: `refreshUserAppsMap()` fetcha `users` collection y construye
+  mapa `uid → { ensamblador: bool }`, llamado en cada snapshot de colaboradores
+  y tras guardar permisos. Fix para `colab-has-ensamblador` (datos de ensamblador
+  viven en `users/{uid}`, no en `colaboradores/{id}`).
+
+**Token CSS:** `--ensamblador-bd: #22cac8` agregado al `:root`.
+
+---
 
 ### Módulo 9 — Colaboradores · actualización — sesión 28 Jun 2026 *(ops.html)*
 
@@ -667,4 +728,4 @@ Al abrir una sesión de implementación:
 
 ---
 
-*Última actualización: 28 Junio 2026*
+*Última actualización: 28 Junio 2026 — Fundación de Identidad completa (Fases 1–4 + indicadores visuales)*
