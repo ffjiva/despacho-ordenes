@@ -1159,14 +1159,15 @@ async function init() {
     if (user) {
       try {
         const userDoc = await fbMod.getDoc(fbMod.doc(db, 'users', user.uid));
-        if (!userDoc.exists() || userDoc.data().role !== 'super') {
+        const _pd = userDoc.exists() ? userDoc.data() : null;
+        if (!_pd || (_pd.apps?.despacho?.role ?? _pd.role) !== 'super') {
           await authMod.signOut(auth);
           showScreen('s-login');
           showLoginErr('No tienes acceso a esta sección.');
           return;
         }
-        const profile = userDoc.data();
-        currentUser = { uid: user.uid, email: user.email, name: profile.name || user.email, role: profile.role };
+        const profile = _pd;
+        currentUser = { uid: user.uid, email: user.email, name: profile.name || user.email, role: profile.apps?.despacho?.role ?? profile.role };
         authDetermined = true;
         if (!authReady) {
           authReady = true;

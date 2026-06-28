@@ -2873,8 +2873,9 @@ function setupAuthListener() {
         await authMod.signOut(auth);
         return;
       }
-      currentUser = { uid: firebaseUser.uid, email: firebaseUser.email, name: profile.name, role: profile.role };
-      currentRole  = profile.role;
+      const resolvedRole = profile.apps?.despacho?.role ?? profile.role;
+      currentUser = { uid: firebaseUser.uid, email: firebaseUser.email, name: profile.name, role: resolvedRole };
+      currentRole  = resolvedRole;
       $('s-loading').classList.remove('on');
       requestNotificationPermission(); // fire-and-forget
       const deepId = new URLSearchParams(window.location.search).get('orden');

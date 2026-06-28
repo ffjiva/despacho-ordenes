@@ -1033,7 +1033,7 @@ async function init() {
         return;
       }
       const profile = snap.data();
-      const role = profile.role;
+      const role = profile.apps?.despacho?.role ?? profile.role;
 
       // ── GATE RAMIFICABLE POR ROL (F0: solo super) ─────────────────────────
       // Hoy: solo 'super' entra (paridad exacta con ops.html).

@@ -422,7 +422,8 @@ async function init() {
           return;
         }
         const profile = snap.data();
-        if (profile.role !== 'motorista' && profile.role !== 'super') {
+        const _motoRole = profile.apps?.despacho?.role ?? profile.role;
+        if (_motoRole !== 'motorista' && _motoRole !== 'super') {
           await authMod.signOut(auth);
           showScreen('s-login');
           $('moto-login-err').textContent = 'No tienes acceso a esta sección.';

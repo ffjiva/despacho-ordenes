@@ -645,7 +645,8 @@ exports.createUser = onRequest(
     try {
       const decoded = await admin.auth().verifyIdToken(idToken);
       const callerDoc = await admin.firestore().doc(`users/${decoded.uid}`).get();
-      if (!callerDoc.exists || callerDoc.data().role !== 'super') {
+      const _callerD = callerDoc.exists ? callerDoc.data() : null;
+      if (!_callerD || (_callerD.apps?.despacho?.role ?? _callerD.role) !== 'super') {
         res.status(403).json({ error: 'Solo el supervisor puede crear usuarios' });
         return;
       }
@@ -666,6 +667,8 @@ exports.createUser = onRequest(
         name,
         email,
         role,
+        estado: 'aprobado',
+        apps: { despacho: { role } },
         createdAt: Date.now(),
         active: true,
         fcmTokens: []
