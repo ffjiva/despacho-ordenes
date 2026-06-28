@@ -4198,7 +4198,19 @@ document.addEventListener('DOMContentLoaded', init);
           <option value="CORP">Corporativo</option>
         </select>
       </div>
-      <div class="fld" style="flex:1"><label>Cargo</label><input id="cf-cargo" type="text" autocomplete="off"/></div>
+      <div class="fld" style="flex:1"><label>Cargo</label>
+        <select id="cf-cargo" style="color:var(--text);background:var(--surface)">
+          <option value="">— Sin cargo —</option>
+          <option value="Administrativo">Administrativo</option>
+          <option value="Bodeguero">Bodeguero</option>
+          <option value="Cajera">Cajera</option>
+          <option value="Encargado">Encargado</option>
+          <option value="Motorista">Motorista</option>
+          <option value="Redes">Redes</option>
+          <option value="Técnico">Técnico</option>
+          <option value="Vendedor">Vendedor</option>
+        </select>
+      </div>
     </div>
     <div class="fld">
       <label>Día de descanso</label>
