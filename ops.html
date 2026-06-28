@@ -3948,15 +3948,25 @@ window.openColabModal = id => {
     cuentaWrap.innerHTML = '';
   } else if (c.uid) {
     cuentaTitle.style.display = '';
-    const emailDisplay = c.correo || '—';
     cuentaWrap.innerHTML = `
       <div style="display:flex;align-items:center;gap:8px;font-size:.7rem;color:var(--done-tx);background:var(--done-bg);border:1px solid var(--done-bd);border-radius:var(--r);padding:8px 10px;margin-bottom:8px">
         <span>✓ Cuenta activa</span>
-        <span style="color:var(--muted);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${emailDisplay}</span>
+        <span id="cf-cuenta-email" style="color:var(--muted);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.correo || '…'}</span>
       </div>
-      ${c.correo
-        ? `<button class="btn btn-outline" style="font-size:.65rem;width:100%" onclick="restablecerPwColab()">Restablecer contraseña →</button>`
-        : `<div style="font-size:.65rem;color:var(--muted)">Añade un correo en la ficha para poder restablecer contraseña.</div>`}`;
+      <button class="btn btn-outline" style="font-size:.65rem;width:100%" id="btn-reset-pw" onclick="restablecerPwColab()">Restablecer contraseña →</button>`;
+    if (!c.correo) {
+      (async () => {
+        try {
+          const userDoc = await fbMod.getDoc(fbMod.doc(db, 'users', c.uid));
+          const emailEl = $('cf-cuenta-email');
+          const resetBtn = $('btn-reset-pw');
+          if (!userDoc.exists() || !emailEl) return;
+          const email = userDoc.data().email || '—';
+          emailEl.textContent = email;
+          if (resetBtn) resetBtn.dataset.email = email;
+        } catch(e) { /* silencioso */ }
+      })();
+    }
   } else {
     cuentaTitle.style.display = '';
     const CARGO_ROL = {
@@ -4036,7 +4046,7 @@ window.crearCuentaColab = async () => {
 
 window.restablecerPwColab = async () => {
   const colab = colabAll.find(x => x.id === editingColabId);
-  const email = colab?.correo;
+  const email = colab?.correo || $('btn-reset-pw')?.dataset.email;
   if (!email) return;
   try {
     await authMod.sendPasswordResetEmail(auth, email);
