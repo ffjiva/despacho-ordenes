@@ -14,6 +14,10 @@ firebase-debug.*.log*
 
 # Credenciales de administrador (NO subir)
 *firebase-adminsdk*.json
+*.key.json
+
+# Datos sensibles del equipo
+Colaboradores.xlsx
 
 # Uncomment this if you'd like others to create their own Firebase project.
 # For a team working on the same Firebase project(s), it is recommended to leave
