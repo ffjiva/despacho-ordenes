@@ -655,7 +655,7 @@ exports.createUser = onRequest(
       return;
     }
 
-    const { name, email, password, role } = req.body;
+    const { name, email, password, role, colaboradorId } = req.body;
     if (!name || !email || !password || !role) {
       res.status(400).json({ error: 'Faltan campos requeridos' });
       return;
@@ -663,17 +663,27 @@ exports.createUser = onRequest(
 
     try {
       const userRecord = await admin.auth().createUser({ email, password, displayName: name });
-      await admin.firestore().doc(`users/${userRecord.uid}`).set({
+      const now = Date.now();
+      const batch = admin.firestore().batch();
+      batch.set(admin.firestore().doc(`users/${userRecord.uid}`), {
         name,
         email,
         role,
         estado: 'aprobado',
         apps: { despacho: { role } },
-        createdAt: Date.now(),
+        colaboradorId: colaboradorId || null,
+        createdAt: now,
         active: true,
         fcmTokens: []
       });
-      console.log(`Usuario creado: ${name} (${email}) — uid: ${userRecord.uid}`);
+      if (colaboradorId) {
+        batch.update(admin.firestore().doc(`colaboradores/${colaboradorId}`), {
+          uid: userRecord.uid,
+          updatedAt: now
+        });
+      }
+      await batch.commit();
+      console.log(`Usuario creado: ${name} (${email}) — uid: ${userRecord.uid}${colaboradorId ? ` → colab ${colaboradorId}` : ''}`);
       res.status(200).json({ success: true, uid: userRecord.uid });
     } catch(e) {
       console.error('Error creando usuario:', e.message);

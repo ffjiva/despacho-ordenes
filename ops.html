@@ -3940,6 +3940,45 @@ window.openColabModal = id => {
     $('btn-toggle-colab').textContent = c.active === false ? '✓ Activar' : '⏸ Desactivar';
   }
 
+  // ── Sección de cuenta de acceso ──────────────────────────
+  const cuentaTitle = $('cf-cuenta-title');
+  const cuentaWrap  = $('cf-cuenta-wrap');
+  if (!c) {
+    cuentaTitle.style.display = 'none';
+    cuentaWrap.innerHTML = '';
+  } else if (c.uid) {
+    cuentaTitle.style.display = '';
+    const emailDisplay = c.correo || '—';
+    cuentaWrap.innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px;font-size:.7rem;color:var(--done-tx);background:var(--done-bg);border:1px solid var(--done-bd);border-radius:var(--r);padding:8px 10px;margin-bottom:8px">
+        <span>✓ Cuenta activa</span>
+        <span style="color:var(--muted);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${emailDisplay}</span>
+      </div>
+      ${c.correo
+        ? `<button class="btn btn-outline" style="font-size:.65rem;width:100%" onclick="restablecerPwColab()">Restablecer contraseña →</button>`
+        : `<div style="font-size:.65rem;color:var(--muted)">Añade un correo en la ficha para poder restablecer contraseña.</div>`}`;
+  } else {
+    cuentaTitle.style.display = '';
+    const CARGO_ROL = {
+      'Encargado':'collaborator','Vendedor':'collaborator','Técnico':'collaborator',
+      'Motorista':'motorista','Bodeguero':'collaborator','Administrativo':'collaborator',
+      'Cajera':'collaborator','Redes':'collaborator'
+    };
+    const sugRol = CARGO_ROL[c.cargo] || 'collaborator';
+    cuentaWrap.innerHTML = `
+      <div class="fld"><label>Email de acceso</label><input id="cf-acc-email" type="email" value="${colabEsc(c.correo || '')}" autocomplete="off"/></div>
+      <div class="fld"><label>Contraseña temporal</label><input id="cf-acc-pw" type="password" placeholder="mínimo 6 caracteres"/></div>
+      <div class="fld"><label>Rol</label>
+        <select id="cf-acc-rol" style="color:var(--text);background:var(--surface)">
+          <option value="collaborator"${sugRol==='collaborator'?' selected':''}>Colaborador</option>
+          <option value="motorista"${sugRol==='motorista'?' selected':''}>Motorista</option>
+          <option value="super">Supervisor</option>
+        </select>
+      </div>
+      <div id="cf-acc-msg" style="display:none;font-size:.68rem;margin-bottom:.5rem;padding:6px 10px;border-radius:var(--r);border:1px solid"></div>
+      <button class="btn btn-dark" style="width:100%;font-size:.7rem" id="btn-crear-cuenta" onclick="crearCuentaColab()">Crear cuenta de acceso →</button>`;
+  }
+
   $('modal-colab').classList.add('on');
 };
 
@@ -3947,6 +3986,70 @@ window.closeColabModal = e => {
   if (!e || e.target === $('modal-colab')) {
     $('modal-colab').classList.remove('on');
     editingColabId = null;
+  }
+};
+
+window.crearCuentaColab = async () => {
+  const email = $('cf-acc-email')?.value.trim();
+  const pw    = $('cf-acc-pw')?.value;
+  const role  = $('cf-acc-rol')?.value;
+  const msgEl = $('cf-acc-msg');
+  const btn   = $('btn-crear-cuenta');
+  if (!email || !pw) {
+    msgEl.textContent = 'Completa email y contraseña.';
+    msgEl.style.cssText = 'display:block;background:var(--err-bg);color:var(--err-tx);border-color:var(--err-bd)';
+    return;
+  }
+  if (pw.length < 6) {
+    msgEl.textContent = 'Mínimo 6 caracteres.';
+    msgEl.style.cssText = 'display:block;background:var(--err-bg);color:var(--err-tx);border-color:var(--err-bd)';
+    return;
+  }
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span>Creando...';
+  const colab = colabAll.find(x => x.id === editingColabId);
+  const name  = colab?.nombre || email;
+  try {
+    const idToken = await auth.currentUser?.getIdToken();
+    const resp = await fetch('https://us-central1-despacho-ordenes.cloudfunctions.net/createUser', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
+      body: JSON.stringify({ name, email, password: pw, role, colaboradorId: editingColabId })
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'Error desconocido');
+    if (colab) colab.uid = data.uid;
+    const cuentaWrap = $('cf-cuenta-wrap');
+    cuentaWrap.innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px;font-size:.7rem;color:var(--done-tx);background:var(--done-bg);border:1px solid var(--done-bd);border-radius:var(--r);padding:8px 10px;margin-bottom:8px">
+        <span>✓ Cuenta creada</span>
+        <span style="color:var(--muted);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${email}</span>
+      </div>
+      <button class="btn btn-outline" style="font-size:.65rem;width:100%" onclick="restablecerPwColab()">Restablecer contraseña →</button>`;
+  } catch(e) {
+    msgEl.textContent = e.message || 'Error al crear cuenta.';
+    msgEl.style.cssText = 'display:block;background:var(--err-bg);color:var(--err-tx);border-color:var(--err-bd)';
+    btn.disabled = false;
+    btn.textContent = 'Crear cuenta de acceso →';
+  }
+};
+
+window.restablecerPwColab = async () => {
+  const colab = colabAll.find(x => x.id === editingColabId);
+  const email = colab?.correo;
+  if (!email) return;
+  try {
+    await authMod.sendPasswordResetEmail(auth, email);
+    const msgEl = document.createElement('div');
+    msgEl.style.cssText = 'font-size:.68rem;padding:6px 10px;border-radius:var(--r);border:1px solid;background:var(--done-bg);color:var(--done-tx);border-color:var(--done-bd);margin-top:6px';
+    msgEl.textContent = `✓ Correo enviado a ${email}`;
+    $('cf-cuenta-wrap').appendChild(msgEl);
+    setTimeout(() => msgEl.remove(), 5000);
+  } catch(e) {
+    const msgEl = document.createElement('div');
+    msgEl.style.cssText = 'font-size:.68rem;padding:6px 10px;border-radius:var(--r);border:1px solid;background:var(--err-bg);color:var(--err-tx);border-color:var(--err-bd);margin-top:6px';
+    msgEl.textContent = 'Error: ' + e.message;
+    $('cf-cuenta-wrap').appendChild(msgEl);
   }
 };
 
@@ -4263,6 +4366,9 @@ document.addEventListener('DOMContentLoaded', init);
     <div class="fld"><label>Dependientes (nombre y parentesco)</label><textarea id="cf-depdetalle" style="min-height:50px"></textarea></div>
     <div class="fld"><label>Contacto de emergencia 1</label><input id="cf-emer1" type="text" autocomplete="off"/></div>
     <div class="fld"><label>Contacto de emergencia 2</label><input id="cf-emer2" type="text" autocomplete="off"/></div>
+
+    <div class="colab-section-title" id="cf-cuenta-title" style="display:none">Cuenta de acceso</div>
+    <div id="cf-cuenta-wrap" style="margin-bottom:.5rem"></div>
 
     <div id="colab-err" style="display:none;font-size:.65rem;color:var(--err-tx);margin-bottom:.5rem"></div>
     <div class="modal-btns" style="flex-wrap:wrap">
