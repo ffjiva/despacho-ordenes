@@ -148,6 +148,21 @@ Solo persiste por FCM tokens legacy. No usar para nuevos desarrollos.
 
 ## Módulos completados ✅
 
+### Módulo 9 — Directorio de Colaboradores *(ops.html, super-only)* — 28 Jun 2026
+CRUD completo: crear, editar, activar/desactivar, eliminar. Foto vía Firebase Storage
+(`colaboradores/{id}/foto_{timestamp}.jpg`). Migrado desde `Colaboradores.xlsx` (54
+registros; 18 quedaron incompletos para completar desde la UI). `CORP` es código nuevo
+de sucursal (no existía antes). Acceso: botón en topbar de s-home + drawer móvil.
+
+Esquema `colaboradores/{id}`:
+```
+nombre, dui, telefono, correo, sucursal, cargo, alias, preferenciaNombre,
+fechaIngreso, fechaSalida, cumpleanos, valoracion, codigoUsuario,
+nombreUsuario, direccion, municipio, departamento, numDependientes,
+dependientesDetalle, contactoEmergencia1, contactoEmergencia2,
+fotoUrl, active, linkedUid, createdAt, updatedAt
+```
+
 ### Módulo 1 — Autenticación
 Firebase Auth email/password en los 3 archivos. `users/{uid}` con name, email, role, active, createdAt. Persistencia automática. Logout limpio.
 
@@ -556,13 +571,12 @@ dentro de su grupo).
 
 ### 🔭 Ideas a futuro (diseñadas, sin fecha)
 
-**Módulo 9 — Base de datos de colaboradores** *(ops.html)*
-Directorio interno del equipo, diferente a `users/{uid}`. Campos: nombre, cargo, sucursal, fecha de ingreso, contacto, evaluación, fotografía. Futura relación con `users/{uid}` para vincular colaboradores que usen la app con los que no.
-
-Esquema Firestore propuesto:
-colaboradores/{id}
-nombre, cargo, sucursal, fechaIngreso
-contacto, evaluacion, fotoUrl, active
+**Brief matutino — ausencias del equipo** *(ops.html)*
+Cuando un colaborador tiene `estadoTipo` (vacaciones/incapacidad/permiso) vigente hoy
+(según `estadoDesde`/`estadoHasta` en `colaboradores/{id}`), mostrarlo en el brief
+matutino diario (`loadBriefingData`) — ej. "2 colaboradores fuera hoy: Juan Pérez
+(vacaciones, hasta 30 jun), María López (incapacidad, hasta 02 jul)". Reutilizar
+`colabEstadoActivo(c)`, ya implementada en el módulo Colaboradores.
 
 **Módulo 9b — Mapa de sucursales** *(ops.html o index.html)*
 Mapa interactivo con Leaflet.js (gratuito) mostrando ubicaciones geográficas de bodegas y sucursales. Al tocar un marcador → tarjeta con datos: código, nombre, dirección, teléfono, encargado, horario.

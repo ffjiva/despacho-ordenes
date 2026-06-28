@@ -485,6 +485,28 @@ html, body {
 .vcard-header:active { opacity: .85; }
 .vcard-chevron { font-size: .8rem; color: var(--muted); margin-left: auto; padding-top: 2px; flex-shrink: 0; transition: transform .2s; }
 .vcard-detail { border-top: 1px solid var(--border2); }
+
+/* ══════════════ MÓDULO 9 — COLABORADORES ══════════════ */
+.colab-toolbar { padding:.6rem .875rem; background:var(--surface); border-bottom:1px solid var(--border2); display:flex; flex-direction:column; gap:8px; }
+.colab-search { padding:7px 10px; border:1px solid var(--border); border-radius:var(--r); font-family:var(--mono); font-size:.72rem; background:var(--surface); color:var(--text); outline:none; width:100%; }
+.colab-chips { display:flex; gap:6px; flex-wrap:wrap; }
+.colab-list { padding:.75rem .875rem 5rem; max-width:760px; margin:0 auto; display:flex; flex-direction:column; gap:8px; }
+.colab-card { display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px solid var(--border); border-radius:var(--r); background:var(--surface); cursor:pointer; transition:.15s; }
+.colab-card:active { transform:scale(.99); }
+.colab-card.colab-inactive { opacity:.5; }
+.colab-foto { width:42px; height:42px; border-radius:50%; object-fit:cover; background:var(--surface2); flex-shrink:0; border:1px solid var(--border); }
+.colab-foto-ph { width:42px; height:42px; border-radius:50%; background:var(--surface2); border:1px solid var(--border); flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:1.1rem; color:var(--muted); }
+.colab-body { flex:1; min-width:0; }
+.colab-nombre { font-size:.78rem; font-weight:700; color:var(--text); }
+.colab-meta { font-size:.62rem; color:var(--text2); margin-top:2px; display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+.colab-badge { font-size:.55rem; font-weight:700; padding:2px 7px; border-radius:10px; text-transform:uppercase; letter-spacing:.04em; }
+.colab-badge-incompleto { background:var(--warn-bg); color:var(--warn-tx); border:1px solid var(--warn-bd); }
+.colab-badge-inactivo { background:var(--err-bg); color:var(--err-tx); border:1px solid var(--err-bd); }
+.colab-foto-edit { display:flex; align-items:center; gap:12px; margin-bottom:.9rem; }
+.colab-foto-edit img, .colab-foto-edit .colab-foto-ph { width:64px; height:64px; }
+.colab-section-title { font-size:.6rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); margin:1rem 0 .5rem; padding-top:.6rem; border-top:1px solid var(--border2); }
+.colab-section-title:first-of-type { margin-top:0; padding-top:0; border-top:none; }
+
 .dcard-header { cursor: pointer; user-select: none; -webkit-user-select: none; }
 .dcard-header:active { opacity: .85; }
 .dcard-detail { border-top: 1px solid var(--border2); }
@@ -707,6 +729,7 @@ body:not(.dark) input[type="time"] {
       <button class="btn btn-ghost" style="font-size:.65rem" onclick="goAgenda()">📅<span class="hide-mobile"> Agenda</span></button>
       <button class="btn btn-ghost" style="font-size:.65rem" onclick="window.open('index.html','_blank')">📦<span class="hide-mobile"> Órdenes</span></button>
       <button id="btn-reposicion" class="btn btn-ghost" style="font-size:.65rem" onclick="window.location.href='reposicion.html'">📊<span class="hide-mobile"> Reposición</span></button>
+      <button class="btn btn-ghost" id="btn-colaboradores" style="font-size:.65rem" onclick="goColaboradores()">🧑‍💼<span class="hide-mobile"> Colaboradores</span></button>
       <button class="btn btn-ghost" style="font-size:.85rem;padding:5px 9px" onclick="toggleDark()" id="theme-btn" title="Modo oscuro">🌙</button>
       <button class="btn btn-ghost" id="btn-mob-menu" style="font-size:.85rem;padding:5px 9px" onclick="openMobDrawer()">⋯</button>
       <button class="btn btn-light" style="font-size:.65rem" onclick="doLogout()">Salir</button>
@@ -1095,6 +1118,14 @@ let sortOrder = 'urgency';
 let editingId = null;
 
 // ── MÓDULO 6C ──
+
+// ── MÓDULO 9 — COLABORADORES ──
+let colabUnsub       = null;
+let colabAll          = [];
+let colabSucFilter    = 'all';
+let editingColabId    = null;
+let colabFotoFile     = null;
+let colabFotoCleared  = false;
 
 const $ = id => document.getElementById(id);
 
@@ -3738,6 +3769,319 @@ window.deleteAgendaEvent = async (id, titulo) => {
 
 
 /* ═══════════════════════════════════
+   MÓDULO 9 — COLABORADORES
+═══════════════════════════════════ */
+const SUCURSAL_LABEL = { M01:'M01 Merliot', S02:'S02 San Salvador', S03:'S03 San Miguel', S04:'S04 Soyapango', S06:'S06 Zoditech', S07:'S07 Usulután', CORP:'Corporativo' };
+
+function colabEsc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+window.goColaboradores = () => {
+  if (homeUnsub) { homeUnsub(); homeUnsub = null; }
+  showScreen('s-colaboradores');
+  $('colab-search').value = '';
+  startColabListener();
+};
+
+window.goBackFromColaboradores = () => {
+  if (colabUnsub) { colabUnsub(); colabUnsub = null; }
+  colabAll = [];
+  goHome();
+};
+
+function startColabListener() {
+  if (colabUnsub) { colabUnsub(); colabUnsub = null; }
+  const q = fbMod.collection(db, 'colaboradores');
+  colabUnsub = fbMod.onSnapshot(q, snap => {
+    colabAll = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderColaboradores();
+  }, e => {
+    console.error('colaboradores listener:', e);
+    $('colab-list').innerHTML = '<div class="empty-state">Error de conexión.</div>';
+  });
+}
+
+window.setColabSucursal = suc => {
+  colabSucFilter = suc;
+  document.querySelectorAll('#colab-chips .estado-chip').forEach(c =>
+    c.classList.toggle('on', c.dataset.suc === suc)
+  );
+  renderColaboradores();
+};
+
+function colabIsIncompleto(c) {
+  return !c.nombre || !c.dui || !c.telefono;
+}
+
+function colabSortKey(c) {
+  return (c.nombre || c.alias || c.nombreUsuario || '').toLowerCase();
+}
+
+function colabRowMatches(c) {
+  if (colabSucFilter !== 'all' && c.sucursal !== colabSucFilter) return false;
+  const term = ($('colab-search')?.value || '').trim().toLowerCase();
+  if (!term) return true;
+  const hay = [c.nombre, c.alias, c.preferenciaNombre, c.cargo, c.nombreUsuario, c.codigoUsuario]
+    .filter(Boolean).join(' ').toLowerCase();
+  return hay.includes(term);
+}
+
+window.renderColaboradores = () => {
+  const list = colabAll.filter(colabRowMatches).sort((a, b) => {
+    const ai = colabIsIncompleto(a), bi = colabIsIncompleto(b);
+    if (ai !== bi) return ai ? 1 : -1;
+    return colabSortKey(a).localeCompare(colabSortKey(b), 'es');
+  });
+  const countEl = $('colab-count');
+  if (countEl) countEl.textContent = list.length === 1 ? '1 colaborador' : `${list.length} colaboradores`;
+  const box = $('colab-list');
+  if (!list.length) {
+    box.innerHTML = '<div class="empty-state">Sin colaboradores con ese filtro.</div>';
+    return;
+  }
+  box.innerHTML = list.map(c => {
+    const incompleto = colabIsIncompleto(c);
+    const nombreShow = c.nombre || c.alias || c.nombreUsuario || '(sin nombre)';
+    const fotoHtml = c.fotoUrl
+      ? `<img class="colab-foto" src="${colabEsc(c.fotoUrl)}"/>`
+      : `<div class="colab-foto-ph">🧑</div>`;
+    return `
+      <div class="colab-card${c.active === false ? ' colab-inactive' : ''}" onclick="openColabModal('${c.id}')">
+        ${fotoHtml}
+        <div class="colab-body">
+          <div class="colab-nombre">${colabEsc(nombreShow)}</div>
+          <div class="colab-meta">
+            <span>${colabEsc(SUCURSAL_LABEL[c.sucursal] || c.sucursal || '—')}</span>
+            ${c.cargo ? `<span>· ${colabEsc(c.cargo)}</span>` : ''}
+            ${incompleto ? '<span class="colab-badge colab-badge-incompleto">⚠ Incompleto</span>' : ''}
+            ${colabEstadoActivo(c) ? `<span class="colab-badge" style="background:#fff3cd;color:#7a5c00;border:1px solid #ffe69c">${COLAB_ESTADO_LABEL[colabEstadoActivo(c)]}</span>` : ''}
+            ${c.active === false ? '<span class="colab-badge colab-badge-inactivo">Inactivo</span>' : ''}
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+};
+
+function dateToInput(t) {
+  if (!t) return '';
+  return new Date(t).toISOString().slice(0,10);
+}
+function inputToDate(val) {
+  if (!val) return null;
+  return new Date(val + 'T00:00:00').getTime();
+}
+window.toggleColabEstadoFechas = () => {
+  const tipo = $('cf-estado-tipo').value;
+  $('cf-estado-fechas-wrap').style.display = tipo ? 'flex' : 'none';
+};
+const COLAB_ESTADO_LABEL = { vacaciones: '🏖 Vacaciones', incapacidad: '🤒 Incapacidad', permiso: '📋 Permiso' };
+function colabEstadoActivo(c) {
+  if (!c.estadoTipo || !c.estadoHasta) return null;
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  const hasta = new Date(c.estadoHasta); hasta.setHours(23,59,59,999);
+  if (hoy > hasta) return null;
+  if (c.estadoDesde) {
+    const desde = new Date(c.estadoDesde); desde.setHours(0,0,0,0);
+    if (hoy < desde) return null;
+  }
+  return c.estadoTipo;
+}
+
+window.openColabModal = id => {
+  editingColabId = id;
+  colabFotoFile = null;
+  colabFotoCleared = false;
+  $('colab-foto-input').value = '';
+  $('colab-err').style.display = 'none';
+  const c = id ? colabAll.find(x => x.id === id) : null;
+
+  $('colab-modal-title').textContent = c ? 'Editar colaborador' : 'Nuevo colaborador';
+  $('cf-nombre').value       = c?.nombre || '';
+  $('cf-pref').value         = c?.preferenciaNombre || '';
+  $('cf-alias').value        = c?.alias || '';
+  $('cf-dui').value           = c?.dui || '';
+  $('cf-cumple').value        = dateToInput(c?.cumpleanos);
+  $('cf-tel').value          = c?.telefono || '';
+  $('cf-correo').value       = c?.correo || '';
+  $('cf-sucursal').value      = c?.sucursal || 'M01';
+  $('cf-cargo').value        = c?.cargo || '';
+  $('cf-diadescanso').value  = c?.diaDescanso || '';
+  $('cf-ingreso').value      = dateToInput(c?.fechaIngreso);
+  $('cf-salida').value       = dateToInput(c?.fechaSalida);
+  $('cf-estado-tipo').value  = c?.estadoTipo || '';
+  $('cf-estado-desde').value = dateToInput(c?.estadoDesde);
+  $('cf-estado-hasta').value = dateToInput(c?.estadoHasta);
+  toggleColabEstadoFechas();
+  $('cf-coduser').value      = c?.codigoUsuario || '';
+  $('cf-nombreuser').value   = c?.nombreUsuario || '';
+  $('cf-valoracion').value   = c?.valoracion || '';
+  $('cf-direccion').value    = c?.direccion || '';
+  $('cf-municipio').value    = c?.municipio || '';
+  $('cf-departamento').value = c?.departamento || '';
+  $('cf-numdep').value       = c?.numDependientes ?? '';
+  $('cf-depdetalle').value   = c?.dependientesDetalle || '';
+  $('cf-emer1').value        = c?.contactoEmergencia1 || '';
+  $('cf-emer2').value        = c?.contactoEmergencia2 || '';
+
+  if (c?.fotoUrl) {
+    $('colab-foto-img').src = c.fotoUrl;
+    $('colab-foto-img').style.display = '';
+    $('colab-foto-ph').style.display = 'none';
+  } else {
+    $('colab-foto-img').style.display = 'none';
+    $('colab-foto-ph').style.display = '';
+  }
+
+  $('btn-del-colab').style.display    = c ? '' : 'none';
+  $('btn-toggle-colab').style.display = c ? '' : 'none';
+  if (c) {
+    $('btn-toggle-colab').textContent = c.active === false ? '✓ Activar' : '⏸ Desactivar';
+  }
+
+  $('modal-colab').classList.add('on');
+};
+
+window.closeColabModal = e => {
+  if (!e || e.target === $('modal-colab')) {
+    $('modal-colab').classList.remove('on');
+    editingColabId = null;
+  }
+};
+
+window.previewColabFoto = input => {
+  const file = input.files[0];
+  if (!file) return;
+  colabFotoFile = file;
+  colabFotoCleared = false;
+  const url = URL.createObjectURL(file);
+  $('colab-foto-img').src = url;
+  $('colab-foto-img').style.display = '';
+  $('colab-foto-ph').style.display = 'none';
+};
+
+window.clearColabFoto = () => {
+  colabFotoFile = null;
+  colabFotoCleared = true;
+  $('colab-foto-input').value = '';
+  $('colab-foto-img').style.display = 'none';
+  $('colab-foto-ph').style.display = '';
+};
+
+async function uploadColabFoto(id, file) {
+  if (!file || !storage) return null;
+  try {
+    const path = `colaboradores/${id}/foto_${Date.now()}.jpg`;
+    const storRef = storageMod.ref(storage, path);
+    await storageMod.uploadBytes(storRef, file);
+    return await storageMod.getDownloadURL(storRef);
+  } catch(e) {
+    console.error('uploadColabFoto:', e);
+    return null;
+  }
+}
+
+window.saveColab = async () => {
+  const btn = $('btn-save-colab');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span>Guardando…';
+  $('colab-err').style.display = 'none';
+  try {
+    const payload = {
+      nombre:              $('cf-nombre').value.trim() || null,
+      preferenciaNombre:   $('cf-pref').value.trim() || null,
+      alias:               $('cf-alias').value.trim() || null,
+      dui:                 $('cf-dui').value.trim() || null,
+      cumpleanos:          inputToDate($('cf-cumple').value),
+      telefono:            $('cf-tel').value.trim() || null,
+      correo:              $('cf-correo').value.trim().toLowerCase() || null,
+      sucursal:            $('cf-sucursal').value,
+      cargo:               $('cf-cargo').value.trim() || null,
+      diaDescanso:         $('cf-diadescanso').value || null,
+      fechaIngreso:        inputToDate($('cf-ingreso').value),
+      fechaSalida:         inputToDate($('cf-salida').value),
+      estadoTipo:          $('cf-estado-tipo').value || null,
+      estadoDesde:         inputToDate($('cf-estado-desde').value),
+      estadoHasta:         inputToDate($('cf-estado-hasta').value),
+      codigoUsuario:       $('cf-coduser').value.trim() || null,
+      nombreUsuario:       $('cf-nombreuser').value.trim() || null,
+      valoracion:          $('cf-valoracion').value.trim() || null,
+      direccion:           $('cf-direccion').value.trim() || null,
+      municipio:           $('cf-municipio').value.trim() || null,
+      departamento:        $('cf-departamento').value.trim() || null,
+      numDependientes:     parseInt($('cf-numdep').value, 10) || 0,
+      dependientesDetalle: $('cf-depdetalle').value.trim() || null,
+      contactoEmergencia1: $('cf-emer1').value.trim() || null,
+      contactoEmergencia2: $('cf-emer2').value.trim() || null,
+      updatedAt:           Date.now(),
+    };
+
+    let id = editingColabId;
+    if (id) {
+      await fbMod.updateDoc(fbMod.doc(db, 'colaboradores', id), payload);
+    } else {
+      payload.active     = true;
+      payload.linkedUid  = null;
+      payload.fotoUrl    = null;
+      payload.createdAt  = Date.now();
+      const ref = await fbMod.addDoc(fbMod.collection(db, 'colaboradores'), payload);
+      id = ref.id;
+    }
+
+    if (colabFotoFile) {
+      const url = await uploadColabFoto(id, colabFotoFile);
+      if (url) await fbMod.updateDoc(fbMod.doc(db, 'colaboradores', id), { fotoUrl: url });
+    } else if (colabFotoCleared) {
+      await fbMod.updateDoc(fbMod.doc(db, 'colaboradores', id), { fotoUrl: null });
+    }
+
+    $('modal-colab').classList.remove('on');
+    editingColabId = null;
+  } catch(e) {
+    console.error(e);
+    $('colab-err').textContent = 'Error al guardar. Intenta de nuevo.';
+    $('colab-err').style.display = 'block';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Guardar →';
+  }
+};
+
+window.deleteColab = async () => {
+  if (!editingColabId) return;
+  const c = colabAll.find(x => x.id === editingColabId);
+  const nombre = c?.nombre || c?.alias || '(sin nombre)';
+  if (!confirm(`¿Eliminar a "${nombre}" del directorio?\nEsta acción no se puede deshacer.`)) return;
+  try {
+    await fbMod.deleteDoc(fbMod.doc(db, 'colaboradores', editingColabId));
+    $('modal-colab').classList.remove('on');
+    editingColabId = null;
+  } catch(e) {
+    console.error(e);
+    alert('Error al eliminar.');
+  }
+};
+
+window.toggleColabActive = async () => {
+  if (!editingColabId) return;
+  const c = colabAll.find(x => x.id === editingColabId);
+  if (!c) return;
+  const nowActive = c.active === false;
+  try {
+    await fbMod.updateDoc(fbMod.doc(db, 'colaboradores', editingColabId), {
+      active: nowActive,
+      fechaSalida: nowActive ? null : Date.now(),
+      updatedAt: Date.now(),
+    });
+    $('modal-colab').classList.remove('on');
+    editingColabId = null;
+  } catch(e) {
+    console.error(e);
+    alert('Error al actualizar.');
+  }
+};
+
+/* ═══════════════════════════════════
    START
 ═══════════════════════════════════ */
 document.addEventListener('DOMContentLoaded', init);
@@ -3778,6 +4122,146 @@ document.addEventListener('DOMContentLoaded', init);
   </div>
 </div>
 
+<!-- ══════════════ COLABORADORES ══════════════ -->
+<div id="s-colaboradores" class="scr">
+  <div class="topbar">
+    <div class="topbar-title">🧑‍💼 Colaboradores</div>
+    <div class="topbar-actions">
+      <button class="btn btn-ghost" style="font-size:.65rem" onclick="goBackFromColaboradores()">← Volver</button>
+      <button class="btn btn-dark" style="font-size:.65rem" onclick="openColabModal(null)">+ Nuevo</button>
+    </div>
+  </div>
+  <div class="colab-toolbar">
+    <input class="colab-search" id="colab-search" type="text" placeholder="Buscar por nombre, alias o cargo…" oninput="renderColaboradores()"/>
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+      <div class="colab-chips" id="colab-chips">
+        <button class="estado-chip on" data-suc="all" onclick="setColabSucursal('all')">Todas</button>
+        <button class="estado-chip" data-suc="M01" onclick="setColabSucursal('M01')">M01 Merliot</button>
+        <button class="estado-chip" data-suc="S02" onclick="setColabSucursal('S02')">S02 San Salvador</button>
+        <button class="estado-chip" data-suc="S03" onclick="setColabSucursal('S03')">S03 San Miguel</button>
+        <button class="estado-chip" data-suc="S04" onclick="setColabSucursal('S04')">S04 Soyapango</button>
+        <button class="estado-chip" data-suc="S06" onclick="setColabSucursal('S06')">S06 Zoditech</button>
+        <button class="estado-chip" data-suc="S07" onclick="setColabSucursal('S07')">S07 Usulután</button>
+        <button class="estado-chip" data-suc="CORP" onclick="setColabSucursal('CORP')">Corporativo</button>
+      </div>
+      <div id="colab-count" style="font-size:.7rem;color:#999;white-space:nowrap"></div>
+    </div>
+  </div>
+  <div id="colab-list" class="colab-list">
+    <div class="empty-state"><span class="spin"></span></div>
+  </div>
+</div>
+
+<!-- Modal: ficha de colaborador (alta / edición) -->
+<div class="modal-overlay" id="modal-colab" onclick="closeColabModal(event)">
+  <div class="modal">
+    <div class="modal-title" id="colab-modal-title">Nuevo colaborador</div>
+
+    <div class="colab-foto-edit">
+      <img id="colab-foto-img" style="display:none"/>
+      <div class="colab-foto-ph" id="colab-foto-ph">🧑</div>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <label class="btn btn-outline" style="font-size:.6rem;text-align:center;cursor:pointer">
+          📷 Foto
+          <input type="file" accept="image/*" id="colab-foto-input" style="display:none" onchange="previewColabFoto(this)"/>
+        </label>
+        <button class="btn btn-ghost" style="font-size:.6rem" onclick="clearColabFoto()">Quitar</button>
+      </div>
+    </div>
+
+    <div class="colab-section-title">Datos personales</div>
+    <div class="fld"><label>Nombre completo</label><input id="cf-nombre" type="text" autocomplete="off"/></div>
+    <div style="display:flex;gap:8px">
+      <div class="fld" style="flex:1"><label>Preferencia de nombre</label><input id="cf-pref" type="text" autocomplete="off"/></div>
+      <div class="fld" style="flex:1"><label>Teléfono</label><input id="cf-tel" type="tel" autocomplete="off"/></div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <div class="fld" style="flex:1"><label>DUI</label><input id="cf-dui" type="text" autocomplete="off"/></div>
+      <div class="fld" style="flex:1"><label>Cumpleaños</label><input id="cf-cumple" type="date"/></div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <div class="fld" style="flex:1"><label>Alias ZD</label><input id="cf-alias" type="text" autocomplete="off"/></div>
+      <div class="fld" style="flex:1"><label>Correo</label><input id="cf-correo" type="email" autocomplete="off"/></div>
+    </div>
+
+    <div class="colab-section-title">Datos laborales</div>
+    <div style="display:flex;gap:8px">
+      <div class="fld" style="flex:1">
+        <label>Sucursal</label>
+        <select id="cf-sucursal" style="color:var(--text);background:var(--surface)">
+          <option value="M01">M01 Merliot</option>
+          <option value="S02">S02 San Salvador</option>
+          <option value="S03">S03 San Miguel</option>
+          <option value="S04">S04 Soyapango</option>
+          <option value="S06">S06 Zoditech</option>
+          <option value="S07">S07 Usulután</option>
+          <option value="CORP">Corporativo</option>
+        </select>
+      </div>
+      <div class="fld" style="flex:1"><label>Cargo</label><input id="cf-cargo" type="text" autocomplete="off"/></div>
+    </div>
+    <div class="fld">
+      <label>Día de descanso</label>
+      <select id="cf-diadescanso" style="color:var(--text);background:var(--surface)">
+        <option value="">— Sin definir —</option>
+        <option value="lunes">Lunes</option>
+        <option value="martes">Martes</option>
+        <option value="miercoles">Miércoles</option>
+        <option value="jueves">Jueves</option>
+        <option value="viernes">Viernes</option>
+        <option value="sabado">Sábado</option>
+        <option value="domingo">Domingo</option>
+      </select>
+    </div>
+    <div style="display:flex;gap:8px">
+      <div class="fld" style="flex:1"><label>Código usuario (Wifin)</label><input id="cf-coduser" type="text" autocomplete="off"/></div>
+      <div class="fld" style="flex:1"><label>Nombre usuario (Wifin)</label><input id="cf-nombreuser" type="text" autocomplete="off"/></div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <div class="fld" style="flex:1"><label>Fecha de ingreso</label><input id="cf-ingreso" type="date"/></div>
+      <div class="fld" style="flex:1"><label>Fecha de salida</label><input id="cf-salida" type="date"/></div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <div class="fld" style="flex:1">
+        <label>Estado actual</label>
+        <select id="cf-estado-tipo" style="color:var(--text);background:var(--surface)" onchange="toggleColabEstadoFechas()">
+          <option value="">Activo</option>
+          <option value="vacaciones">Vacaciones</option>
+          <option value="incapacidad">Incapacidad</option>
+          <option value="permiso">Permiso</option>
+        </select>
+      </div>
+    </div>
+    <div id="cf-estado-fechas-wrap" style="display:none;gap:8px">
+      <div class="fld" style="flex:1"><label>Desde</label><input id="cf-estado-desde" type="date"/></div>
+      <div class="fld" style="flex:1"><label>Hasta</label><input id="cf-estado-hasta" type="date"/></div>
+    </div>
+    <div class="fld"><label>Notas internas / valoración</label><textarea id="cf-valoracion" style="min-height:60px" placeholder="Notas privadas, solo visibles aquí"></textarea></div>
+
+    <div class="colab-section-title">Residencia</div>
+    <div class="fld"><label>Dirección</label><input id="cf-direccion" type="text" autocomplete="off"/></div>
+    <div style="display:flex;gap:8px">
+      <div class="fld" style="flex:1"><label>Municipio</label><input id="cf-municipio" type="text" autocomplete="off"/></div>
+      <div class="fld" style="flex:1"><label>Departamento</label><input id="cf-departamento" type="text" autocomplete="off"/></div>
+    </div>
+
+    <div class="colab-section-title">Dependientes y contactos de emergencia</div>
+    <div class="fld"><label>Número de dependientes</label><input id="cf-numdep" type="number" min="0" step="1"/></div>
+    <div class="fld"><label>Dependientes (nombre y parentesco)</label><textarea id="cf-depdetalle" style="min-height:50px"></textarea></div>
+    <div class="fld"><label>Contacto de emergencia 1</label><input id="cf-emer1" type="text" autocomplete="off"/></div>
+    <div class="fld"><label>Contacto de emergencia 2</label><input id="cf-emer2" type="text" autocomplete="off"/></div>
+
+    <div id="colab-err" style="display:none;font-size:.65rem;color:var(--err-tx);margin-bottom:.5rem"></div>
+    <div class="modal-btns" style="flex-wrap:wrap">
+      <button class="btn btn-ghost" id="btn-del-colab" style="font-size:.65rem;display:none" onclick="deleteColab()">🗑 Eliminar</button>
+      <button class="btn btn-ghost" id="btn-toggle-colab" style="font-size:.65rem;display:none" onclick="toggleColabActive()"></button>
+      <span style="flex:1"></span>
+      <button class="btn btn-outline" onclick="closeColabModal()">Cancelar</button>
+      <button class="btn btn-dark" id="btn-save-colab" onclick="saveColab()">Guardar →</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── MOBILE BOTTOM BAR ── -->
 <div class="mob-bottom-bar" id="mob-bottom-bar" style="display:none">
   <button class="mob-bottom-btn mob-active" id="mob-btn-home" onclick="goHomeFromNav()">
@@ -3810,6 +4294,9 @@ document.addEventListener('DOMContentLoaded', init);
       </button>
       <button class="mob-drawer-btn" onclick="closeMobDrawer();window.open('index.html','_blank')">
         <span class="mob-icon">📦</span>Órdenes
+      </button>
+      <button class="mob-drawer-btn" onclick="closeMobDrawer();goColaboradores()">
+        <span class="mob-icon">🧑‍💼</span>Colaboradores
       </button>
       <button class="mob-drawer-btn" onclick="closeMobDrawer();toggleDark()">
         <span class="mob-icon">🌙</span>Tema
