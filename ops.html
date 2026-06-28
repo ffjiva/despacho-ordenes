@@ -1126,6 +1126,7 @@ let editingId = null;
 // ── MÓDULO 9 — COLABORADORES ──
 let colabUnsub       = null;
 let colabAll          = [];
+let userAppsMap       = {};
 let colabSucFilter    = 'all';
 let editingColabId    = null;
 let colabFotoFile     = null;
@@ -3795,12 +3796,24 @@ window.goBackFromColaboradores = () => {
   goHome();
 };
 
+async function refreshUserAppsMap() {
+  try {
+    const snap = await fbMod.getDocs(fbMod.collection(db, 'users'));
+    userAppsMap = {};
+    snap.forEach(d => {
+      const data = d.data();
+      userAppsMap[d.id] = { ensamblador: !!(data.apps?.ensamblador) };
+    });
+    renderColaboradores();
+  } catch(e) { console.warn('userAppsMap refresh:', e); }
+}
+
 function startColabListener() {
   if (colabUnsub) { colabUnsub(); colabUnsub = null; }
   const q = fbMod.collection(db, 'colaboradores');
   colabUnsub = fbMod.onSnapshot(q, snap => {
     colabAll = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    renderColaboradores();
+    refreshUserAppsMap();
   }, e => {
     console.error('colaboradores listener:', e);
     $('colab-list').innerHTML = '<div class="empty-state">Error de conexión.</div>';
@@ -3852,7 +3865,7 @@ window.renderColaboradores = () => {
       ? `<img class="colab-foto" src="${colabEsc(c.fotoUrl)}"/>`
       : `<div class="colab-foto-ph">🧑</div>`;
     return `
-      <div class="colab-card${c.active === false ? ' colab-inactive' : ''}${c.uid ? ' colab-has-despacho' : ''}" onclick="openColabModal('${c.id}')">
+      <div class="colab-card${c.active === false ? ' colab-inactive' : ''}${c.uid ? ' colab-has-despacho' : ''}${(c.uid && userAppsMap[c.uid]?.ensamblador) ? ' colab-has-ensamblador' : ''}" onclick="openColabModal('${c.id}')">
         ${fotoHtml}
         <div class="colab-body">
           <div class="colab-nombre">${colabEsc(nombreShow)}</div>
@@ -4087,6 +4100,7 @@ window.guardarPermisosColab = async () => {
       ? { role: newRole === 'super' ? 'admin' : 'colaborador' }
       : fbMod.deleteField();
     await fbMod.updateDoc(fbMod.doc(db, 'users', colab.uid), updates);
+    refreshUserAppsMap();
     if (msgEl) {
       msgEl.textContent = '✓ Permisos guardados.';
       msgEl.style.cssText = 'display:block;background:var(--done-bg);color:var(--done-tx);border-color:var(--done-bd)';
