@@ -344,6 +344,31 @@ código UPC visible y exportación a XLS. Asignable a cualquier colaborador
 con notificación FCM via `onInventarioAsignado`. Navegación: botón topbar
 desktop + drawer móvil. Desplegado: 03 Jun 2026.
 
+### Envío prioritario en domicilios — 28 Jun 2026 *(ops.html + moto.html)*
+Campo `prioritario: bool` en colección `domicilios`. Gestión desde ops.html: badge 🔴
+en el header de la card + botón "🔴 Prioritario / ✓ Normal" en las acciones del card
+expandido (junto a Editar / Eliminar). Función `togglePrioritarioDom(id, current)` escribe
+en Firestore. En moto.html: card con clase `.mcard.emergency` (fondo rojo, borde pulsante)
++ barra "🔴 ENTREGA PRIORITARIA" + sube al tope de lista en ambos sorts (`emergency ||
+prioritario`). Listener de domicilios notifica push "🔴 Entrega prioritaria — [cliente]"
+cuando llega una nueva entrega con `prioritario: true`.
+
+### Fix tiempo de trabajo en picking — 28 Jun 2026 *(index.html)*
+Cuatro bugs corregidos en el contador `activeMs`:
+
+- **`localActiveMs`** — espejo local autoritativo del tiempo acumulado. Reemplaza el uso de
+  `curData?.activeMs` (susceptible a race condition si el listener Firestore no había llegado
+  al hacer goHome justo después de una pausa). Se inicializa en el primer snapshot.
+- **`visibilitychange`** — al ocultar la pestaña (cambio de app en móvil, minimizar navegador)
+  acumula el tiempo transcurrido y pausa el contador (`lockSessionStart = 0`). Al volver,
+  reinicia el contador y actualiza `lockedAt` en Firestore para que el home del supervisor
+  muestre el timer desde el punto correcto, no desde el inicio de la sesión original.
+- **Completar orden** (`toggleItem` + `markItemFromScanner`) — al marcar el último ítem
+  guarda `activeMs` final y limpia `lockedBy / lockedAt` en el mismo write. El chip del
+  home queda congelado; antes seguía incrementando después de finalizar.
+- **Despachar** (`doDispatch`) — mismo patrón: guarda tiempo final y limpia lock junto al
+  cambio de status. Antes no tocaba `activeMs` ni el lock.
+
 ### Fundación de Identidad — sesión 28 Jun 2026 *(todos los archivos)*
 
 Plan de 5 fases para unificar identidad persona↔credencial y preparar el módulo Ensamblador.
@@ -510,10 +535,14 @@ Criterio rector: **impacto en la operación diaria**.
    + drenado en vivo del pool; carga solo mínimos (ENVIAR = SUG); se retiró el
    auto-reparto post-hoc (redistributeCompraPool) y la Fase 2 de excedente en
    computeComprasSuggestions. El excedente se reparte a mano.
-3. **→ FRENTE ACTIVO: moto.html** — envío prioritario (botón que salta la vuelta
-   al inicio y avisa al usuario; patrón ya existe en vueltas). Luego imágenes en envíos.
-4. **A3 — Sugerencias por historial** *(reposicion.html)*. Feature grande, 3 fases.
-5. Mejoras de inventario (códigos alfanuméricos, reasignación, auto-sucursal).
+3. ✅ **moto.html — envío prioritario** *(28 Jun 2026)*. Botón "🔴 Prioritario / ✓ Normal"
+   en cards de entregas de ops.html + indicador en header. En moto.html: card con fondo rojo
+   + barra "ENTREGA PRIORITARIA" + sube al tope de la lista (junto a emergencias de vueltas)
+   + notificación push al motorista. Campo `prioritario: bool` en `domicilios/{id}`.
+4. ✅ **Tiempo de trabajo preciso en picking** *(28 Jun 2026)*. Ver sección en módulos completados.
+5. **→ FRENTE ACTIVO: imágenes en envíos** *(moto.html)*. Patrón ya existe en vueltas.
+6. **A3 — Sugerencias por historial** *(reposicion.html)*. Feature grande, 3 fases.
+7. Mejoras de inventario (códigos alfanuméricos, reasignación, auto-sucursal).
 
 Parqueado (no suma operatividad diaria): mapas/geocodificación, ruta
 optimizada, rediseño general, pixelart. Sub-proyectos dedicados.
@@ -733,4 +762,4 @@ Al abrir una sesión de implementación:
 
 ---
 
-*Última actualización: 28 Junio 2026 — Fundación de Identidad completa (Fases 1–4 + indicadores visuales)*
+*Última actualización: 28 Junio 2026 — envío prioritario moto + fix tiempo picking + Fundación de Identidad*
