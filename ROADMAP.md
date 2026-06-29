@@ -33,11 +33,11 @@
 
 | Archivo | Descripción | Líneas aprox. |
 |---|---|---|
-| `index.html` | Despacho Manager — picking con IA | ~3,111 |
-| `ops.html` | Operaciones — pendientes, vueltas, entregas, métricas | ~3,944 |
-| `moto.html` | Portal Motorista | ~1,569 |
-| `reposicion.html` | Reposición + Inventario + Trazabilidad | ~3,965 |
-| `functions/index.js` | Cloud Functions | ~660 |
+| `index.html` | Despacho Manager — picking con IA | ~3,182 |
+| `ops.html` | Operaciones — pendientes, vueltas, entregas, métricas | ~4,663 |
+| `moto.html` | Portal Motorista | ~1,592 |
+| `reposicion.html` | Reposición + Inventario + Trazabilidad | ~3,943 |
+| `functions/index.js` | Cloud Functions | ~696 |
 
 ---
 
@@ -184,7 +184,7 @@ createdAt, updatedAt
 Firebase Auth email/password en los 3 archivos. `users/{uid}` con name, email, role, active, createdAt. Persistencia automática. Logout limpio.
 
 ### Módulo 2 — Roles
-Roles `super`, `collaborator`, `motorista`. UI diferenciada según rol. Panel "👥 Equipo" en index.html para crear/desactivar usuarios. Firestore Rules aplicadas.
+Roles `super`, `collaborator`, `motorista`. UI diferenciada según rol. Panel "👥 Equipo" en index.html para gestionar equipo (ver-only; creación de cuentas movida a ficha de colaborador en ops.html — Fase 4 Fundación de Identidad). Firestore Rules aplicadas.
 
 ### Módulo 3 — Asignación de órdenes
 Asignación al crear orden. `assignedTo` (uid) + `assignedToName` (nombre para display). Collaborator ve solo sus órdenes. Botón Reasignar solo para super.
@@ -546,8 +546,6 @@ Criterio rector: **impacto en la operación diaria**.
    botones visibles al expandir el card (mismo comportamiento que vueltas).
 6. **→ FRENTE ACTIVO: A3 — Sugerencias por historial** *(reposicion.html)*. Feature grande, 3 fases.
 7. Mejoras de inventario (códigos alfanuméricos, reasignación, auto-sucursal).
-6. **→ FRENTE ACTIVO: A3 — Sugerencias por historial** *(reposicion.html)*. Feature grande, 3 fases.
-7. Mejoras de inventario (códigos alfanuméricos, reasignación, auto-sucursal).
 
 Parqueado (no suma operatividad diaria): mapas/geocodificación, ruta
 optimizada, rediseño general, pixelart. Sub-proyectos dedicados.
@@ -655,17 +653,12 @@ inmediatos en cola — el próximo gran paso es modularizar ops.html (en chat nu
 
 ---
 
-### 📥 Backlog triado por impacto operativo (23 Jun 2026)
+### 📥 Backlog triado por impacto operativo (actualizado 29 Jun 2026)
 
 Incidencias registradas y clasificadas. 🐞 = bug (puede saltar prioridad
 dentro de su grupo).
 
-**🟢 DIARIO — fricción real cada día**
-- Envío prioritario: botón que salta la viñeta al inicio y avisa al usuario,
-  como en vueltas. *(moto.html)* — patrón ya existe, bajo riesgo.
-
 **🟡 SOPORTE — operativo, no es tarea diaria / habilita delegación**
-- Imágenes en envíos (hoy solo en vueltas). *(moto.html)* — patrón ya existe.
 - Geocodificar dirección del XLS de envíos → ubicación en la ficha de moto,
   para que Anderson tenga mejor referencia. *(moto.html)* ⚠️ Bandera de costo:
   Google Geocoding API es de paga (cupo gratis mensual). Alternativa gratis:
@@ -712,10 +705,10 @@ productos_ubicacion/{productCode}
 code, name, bodega
 zona (ej. "B-3"), updatedAt
 
-**Reposición — Sugerencias basadas en historial** *(ops.html — diferida)*
+**Reposición — Sugerencias basadas en historial** *(reposicion.html — A3, frente activo)*
 Usar la colección `reposiciones` de Firestore para aprender la frecuencia de reposición y,
 eventualmente, la velocidad de consumo a partir de snapshots del Gerencial. Plantear en tres
-fases. Diferida hasta extraer reposición a su propio archivo (ver backlog "Modularizar ops.html").
+fases. Prerrequisito completado: reposición extraída a `reposicion.html` (F0–F4, Jun 2026).
 
 **Rol `operador` — pendiente de definir**
 Nuevo rol en consideración. Aún sin definir: archivos a los que tendrá acceso, acciones permitidas vs solo lectura, y qué miembros del equipo lo usarán.
@@ -731,7 +724,7 @@ Mejoras menores para implementar cuando haya espacio:
 - **GPS picking** — registrar coordenadas al iniciar y completar una orden de bodega (index.html)
 - **Agente WhatsApp** — notificaciones o comandos por WhatsApp (largo plazo)
 - **Rediseño home ops.html** — revisión estética del layout de navegación principal. Dos conceptos bocetados en sesión 03 Jun 2026: (A) home con botones por módulo agrupados por sección, (B) tabs superiores por módulo. Pendiente de evaluar cuando haya espacio.
-- **Modularizar ops.html** — supera 7,000 líneas, difícil de editar (agrava el stale-cache de Claude Code). Opción: módulos ES nativos (sin build), empezando por extraer reposición. Reto: estado compartido (`repProducts`, `repSendData`, etc.). También un `shared.js` para lógica duplicada entre index/ops/moto.
+- **Modularizar ops.html** — ~4,663 líneas tras extraer reposición a `reposicion.html`. Si vuelve a crecer: módulos ES nativos (sin build). También un `shared.js` para lógica duplicada entre index/ops/moto.
 - **Debounce de `refreshRepStockTotals`** *(ops.html)* — condicional. Hoy no hay lag al teclear sobre las 3,668 filas sin filtrar. Si en el futuro se percibe delay, envolver en debounce (~120 ms) para no recalcular `repAllocate` sobre todo el filtrado en cada tecla. Mitigación lista, sin aplicar hasta que haga falta.
 - **Revisar integración WhatsApp** *(moto.html)* — `wa.me/${WHATSAPP_GROUP}` (~líneas 1406/1460): la constante está definida pero no es funcional. Revisar si es código muerto a eliminar o feature a completar.
 
@@ -767,4 +760,4 @@ Al abrir una sesión de implementación:
 
 ---
 
-*Última actualización: 28 Junio 2026 — envío prioritario moto + fix tiempo picking + Fundación de Identidad*
+*Última actualización: 29 Junio 2026 — depuración: conteos actualizados, items completados borrados del backlog triado (envío prioritario + imágenes en envíos), duplicado línea de acción eliminado, notas de Módulo 2 y "Sugerencias por historial" actualizadas*
