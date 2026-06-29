@@ -495,24 +495,25 @@ Revisión minuciosa de los tres archivos. 25 bugs corregidos en total.
 
 ## Pendientes
 
-### 🎯 Línea de acción — orden de trabajo (23 Jun 2026)
+### 🎯 Línea de acción — orden de trabajo (actualizado 28 Jun 2026)
 
-Criterio rector: **impacto en la operación diaria**. Orden acordado:
+Criterio rector: **impacto en la operación diaria**.
 
-1. **A1+A2 — Reposición IA confiable** *(CF + reposicion.html)*. Robustecer
-   `suggestReplenishment` (HTTP 500 / JSON truncado) + pasar restricción de
-   origen a `analyzeWithAI` para que no sugiera lo no surtible. Ver "Issues
-   conocidos — fase IA reposición".
+1. ✅ **A1+A2 — Reposición IA confiable** *(CF + reposicion.html)*.
+   Revisión en frío 28 Jun 2026: ambos issues ya estaban resueltos en el código.
+   `suggestReplenishment` recibe `origin` + `servedDests`, construye pool por origen
+   y lo pasa al prompt con restricción dura ("orig"). Guard `stop_reason=max_tokens`
+   presente. Lotes de 60 con guard en 300. `max_tokens: 8192` se deja como está
+   (suficiente para lotes de 60 productos). Ver "Issues conocidos" abajo — cerrados.
 2. ✅ **Paridad de pool en vivo en modo compra** *(reposicion.html)*.
    (23 Jun 2026) — modo compra ahora calca stock: tope duro + zonas ámbar/rojo
    + drenado en vivo del pool; carga solo mínimos (ENVIAR = SUG); se retiró el
    auto-reparto post-hoc (redistributeCompraPool) y la Fase 2 de excedente en
    computeComprasSuggestions. El excedente se reparte a mano.
-3. **→ FRENTE ACTIVO: Pasada de Picking** *(index.html)*. Bloque de bugs/fricción del picker
-   (ver backlog triado 🟢). Bajo riesgo, un solo archivo.
-4. **A3 — Sugerencias por historial** *(reposicion.html)*. Feature grande, 3
-   fases, sobre base de IA ya confiable.
-5. Frente moto (envío prioritario + imágenes) y resto del backlog triado.
+3. **→ FRENTE ACTIVO: moto.html** — envío prioritario (botón que salta la vuelta
+   al inicio y avisa al usuario; patrón ya existe en vueltas). Luego imágenes en envíos.
+4. **A3 — Sugerencias por historial** *(reposicion.html)*. Feature grande, 3 fases.
+5. Mejoras de inventario (códigos alfanuméricos, reasignación, auto-sucursal).
 
 Parqueado (no suma operatividad diaria): mapas/geocodificación, ruta
 optimizada, rediseño general, pixelart. Sub-proyectos dedicados.
@@ -526,11 +527,15 @@ optimizada, rediseño general, pixelart. Sub-proyectos dedicados.
 - **F4** ✅ Limpieza de ops.html + botón único de acceso (`migrate_f4.js`). ops 7487→3944 líneas. Botones de Inventario eliminados; entrada del colaborador planeada para index.html.
 - **Entrada del colaborador (index.html):** cuando se active la asignación de inventarios, el botón vive en `index.html` (donde el colaborador ya entra), con deep-link directo a SU inventario asignado en reposicion.html (ej. `reposicion.html#inv=<id>`), saltándose el home. El super sigue entrando por el botón Reposición de ops. Requiere: ruteo por hash en `reposicion.html` + gate role-aware (la costura de F0).
 
-### 🐞 Issues conocidos — fase IA reposición (post-migración)
-Detectados al validar F1. **Idénticos a `ops.html`** — no introducidos por la extracción (código copiado verbatim). Se atacan junto al rework de **sugerencias por historial**:
-1. **La IA sugiere envíos no surtibles por el origen.** `analyzeWithAI` solo manda `{code, name, stock}` al CF; la IA no conoce la disponibilidad por origen (B01+B02), así que sugiere enviar códigos que el origen no stockea → se pintan rojo (`is-full`, exceden el pool). Falta pasar la restricción origen/disponibilidad al prompt.
-2. **`suggestReplenishment` (CF) devuelve HTTP 500 / JSON truncado.** El cliente hace `resp.json()` y truena ("Expected ',' or ']'…", ~pos 7531 = array cortado a la mitad). Causa probable: tope `max_tokens` de Haiku con sets grandes. Endurecer el CF (límite/validación/streaming) + fallback en cliente.
-3. *(Menor, por diseño)* `analyzeWithAI` aplica sugerencias a **todas** las sucursales (`repTargets()`), no a la pestaña activa. Documentado para no confundir.
+### ✅ Issues IA reposición — cerrados (revisión 28 Jun 2026)
+1. ✅ **Restricción de origen resuelta.** CF recibe `origin` + `servedDests`; construye pool
+   por bodega origen y lo expone como `orig:N` en el prompt con regla dura ("nunca superar orig").
+   Cliente manda `{ origin: repOrigin, servedDests: served }` en cada lote.
+2. ✅ **JSON truncado resuelto.** Guard `stop_reason === 'max_tokens'` en CF devuelve error claro.
+   Cliente corre en lotes de 60 con guard en 300 productos. `max_tokens: 8192` suficiente para
+   lotes de 60 (se deja como está; subir solo si aparece truncamiento en producción).
+3. *(Por diseño)* `analyzeWithAI` aplica sugerencias a todos los destinos servidos, no solo
+   la pestaña activa. Comportamiento intencional — documentado.
 
 ### 🛠️ Mejoras inventario — post-migración
 Detectadas validando F3. Idénticas a ops (no introducidas por la extracción):
