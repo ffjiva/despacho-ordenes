@@ -877,6 +877,7 @@ let lastDashList = null;
 let pickSort = 'alpha';
 let lockSet = false;
 let lockSessionStart = 0;  // inicio de la sesión de trabajo actual (para acumular activeMs)
+let localActiveMs    = 0;  // espejo local autoritativo de activeMs; evita depender del timing del listener
 let isReadOnly = false;
 let currentUser = null;  // { uid, email, name, role }
 let currentRole  = '';  // convenience copy of currentUser.role
@@ -955,6 +956,20 @@ function fmtClock(ms) {
   const pad = n => String(n).padStart(2, '0');
   return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
 }
+// Pausa el contador cuando el picker sale del navegador / cambia de app en móvil.
+document.addEventListener('visibilitychange', async () => {
+  if (!curId || !lockSet || isLocal) return;
+  if (document.hidden) {
+    if (!lockSessionStart) return;
+    localActiveMs += Math.max(0, Date.now() - lockSessionStart);
+    lockSessionStart = 0;
+    try { await dbUpdate(curId, { activeMs: localActiveMs }); } catch {}
+  } else {
+    lockSessionStart = Date.now();
+    try { await dbUpdate(curId, { lockedAt: lockSessionStart }); } catch {}
+  }
+});
+
 let _dashTimer = null;
 function startDashTicker() {
   if (_dashTimer) return;
@@ -1226,11 +1241,11 @@ window.goHome = async () => {
   if (co) co.classList.remove('on');
   // Clear lock if we set it
   if (curId && lockSet && !isLocal) {
-    const _base = Number(curData?.activeMs) || 0;
-    const _add  = lockSessionStart ? Math.max(0, Date.now() - lockSessionStart) : 0;
-    try { await dbUpdate(curId, { lockedBy: null, lockedAt: null, activeMs: _base + _add }); } catch{}
+    const _add = lockSessionStart ? Math.max(0, Date.now() - lockSessionStart) : 0;
+    try { await dbUpdate(curId, { lockedBy: null, lockedAt: null, activeMs: localActiveMs + _add }); } catch{}
     lockSet = false;
     lockSessionStart = 0;
+    localActiveMs = 0;
   }
   if (unsub) { unsub(); unsub = null; }
   curId = null; curData = null;
@@ -2006,6 +2021,7 @@ async function doOpenDespachoReadOnly(id, data) {
 async function doOpenDespacho(id, readOnly = false, lockedBy = '') {
   curId = id;
   lockSet = false;
+  localActiveMs = 0;
   isReadOnly = readOnly;
   pickFilter = 'all';
   pickSort   = 'alpha';
@@ -2089,6 +2105,7 @@ async function doOpenDespacho(id, readOnly = false, lockedBy = '') {
       }
       if (firstLoad) {
         firstLoad = false;
+        if (!readOnly && lockSet) localActiveMs = Number(data.activeMs) || 0;
         if (!isReadOnly && data.assignedTo === currentUser?.uid && data.status === 'pending') {
           dbUpdate(id, { status: 'active', startedAt: Date.now() }).catch(() => {});
         }
@@ -2266,7 +2283,10 @@ window.toggleItem = async pid => {
   const tot   = prods.length;
   const done  = Object.values(curData.checked || {}).filter(c => c.done).length;
   if (tot > 0 && done === tot && curData.status !== 'done') {
-    await applyUpdate({ status: 'done', completedAt: Date.now() });
+    const _add = lockSessionStart ? Math.max(0, Date.now() - lockSessionStart) : 0;
+    const finalMs = localActiveMs + _add;
+    lockSet = false; lockSessionStart = 0; localActiveMs = 0;
+    await applyUpdate({ status: 'done', completedAt: Date.now(), activeMs: finalMs, lockedBy: null, lockedAt: null });
     showCelebrationModal();
   }
 };
@@ -2668,11 +2688,14 @@ window.confirmDispatch = (id, name) => {
 
 window.doDispatch = async (id, incomplete = false) => {
   closeModal();
+  const _add = lockSet && lockSessionStart ? Math.max(0, Date.now() - lockSessionStart) : 0;
+  const finalMs = localActiveMs + _add;
+  lockSet = false; lockSessionStart = 0; localActiveMs = 0;
   const status = incomplete ? 'dispatched_incomplete' : 'dispatched';
   const extra  = incomplete && curData
     ? { incompleteItems: (curData.products || []).filter(p => !(curData.checked||{})[p.id]?.done).length }
     : {};
-  await dbUpdate(id, { status, dispatchedAt: Date.now(), ...extra });
+  await dbUpdate(id, { status, dispatchedAt: Date.now(), activeMs: finalMs, lockedBy: null, lockedAt: null, ...extra });
 };
 
 window.confirmReopen = (id, name) => {
@@ -3129,7 +3152,10 @@ async function markItemFromScanner(pid) {
   const tot   = prods.length;
   const done  = Object.values(curData.checked || {}).filter(c => c.done).length;
   if (tot > 0 && done === tot && curData.status !== 'done') {
-    await applyUpdate({ status: 'done', completedAt: Date.now() });
+    const _add = lockSessionStart ? Math.max(0, Date.now() - lockSessionStart) : 0;
+    const finalMs = localActiveMs + _add;
+    lockSet = false; lockSessionStart = 0; localActiveMs = 0;
+    await applyUpdate({ status: 'done', completedAt: Date.now(), activeMs: finalMs, lockedBy: null, lockedAt: null });
     closeScanner();
     showCelebrationModal();
   }
