@@ -540,8 +540,13 @@ Criterio rector: **impacto en la operación diaria**.
    + barra "ENTREGA PRIORITARIA" + sube al tope de la lista (junto a emergencias de vueltas)
    + notificación push al motorista. Campo `prioritario: bool` en `domicilios/{id}`.
 4. ✅ **Tiempo de trabajo preciso en picking** *(28 Jun 2026)*. Ver sección en módulos completados.
-5. **→ FRENTE ACTIVO: imágenes en envíos** *(moto.html)*. Patrón ya existe en vueltas.
-6. **A3 — Sugerencias por historial** *(reposicion.html)*. Feature grande, 3 fases.
+5. ✅ **Imágenes en envíos** *(moto.html)*. Revisión en frío 29 Jun 2026: ya implementado.
+   `uploadFotoDom`, `iniciarCamaraMovil`, `elegirDeGaleria`, inputs `foto-dom-cam-input`/
+   `foto-dom-gal-input`, Storage path `domicilios/{id}/...`, máximo 3 fotos. Thumbnails y
+   botones visibles al expandir el card (mismo comportamiento que vueltas).
+6. **→ FRENTE ACTIVO: A3 — Sugerencias por historial** *(reposicion.html)*. Feature grande, 3 fases.
+7. Mejoras de inventario (códigos alfanuméricos, reasignación, auto-sucursal).
+6. **→ FRENTE ACTIVO: A3 — Sugerencias por historial** *(reposicion.html)*. Feature grande, 3 fases.
 7. Mejoras de inventario (códigos alfanuméricos, reasignación, auto-sucursal).
 
 Parqueado (no suma operatividad diaria): mapas/geocodificación, ruta
