@@ -669,8 +669,11 @@ function startDomiciliosListener() {
   if (!db) { cachedDomicilios = []; renderCombined(); return; }
   if (domUnsub) { domUnsub(); domUnsub = null; }
 
-  let todayItems    = [];
+  let todayItems     = [];
   let carryoverItems = [];
+  let firstDomSnap   = true;
+  let prevPrioIds    = new Set();
+  let prevDomIds     = new Set();
 
   const merge = () => {
     const seen = new Set();
@@ -695,7 +698,22 @@ function startDomiciliosListener() {
     fbMod.orderBy('createdAt', 'asc')
   );
   domUnsub = fbMod.onSnapshot(qToday,
-    snap => { todayItems = snap.docs.map(d => ({ id: d.id, type: 'domicilio', ...d.data() })); merge(); },
+    snap => {
+      const list = snap.docs.map(d => ({ id: d.id, type: 'domicilio', ...d.data() }));
+      if (!firstDomSnap) {
+        list.forEach(d => {
+          if (d.prioritario && !prevPrioIds.has(d.id))
+            notify('🔴 Entrega prioritaria', `${d.cliente || 'Revisa tus entregas'}`);
+          else if (!prevDomIds.has(d.id))
+            notify('📦 Nueva entrega asignada', `${d.cliente || 'Revisa tus entregas'}`);
+        });
+      }
+      firstDomSnap = false;
+      prevPrioIds  = new Set(list.filter(d => d.prioritario).map(d => d.id));
+      prevDomIds   = new Set(list.map(d => d.id));
+      todayItems   = list;
+      merge();
+    },
     err => console.warn('domicilios listener:', err.code)
   );
 
@@ -793,8 +811,9 @@ function applyMotoFilter() {
     items = cachedEnCola || [];
   } else {
     items = all.sort((a, b) => {
-      if (a.emergency && !b.emergency) return -1;
-      if (!a.emergency && b.emergency) return 1;
+      const ua = a.emergency || a.prioritario, ub = b.emergency || b.prioritario;
+      if (ua && !ub) return -1;
+      if (!ua && ub) return 1;
       return (a.order || 0) - (b.order || 0) || (a.createdAt || 0) - (b.createdAt || 0);
     });
   }
@@ -826,8 +845,9 @@ function renderCards(list) {
   }
 
   const sorted = [...list].sort((a, b) => {
-    if (a.emergency && !b.emergency) return -1;
-    if (!a.emergency && b.emergency) return 1;
+    const ua = a.emergency || a.prioritario, ub = b.emergency || b.prioritario;
+    if (ua && !ub) return -1;
+    if (!ua && ub) return 1;
     return (a.order || 0) - (b.order || 0) || (a.createdAt || 0) - (b.createdAt || 0);
   });
 
@@ -1000,7 +1020,8 @@ function buildDomCard(d) {
   const isCam   = st === 'en_camino';
   const isEnt   = st === 'entregado';
   const isNoEnt = st === 'no_entregado';
-  const cardCls = isEnt ? 'mc-done' : isCam ? 'mc-camino' : isNoEnt ? 'mc-noent' : '';
+  const isPrio  = !!d.prioritario;
+  const cardCls = isEnt ? 'mc-done' : isCam ? 'mc-camino' : isNoEnt ? 'mc-noent' : isPrio ? 'emergency' : '';
   const cirCls  = isEnt ? 'mc-done' : isCam ? 'mc-camino' : '';
   const STATUS_LBL = {
     pendiente: 'Pendiente', en_camino: 'En camino',
@@ -1030,6 +1051,7 @@ function buildDomCard(d) {
   return `
     <div class="mcard ${cardCls}" id="${cid}">
 
+      ${isPrio ? `<div class="emergency-bar">🔴 ENTREGA PRIORITARIA</div>` : ''}
       ${d._carryover
         ? `<div style="font-size:.58rem;font-weight:700;padding:3px 10px;
                background:var(--err-bg);color:var(--err-tx);
