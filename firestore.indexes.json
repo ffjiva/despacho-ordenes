@@ -33,6 +33,14 @@
         { "fieldPath": "date",      "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "despachos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "archived",  "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

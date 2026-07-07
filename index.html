@@ -1299,7 +1299,7 @@ function startHomeListener() {
     const isCollaborator = ['collaborator', 'motorista'].includes(currentUser?.role);
     const q = isCollaborator
       ? fbMod.query(fbMod.collection(db,'despachos'), fbMod.where('assignedTo','==',currentUser?.uid ?? ''), fbMod.orderBy('createdAt','desc'))
-      : fbMod.query(fbMod.collection(db,'despachos'), fbMod.orderBy('createdAt','desc'));
+      : fbMod.query(fbMod.collection(db,'despachos'), fbMod.where('archived','==',false), fbMod.orderBy('createdAt','desc'));
     homeUnsub = fbMod.onSnapshot(q,
       snap => {
         const list = snap.docs.map(d => ({id: d.id, ...d.data()}));
@@ -1548,6 +1548,7 @@ function renderDash(list) {
   }
 
   if (archivadas.length) {
+    // Colaborador: sus archivadas vienen en el listener (lista chica) — inline como antes.
     html += `<div style="margin-top:1.5rem">
       <div class="section-lbl" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center" onclick="toggleArchivo()">
         <span>📦 Archivo (${archivadas.length})</span>
@@ -1556,6 +1557,15 @@ function renderDash(list) {
       <div id="archivo-list" style="display:none">
         ${archivadas.map(d => cardHtml(d, true)).join('')}
       </div>
+    </div>`;
+  } else if (isSuper) {
+    // Super: el archivo NO viaja en el listener en vivo; se carga bajo demanda (últimos 60).
+    html += `<div style="margin-top:1.5rem">
+      <div class="section-lbl" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center" onclick="toggleArchivoLazy()">
+        <span>📦 Archivo (recientes)</span>
+        <span id="archivo-lazy-icon">▼</span>
+      </div>
+      <div id="archivo-lazy-wrap" style="display:none"></div>
     </div>`;
   }
 
@@ -1586,6 +1596,33 @@ window.toggleArchivo = () => {
   const visible = el.style.display !== 'none';
   el.style.display = visible ? 'none' : 'block';
   if (icon) icon.textContent = visible ? '▼' : '▲';
+};
+
+// Archivo del super: carga perezosa (últimos 60 archivados). No viaja en el listener en vivo.
+window.toggleArchivoLazy = async () => {
+  const wrap = document.getElementById('archivo-lazy-wrap');
+  const icon = document.getElementById('archivo-lazy-icon');
+  if (!wrap) return;
+  const willOpen = wrap.style.display === 'none' || wrap.style.display === '';
+  wrap.style.display = willOpen ? 'block' : 'none';
+  if (icon) icon.textContent = willOpen ? '▲' : '▼';
+  if (!willOpen || wrap.dataset.loaded === '1' || isLocal) return;
+  wrap.innerHTML = '<div class="empty-state"><span class="spin"></span></div>';
+  try {
+    const snap = await fbMod.getDocs(fbMod.query(
+      fbMod.collection(db, 'despachos'),
+      fbMod.where('archived', '==', true),
+      fbMod.orderBy('createdAt', 'desc'),
+      fbMod.limit(60)
+    ));
+    const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    wrap.innerHTML = docs.length
+      ? docs.map(d => cardHtml(d, true)).join('')
+      : '<div class="empty-state"><div class="empty-text">Sin órdenes archivadas recientes.</div></div>';
+    wrap.dataset.loaded = '1';
+  } catch (e) {
+    wrap.innerHTML = `<div class="empty-state" style="color:var(--err-tx)">No se pudo cargar el archivo. ${esc(e.code || e.message || '')}</div>`;
+  }
 };
 
 /* ═══════════════════════════════════════
@@ -1928,6 +1965,7 @@ window.saveDespacho = async () => {
       products: parsedProducts,
       checked: {},
       status: 'pending',
+      archived: false,
       createdAt: Date.now()
     });
 
