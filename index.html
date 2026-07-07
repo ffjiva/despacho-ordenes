@@ -1012,7 +1012,15 @@ async function initFirebase(cfg) {
     const existing = getApps().find(a => a.name === APP_NAME);
     fbApp = existing || initializeApp(cfg, APP_NAME);
     window.fbApp = fbApp;
-    db = fbMod.getFirestore(fbApp);
+    try {
+      db = fbMod.initializeFirestore(fbApp, {
+        localCache: fbMod.persistentLocalCache({ tabManager: fbMod.persistentMultipleTabManager() })
+      });
+    } catch (e) {
+      // Ya inicializado, sin IndexedDB o modo privado → cache en memoria (comportamiento anterior).
+      console.warn('Persistencia offline no disponible:', e.message);
+      db = fbMod.getFirestore(fbApp);
+    }
     storage = storageMod.getStorage(fbApp);
     auth = authMod.getAuth(fbApp);
     return true;
@@ -2317,15 +2325,15 @@ function buildItem(p, ckData, leaving = false) {
 
 window.toggleItem = async pid => {
   if (isReadOnly || !curData) return;
-  const ck = { ...(curData.checked || {}) };
-  if (ck[pid]?.done) {
-    delete ck[pid];
+  const wasDone = !!(curData.checked || {})[pid]?.done;
+  if (wasDone) {
     pickGraceClear(pid);
+    await writeCheck(pid, null);
   } else {
-    ck[pid] = { done: true, time: fmtTime(), note: ck[pid]?.note || '' };
     pickGraceAdd(pid);
+    const cur = (curData.checked || {})[pid] || {};
+    await writeCheck(pid, { done: true, time: fmtTime(), note: cur.note || '' });
   }
-  await applyUpdate({ checked: ck });
 
   const prods = curData.products || [];
   const tot   = prods.length;
@@ -2542,9 +2550,8 @@ window.printPDF = () => {
 
 window.saveNote = async (pid, note) => {
   if (!curData) return;
-  const ck = { ...(curData.checked || {}) };
-  ck[pid] = { ...(ck[pid] || {}), note };
-  await applyUpdate({ checked: ck });
+  const cur = (curData.checked || {})[pid] || {};
+  await writeCheck(pid, { ...cur, note });
 };
 
 async function applyUpdate(data) {
@@ -2555,6 +2562,35 @@ async function applyUpdate(data) {
     if (i >= 0) { list[i] = { ...list[i], ...data }; localSet(list); }
   } else {
     try { await dbUpdate(curId, data); } catch(e) {
+      console.error(e);
+      const errEl = $('pick-save-err');
+      if (errEl) {
+        errEl.textContent = '⚠ Error al guardar. Verifica tu conexión.';
+        errEl.style.display = 'block';
+        setTimeout(() => { errEl.style.display = 'none'; }, 5000);
+      }
+    }
+  }
+  renderPick();
+}
+
+// Escritura atómica de UN ítem de checked (campo puntual, no el mapa completo).
+// Cierra el "lost update" que desmarcaba ítems al pisar el estado con un snapshot viejo.
+async function writeCheck(pid, value) {
+  if (!curData) return;
+  curData.checked = curData.checked || {};
+  if (value === null) delete curData.checked[pid];
+  else curData.checked[pid] = value;
+
+  if (isLocal) {
+    const list = localGet();
+    const i = list.findIndex(d => d.id === curId);
+    if (i >= 0) { list[i] = { ...list[i], checked: curData.checked }; localSet(list); }
+  } else {
+    const fieldVal = value === null ? fbMod.deleteField() : value;
+    try {
+      await dbUpdate(curId, { ['checked.' + pid]: fieldVal });
+    } catch (e) {
       console.error(e);
       const errEl = $('pick-save-err');
       if (errEl) {
@@ -3222,10 +3258,9 @@ async function handleScan(code) {
 
 async function markItemFromScanner(pid) {
   if (isReadOnly || !curData) return;
-  const ck = { ...(curData.checked || {}) };
-  ck[pid] = { done: true, time: fmtTime(), note: ck[pid]?.note || '' };
+  const cur = (curData.checked || {})[pid] || {};
   pickGraceAdd(pid);
-  await applyUpdate({ checked: ck });
+  await writeCheck(pid, { done: true, time: fmtTime(), note: cur.note || '' });
 
   const prods = curData.products || [];
   const tot   = prods.length;
