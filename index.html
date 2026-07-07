@@ -873,6 +873,7 @@ let pickSearch = '';
 let homeFilter = 'all';
 let supUserFilter = '';
 let supDestFilter = '';
+let _supUsersCache = null;   // usuarios activos cacheados para los filtros de super
 let lastDashList = null;
 let pickSort = 'alpha';
 let lockSet = false;
@@ -1239,14 +1240,20 @@ window.goHome = async () => {
   closeScanner();
   const co = $('celebr-overlay');
   if (co) co.classList.remove('on');
-  // Clear lock if we set it
+  // Liberar el lock en segundo plano — NO bloquear el retorno al home.
+  // (antes: `await dbUpdate(...)` con timeout de 10s; en un bache de red el
+  //  botón "← Lista" se quedaba pegado y el home no aparecía sin refrescar.)
   if (curId && lockSet && !isLocal) {
-    const _add = lockSessionStart ? Math.max(0, Date.now() - lockSessionStart) : 0;
-    try { await dbUpdate(curId, { lockedBy: null, lockedAt: null, activeMs: localActiveMs + _add }); } catch{}
+    const _add     = lockSessionStart ? Math.max(0, Date.now() - lockSessionStart) : 0;
+    const _lockId  = curId;
+    const _finalMs = localActiveMs + _add;
+    dbUpdate(_lockId, { lockedBy: null, lockedAt: null, activeMs: _finalMs }).catch(() => {});
     lockSet = false;
     lockSessionStart = 0;
     localActiveMs = 0;
   }
+  // Refrescar los usuarios de los filtros de super una vez por entrada al home.
+  _supUsersCache = null;
   if (unsub) { unsub(); unsub = null; }
   curId = null; curData = null;
   isReadOnly = false;
@@ -1333,14 +1340,16 @@ async function populateSupFilters(list) {
   const destSel = $('hf-dest');
   if (!userSel || !destSel) return;
 
-  // Cargar usuarios reales desde Firestore en lugar de extraer de despachos
-  let users = [];
-  try {
-    const snap = await fbMod.getDocs(
-      fbMod.query(fbMod.collection(db, 'users'), fbMod.where('active', '==', true))
-    );
-    users = snap.docs.map(d => ({ uid: d.id, name: d.data().name || d.id })).filter(u => u.name).sort((a,b) => a.name.localeCompare(b.name));
-  } catch { users = []; }
+  // Usuarios cacheados por sesión de home (antes se hacía un getDocs en CADA snapshot).
+  if (!_supUsersCache) {
+    try {
+      const snap = await fbMod.getDocs(
+        fbMod.query(fbMod.collection(db, 'users'), fbMod.where('active', '==', true))
+      );
+      _supUsersCache = snap.docs.map(d => ({ uid: d.id, name: d.data().name || d.id })).filter(u => u.name).sort((a,b) => a.name.localeCompare(b.name));
+    } catch { _supUsersCache = []; }
+  }
+  const users = _supUsersCache;
 
   // Destinos: extraer de órdenes activas (no archivadas) solamente
   const dests = [...new Set(
