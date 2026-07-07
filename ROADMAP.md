@@ -41,7 +41,7 @@
 
 ---
 
-## Sistema de usuarios (Fundación de Identidad — Jun 2026)
+## Sistema de usuarios (Fundación de Identidad — ✅ completada 06 Jul 2026)
 
 Todos los accesos usan **Firebase Auth (email/password)** + colección `users/{uid}`.
 La identidad de persona vive en `colaboradores/{id}` (directorio); la credencial de
@@ -70,6 +70,32 @@ uid:          string | null     ← FK → users/{uid} — presente solo cuando 
 | `motorista` | ✅ picking si asignado | ❌ bloqueado | ✅ acceso total | ❌ bloqueado |
 
 Todos los archivos leen `apps?.despacho?.role ?? role` (fallback al alias plano).
+
+**Roles y acceso — grant explícito por app, no automático:**
+- `super` = solo Fernando (control total). Nadie más accede a apartados super-only.
+- "Encargado" es solo etiqueta de `cargo`; su rol de app hoy es `collaborator`
+  (se creará un rol `gerente` cuando se le dé una función propia).
+- El acceso a cada app es un **grant explícito** (`apps.*`), precargado según el
+  `cargo` pero anulable por el admin. El cargo sugiere; el grant decide.
+
+| Cargo | `apps.despacho.role` | Acceso Ensamblador (default) |
+|---|---|---|
+| Encargado (etiqueta) | collaborator | Sí |
+| Vendedor | collaborator | Sí |
+| Técnico | collaborator | Sí |
+| Cajera | collaborator | No |
+| Redes | collaborator | No |
+| Bodeguero | collaborator | No |
+| Administrativo | collaborator | No (revisar caso a caso) |
+| Motorista | motorista | No |
+
+**Alta, vínculo y recuperación de cuentas:**
+- **Provisión por admin** (super): desde la **ficha del colaborador en ops.html**,
+  "Crear cuenta de acceso" → email + contraseña temporal + rol (precargado por cargo).
+- La CF `createUser` escribe el vínculo en ambos lados: `users/{uid}.colaboradorId`
+  y `colaboradores/{id}.uid`.
+- Recuperación de acceso: "Restablecer contraseña" por correo (las contraseñas no
+  son recuperables; Auth solo guarda hash).
 
 **Usuarios activos (28 Jun 2026):**
 - Fernando — `super` — ffjiva@gmail.com — colabId: BZab0b70iiSW96HaORO9
@@ -369,14 +395,18 @@ Cuatro bugs corregidos en el contador `activeMs`:
 - **Despachar** (`doDispatch`) — mismo patrón: guarda tiempo final y limpia lock junto al
   cambio de status. Antes no tocaba `activeMs` ni el lock.
 
-### Fundación de Identidad — sesión 28 Jun 2026 *(todos los archivos)*
+### Fundación de Identidad ✅ Completada — sesión 28 Jun a 06 Jul 2026 *(todos los archivos)*
 
 Plan de 5 fases para unificar identidad persona↔credencial y preparar el módulo Ensamblador.
+Directorio de colaboradores = registro maestro de personas; las cuentas de acceso se ligan
+a él (`colaboradorId` / `uid`) y los permisos se manejan por app (`apps.*`). Ver tabla de
+grants por cargo y esquema de datos completo en "Sistema de usuarios" más arriba.
 
 **Fase 1 — Cargos controlados** *(ops.html)*
 `<select>` en modal de colaborador con 8 valores canónicos (Administrativo, Bodeguero,
 Cajera, Encargado, Motorista, Redes, Técnico, Vendedor). Migración de los 54 docs de
 `colaboradores`: 17 valores libres → 8 controlados (24 docs actualizados via script admin).
+`cargo` = puesto (RRHH); **no** es el permiso de acceso — eso lo decide el grant `apps.*`.
 
 **Fase 2 — Auth gates a `apps.despacho.role`** *(todos los archivos)*
 Todos los archivos leen `apps?.despacho?.role ?? role` en el gate de acceso y en
@@ -399,6 +429,8 @@ actualiza `colaboradores/{id}.uid`. Reconciliación manual de 4 usuarios preexis
   Mensaje vacío actualizado: "Crea cuentas desde la ficha del colaborador en Ops."
 - `firestore.rules`: `isSuper()` actualizado a `apps.despacho.role == 'super'`.
   Regla `inventarios` consolidada para usar el helper (eliminado el `data.role` inline).
+- **CI:** `deploy.yml` fija Node 20 (`setup-node@v4`) antes del deploy de Firebase Hosting
+  — arregla el fallo por Node 24 (`npx` exit code 1).
 
 **Indicadores visuales en tarjetas de colaborador** *(ops.html)*
 - Borde derecho ámbar (3px): colaborador con cuenta de despacho (`colab-has-despacho`)
@@ -410,6 +442,12 @@ actualiza `colaboradores/{id}.uid`. Reconciliación manual de 4 usuarios preexis
   viven en `users/{uid}`, no en `colaboradores/{id}`).
 
 **Token CSS:** `--ensamblador-bd: #22cac8` agregado al `:root`.
+
+**Próxima etapa — Conectar el Ensamblador** *(pendiente)*
+Con la identidad lista, la conexión se reduce a: (1) apuntar el `firebaseConfig`
+del Ensamblador al proyecto de Despacho; (2) re-sembrar `catalogo`/`parametros`/
+`armados`; (3) fusionar sus reglas de Firestore; (4) leer `apps.ensamblador.role`
+en su `AuthScreen`/`AdminPanel`. Los permisos ya se pueden pre-cargar desde ahora.
 
 ---
 
@@ -760,4 +798,4 @@ Al abrir una sesión de implementación:
 
 ---
 
-*Última actualización: 29 Junio 2026 — depuración: conteos actualizados, items completados borrados del backlog triado (envío prioritario + imágenes en envíos), duplicado línea de acción eliminado, notas de Módulo 2 y "Sugerencias por historial" actualizadas*
+*Última actualización: 06 Julio 2026 — Fundación de Identidad marcada ✅ completada: tabla de grants por cargo (apps.despacho.role + Ensamblador default), recuperación de contraseña, fix CI Node 20 documentado, y próxima etapa "Conectar el Ensamblador" agregada como pendiente.*
