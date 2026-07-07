@@ -146,6 +146,7 @@ html, body {
 .fld input:focus, .fld textarea:focus, .fld select:focus { border-color: var(--accent); }
 .fld input::placeholder, .fld textarea::placeholder { color: var(--muted); }
 .fld select option { background: var(--surface2); color: var(--text); }
+#assign-sel option { background: var(--surface2); color: var(--text); }
 .fld textarea { min-height: 140px; resize: vertical; }
 .setup-divider { text-align: center; color: var(--muted); font-size: .65rem; letter-spacing: .08em; text-transform: uppercase; margin: 1rem 0; position: relative; }
 .setup-divider::before, .setup-divider::after { content:''; position:absolute; top:50%; width: calc(50% - 24px); height:1px; background:var(--border); }
@@ -2630,7 +2631,7 @@ window.assignDespacho = async (id, currentAssignUid) => {
   openModal(
     '👤 Asignar orden',
     'Selecciona a quién se asigna esta orden.',
-    `<select id="assign-sel" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--r);font-family:var(--mono);font-size:.78rem;background:var(--surface);color:#18180f;outline:none">${opts}</select>`,
+    `<select id="assign-sel" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--r);font-family:var(--mono);font-size:.78rem;background:var(--surface2);color:var(--text);outline:none">${opts}</select>`,
     [
       { label: 'Cancelar', cls: 'btn-outline', fn: 'closeModal(event)' },
       { label: 'Guardar', cls: 'btn-dark', fn: `window._saveAssign('${id}')` }
