@@ -2647,9 +2647,18 @@ window.assignDespacho = async (id, currentAssignUid) => {
   };
 };
 
-window.confirmDispatch = (id, name) => {
-  if (!curData || curData.id !== id) {
-    // Llamado desde s-home sin curData — despacho directo sin validación de ítems
+window.confirmDispatch = async (id, name) => {
+  const isSuper = currentUser?.role === 'super';
+
+  // Datos de la orden para validar: la abierta, o la lista viva del home, o Firestore.
+  let d = (curData && curData.id === id) ? curData : (lastDashList || []).find(x => x.id === id);
+  if (!d && !isLocal && db) {
+    try { const s = await fbMod.getDoc(fbMod.doc(db,'despachos',id)); if (s.exists()) d = { id: s.id, ...s.data() }; }
+    catch(e) { console.warn('confirmDispatch getDoc:', e.message); }
+  }
+
+  // SUPER (o sin datos disponibles): despacho directo, sin validación de ítems.
+  if (isSuper || !d) {
     openModal(
       'Confirmar despacho',
       `¿Marcar "${name}" como despachada? Esto indica que la orden ya salió de bodega hacia su destino.`,
@@ -2662,12 +2671,12 @@ window.confirmDispatch = (id, name) => {
     return;
   }
 
-  const products = curData.products || [];
-  const checked  = curData.checked  || {};
+  // COLABORADOR asignado: validación completa-o-notas.
+  const products = d.products || [];
+  const checked  = d.checked  || {};
   const pending  = products.filter(p => !checked[p.id]?.done);
 
   if (pending.length === 0) {
-    // Orden 100% completa
     openModal(
       'Confirmar despacho',
       `¿Marcar "${name}" como despachada? Esto indica que la orden ya salió de bodega hacia su destino.`,
@@ -2680,70 +2689,92 @@ window.confirmDispatch = (id, name) => {
     return;
   }
 
-  // Hay ítems sin marcar — verificar que todos tengan nota
   const sinNota = pending.filter(p => !(checked[p.id]?.note || '').trim());
 
   if (sinNota.length > 0) {
-    // Bloquear: resaltar ítems problemáticos y cerrar modal
-    closeModal();
-    // Quitar clase de iteraciones anteriores
-    document.querySelectorAll('.ic.needs-note').forEach(el => el.classList.remove('needs-note'));
-    // Aplicar a los que no tienen nota
-    sinNota.forEach(p => {
-      const el = document.getElementById('ic-' + p.id);
-      if (el) {
-        el.classList.add('needs-note');
-        // Actualizar placeholder del input de nota
-        const noteIn = el.querySelector('.note-in');
-        if (noteIn && !noteIn.value.trim()) noteIn.placeholder = '⚠ Escribe el motivo aquí…';
+    // Dentro de la orden: resaltar los ítems sin nota en su lugar (comportamiento original).
+    if (curData && curData.id === id) {
+      closeModal();
+      document.querySelectorAll('.ic.needs-note').forEach(el => el.classList.remove('needs-note'));
+      sinNota.forEach(p => {
+        const el = document.getElementById('ic-' + p.id);
+        if (el) {
+          el.classList.add('needs-note');
+          const noteIn = el.querySelector('.note-in');
+          if (noteIn && !noteIn.value.trim()) noteIn.placeholder = '⚠ Escribe el motivo aquí…';
+        }
+      });
+      const first = document.getElementById('ic-' + sinNota[0].id);
+      if (first) first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const banner = $('readonly-banner');
+      if (banner) {
+        const prev = banner.style.display;
+        const prevHtml = banner.innerHTML;
+        banner.innerHTML = `⚠ ${sinNota.length} ítem${sinNota.length > 1 ? 's' : ''} sin nota. Agrega el motivo en cada uno antes de despachar.`;
+        banner.style.display = '';
+        banner.style.background = 'var(--warn-bg)';
+        banner.style.color = 'var(--warn-tx)';
+        banner.style.borderColor = 'var(--warn-bd)';
+        setTimeout(() => {
+          banner.innerHTML = prevHtml;
+          banner.style.display = prev;
+          banner.style.background = '';
+          banner.style.color = '';
+          banner.style.borderColor = '';
+        }, 4000);
       }
-    });
-    // Scroll al primer ítem sin nota
-    const first = document.getElementById('ic-' + sinNota[0].id);
-    if (first) first.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    // Mostrar mensaje de error temporal en pantalla
-    const banner = $('readonly-banner');
-    if (banner) {
-      const prev = banner.style.display;
-      const prevHtml = banner.innerHTML;
-      banner.innerHTML = `⚠ ${sinNota.length} ítem${sinNota.length > 1 ? 's' : ''} sin nota. Agrega el motivo en cada uno antes de despachar.`;
-      banner.style.display = '';
-      banner.style.background = 'var(--warn-bg)';
-      banner.style.color = 'var(--warn-tx)';
-      banner.style.borderColor = 'var(--warn-bd)';
-      setTimeout(() => {
-        banner.innerHTML = prevHtml;
-        banner.style.display = prev;
-        banner.style.background = '';
-        banner.style.color = '';
-        banner.style.borderColor = '';
-      }, 4000);
+    } else {
+      // Desde el home no se pueden resaltar: dirigir a la orden para agregar los motivos.
+      openModal(
+        'Faltan comentarios',
+        `Esta orden tiene ${sinNota.length} ítem${sinNota.length > 1 ? 's' : ''} sin marcar y sin comentario. Abrí la orden, escribí el motivo en cada uno y volvé a despachar.`,
+        '',
+        [
+          { label: 'Cancelar',    cls: 'btn-outline', fn: 'closeModal(event)' },
+          { label: 'Abrir orden', cls: 'btn-dark',    fn: `closeModal(); openDespacho('${id}')` }
+        ]
+      );
     }
     return;
   }
 
-  // Todos los pendientes tienen nota — advertencia y confirmar
+  // Todos los pendientes tienen comentario → confirmar despacho incompleto.
   openModal(
     '🚚⚠ Despachar incompleta',
     `Esta orden tiene ${pending.length} ítem${pending.length > 1 ? 's' : ''} sin completar. Todos tienen comentario registrado. ¿Despachar de todas formas?`,
     '',
     [
-      { label: 'Cancelar',              cls: 'btn-outline', fn: 'closeModal(event)' },
-      { label: '🚚 Despachar de todas formas', cls: 'btn-dark', fn: `doDispatch('${id}',true)` }
+      { label: 'Cancelar',                     cls: 'btn-outline', fn: 'closeModal(event)' },
+      { label: '🚚 Despachar de todas formas', cls: 'btn-dark',    fn: `doDispatch('${id}',true)` }
     ]
   );
 };
 
 window.doDispatch = async (id, incomplete = false) => {
   closeModal();
-  const _add = lockSet && lockSessionStart ? Math.max(0, Date.now() - lockSessionStart) : 0;
+  const _add    = lockSet && lockSessionStart ? Math.max(0, Date.now() - lockSessionStart) : 0;
   const finalMs = localActiveMs + _add;
-  lockSet = false; lockSessionStart = 0; localActiveMs = 0;
-  const status = incomplete ? 'dispatched_incomplete' : 'dispatched';
-  const extra  = incomplete && curData
+  const status  = incomplete ? 'dispatched_incomplete' : 'dispatched';
+  const extra   = incomplete && curData && curData.id === id
     ? { incompleteItems: (curData.products || []).filter(p => !(curData.checked||{})[p.id]?.done).length }
     : {};
-  await dbUpdate(id, { status, dispatchedAt: Date.now(), activeMs: finalMs, lockedBy: null, lockedAt: null, ...extra });
+  try {
+    await dbUpdate(id, { status, dispatchedAt: Date.now(), activeMs: finalMs, lockedBy: null, lockedAt: null, ...extra });
+    lockSet = false; lockSessionStart = 0; localActiveMs = 0;
+  } catch(e) {
+    console.error('doDispatch error:', e);
+    const msg = e.code === 'permission-denied'
+      ? '⚠ No tenés permiso para despachar esta orden. Avisá al supervisor.'
+      : '⚠ No se pudo despachar. Verificá tu conexión e intentá de nuevo.';
+    const errEl = $('pick-save-err');
+    if (errEl && $('s-pick')?.classList.contains('on')) {
+      errEl.textContent = msg;
+      errEl.style.display = 'block';
+      setTimeout(() => { errEl.style.display = 'none'; }, 6000);
+    } else {
+      alert(msg);
+    }
+  }
 };
 
 window.confirmReopen = (id, name) => {
