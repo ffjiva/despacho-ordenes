@@ -4037,7 +4037,7 @@ window.openColabModal = id => {
     const sugRol = CARGO_ROL[c.cargo] || 'collaborator';
     cuentaWrap.innerHTML = `
       <div class="fld"><label>Email de acceso</label><input id="cf-acc-email" type="email" value="${colabEsc(c.correo || '')}" autocomplete="off"/></div>
-      <div class="fld"><label>Contraseña temporal</label><input id="cf-acc-pw" type="password" placeholder="mínimo 6 caracteres"/></div>
+      <div class="fld"><label>Contraseña temporal</label><div style="position:relative"><input id="cf-acc-pw" type="password" placeholder="mínimo 6 caracteres" style="padding-right:46px"/><button type="button" aria-label="Mostrar u ocultar contraseña" onclick="var i=this.parentNode.querySelector('input');var s=i.type==='password';i.type=s?'text':'password';this.textContent=s?'🙈':'👁';" style="position:absolute;right:4px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--muted);cursor:pointer;font-size:.95rem;line-height:1;padding:6px 8px">👁</button></div></div>
       <div class="fld"><label>Rol</label>
         <select id="cf-acc-rol" style="color:var(--text);background:var(--surface)">
           <option value="collaborator"${sugRol==='collaborator'?' selected':''}>Colaborador</option>
