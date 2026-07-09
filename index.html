@@ -3226,7 +3226,19 @@ async function startScanner() {
     return;
   }
   try {
-    html5QrScanner = new Html5Qrcode('scanner-region');
+    // Restringir a formatos de tienda (EAN/UPC). Evita que simbologías 1D como
+    // Code39/ITF produzcan lecturas erróneas que coinciden con otro producto.
+    let _cfg = { verbose: false };
+    if (typeof Html5QrcodeSupportedFormats !== 'undefined') {
+      _cfg.formatsToSupport = [
+        Html5QrcodeSupportedFormats.EAN_13,
+        Html5QrcodeSupportedFormats.EAN_8,
+        Html5QrcodeSupportedFormats.UPC_A,
+        Html5QrcodeSupportedFormats.UPC_E,
+        Html5QrcodeSupportedFormats.UPC_EAN_EXTENSION,
+      ];
+    }
+    html5QrScanner = new Html5Qrcode('scanner-region', _cfg);
     await html5QrScanner.start(
       { facingMode: 'environment' },
       { fps: 10, qrbox: { width: 280, height: 100 } },
@@ -3246,9 +3258,19 @@ async function stopScanner() {
   try { await scanner.stop(); scanner.clear(); } catch(e) {}
 }
 
+let _scanPrev = null, _scanPrevAt = 0;
 async function handleScan(code) {
   if (!code || !curData?.products) return;
   const isContinuous = document.getElementById('scanner-continuous').checked;
+
+  // Anti-misread: exige 2 lecturas idénticas seguidas (<1.2s) antes de actuar.
+  // Un read erróneo casi nunca se repite igual, así se descarta.
+  const _now = Date.now();
+  if (_scanPrev !== code || (_now - _scanPrevAt) > 1200) {
+    _scanPrev = code; _scanPrevAt = _now;
+    return;
+  }
+  _scanPrev = null; _scanPrevAt = 0;
 
   const product = curData.products.find(p =>
     String(p.code || '').trim() === String(code).trim()
