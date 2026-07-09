@@ -21,6 +21,13 @@ async function verifyFirebaseToken(req, res) {
   }
 }
 
+// ── Verifica que el usuario autenticado sea super ──────────
+async function isCallerSuper(uid) {
+  const snap = await admin.firestore().doc(`users/${uid}`).get();
+  const d = snap.exists ? snap.data() : null;
+  return !!d && (d.apps?.despacho?.role ?? d.role) === 'super';
+}
+
 const { onDocumentWritten } = require('firebase-functions/v2/firestore');
 const { onRequest }         = require('firebase-functions/v2/https');
 const { onSchedule }        = require('firebase-functions/v2/scheduler');
@@ -211,6 +218,10 @@ exports.parseDocument = onRequest(
 
   const user = await verifyFirebaseToken(req, res);
   if (!user) return;
+  if (!(await isCallerSuper(user.uid))) {
+    res.status(403).json({ error: 'Solo el supervisor puede usar esta función.' });
+    return;
+  }
 
   const { base64Data, mediaType } = req.body;
   if (!base64Data || !mediaType) { res.status(400).json({ error: "Missing base64Data or mediaType" }); return; }
@@ -509,6 +520,10 @@ exports.suggestReplenishment = onRequest(
 
   const user = await verifyFirebaseToken(req, res);
   if (!user) return;
+  if (!(await isCallerSuper(user.uid))) {
+    res.status(403).json({ error: 'Solo el supervisor puede usar esta función.' });
+    return;
+  }
 
   const { products, origin = 'B01B02', servedDests } = req.body;
   if (!products?.length) { res.status(400).json({ error: 'No products' }); return; }
