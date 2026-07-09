@@ -2023,10 +2023,22 @@ window.openDespacho = async id => {
           await doOpenDespachoReadOnly(id, d);
           return;
         }
-        const lockAge = Date.now() - (d.lockedAt || 0);
-        const valid = d.lockedBy && lockAge < LOCK_TTL_MS;
-        if (valid && d.lockedBy !== currentUser?.uid) {
-          if (currentUser?.role === 'super') {
+        const isSuper         = currentUser?.role === 'super';
+        const lockAge         = Date.now() - (d.lockedAt || 0);
+        const valid           = d.lockedBy && lockAge < LOCK_TTL_MS;
+        const lockedByOther   = valid && d.lockedBy !== currentUser?.uid;
+        const assignedToOther = d.assignedTo && d.assignedTo !== currentUser?.uid;
+
+        // SUPER revisando una orden asignada a OTRO: solo lectura, SIN poner lock,
+        // para no bloquear al colaborador asignado (aunque nadie la tenga abierta).
+        if (isSuper && assignedToOther) {
+          await doOpenDespacho(id, true, lockedByOther ? d.lockedBy : '');
+          return;
+        }
+
+        // Orden en uso por otro:
+        if (lockedByOther) {
+          if (isSuper) {
             await doOpenDespacho(id, true, d.lockedBy);
             return;
           }
