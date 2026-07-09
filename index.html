@@ -1863,15 +1863,34 @@ function parseOrderXLS(workbook) {
   }
 
   // 3) Filas de producto
+  const seen = new Map(); // code -> índice en products (unir nombres partidos por salto de página)
   for (let i = hRow + 1; i < rows.length; i++) {
     const row  = rows[i];
     const code = String(row[cCode] ?? '').trim();
     const name = String(row[cName] ?? '').trim();
     if (!code || !name) continue;                              // separadores en blanco / total / firmas
-    if (/^cantidad$/i.test(String(row[cQty] ?? '').trim())) continue; // header repetido por página
-    if (/^c[oó]digo$/i.test(code)) continue;
-    const qty = parseInt(parseFloat(String(row[cQty] ?? '').replace(',', '.'))) || 1;
+    if (/^c[oó]digo$/i.test(code)) continue;                   // header repetido por página
+    if (/^cantidad$/i.test(String(row[cQty] ?? '').trim())) continue;
+    const qtyRaw = String(row[cQty] ?? '').trim();
+
+    // Fila de continuación: nombre largo partido por un salto de página. Llega
+    // SIN cantidad y con el mismo código; se une al producto anterior (recupera
+    // el nombre completo) y NO crea una línea nueva. Evita productos/unidades fantasma.
+    if (!qtyRaw) {
+      if (code && seen.has(code)) {
+        const prev = products[seen.get(code)];
+        const frag = name.replace(/\s+/g, ' ').trim();
+        if (frag && !prev.name.includes(frag)) {
+          prev.name = (prev.name.endsWith('-') ? prev.name + frag
+                                               : prev.name + ' ' + frag).replace(/\s+/g, ' ').trim();
+        }
+      }
+      continue; // sin cantidad → no es una línea pickable por sí misma
+    }
+
+    const qty = parseInt(parseFloat(qtyRaw.replace(',', '.'))) || 1;
     const fam = cFam !== -1 ? String(row[cFam] ?? '').trim() : '';
+    seen.set(code, products.length);
     products.push({
       qty:    Math.max(1, qty),
       code:   code,                    // alfanumérico permitido (CM01Z9RA, DGM20S, etc.)
