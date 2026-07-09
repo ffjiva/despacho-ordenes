@@ -2117,7 +2117,7 @@ async function doOpenDespacho(id, readOnly = false, lockedBy = '') {
 
   const banner = $('readonly-banner');
   if (readOnly && banner) {
-    banner.innerHTML = `👁 MODO LECTURA — Orden en uso por ${esc(lockedBy)}`;
+    banner.innerHTML = `👁 MODO LECTURA`;
     banner.style.display = '';
   } else if (banner) {
     banner.style.display = 'none';
@@ -2170,12 +2170,12 @@ async function doOpenDespacho(id, readOnly = false, lockedBy = '') {
           ? ` <button onclick="confirmReopen('${id}','${(data.name||data.orderNumber||'').replace(/'/g,"\\'")}')" style="margin-left:10px;padding:2px 10px;font-size:.6rem;font-family:var(--mono);font-weight:700;border:1px solid var(--warn-bd);border-radius:4px;background:transparent;color:var(--warn-tx);cursor:pointer">🔓 Reabrir</button>`
           : '';
         banner.innerHTML = readOnly && lockedBy
-          ? `👁 MODO LECTURA — Orden en uso por ${data.lockedByName || lockedBy}`
+          ? `👁 MODO LECTURA — Orden en uso por ${data.lockedByName || 'otro usuario'}`
           : isCollab
           ? `🔒 Esta orden no te fue asignada`
           : isDispatched && currentUser?.role === 'super'
           ? `🚚 Orden despachada${reopenBtn}`
-          : `👁 MODO LECTURA — Esta orden está asignada a ${data.assignedToName || data.assignedTo}`;
+          : `👁 MODO LECTURA — Esta orden está asignada a ${data.assignedToName || 'otro colaborador'}`;
         banner.style.display = '';
       } else if (banner) {
         banner.style.display = 'none';
