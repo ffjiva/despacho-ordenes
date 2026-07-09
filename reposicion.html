@@ -3320,21 +3320,23 @@ function parseInvXLS(workbook) {
   const productos = [];
   const vistos    = new Set();
 
+  const isHeaderRow = (r) =>
+    /^c[oó]digo$/i.test(String(r[1] ?? '').trim()) &&
+    /^descripci/i.test(String(r[3] ?? '').trim());
+
   workbook.SheetNames.forEach(sheetName => {
     const sheet = workbook.Sheets[sheetName];
     const rows  = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
 
-    // Detectar fila header dinámicamente
+    // Detectar la primera fila header (Codigo / Descripcion)
     let headerRow = -1;
     for (let i = 0; i < rows.length; i++) {
-      const r = rows[i];
-      const hasCode = String(r[1] || '').match(/^c[oó]digo$/i);
-      const hasDesc = String(r[3] || '').match(/^descripci/i);
-      if (hasCode && hasDesc) { headerRow = i; break; }
+      if (isHeaderRow(rows[i])) { headerRow = i; break; }
     }
     if (headerRow === -1) return; // hoja sin formato esperado
 
-    let familia = '';
+    let familia      = '';
+    let enEncabezado = false; // dentro de un bloque de encabezado de página repetido
     for (let i = headerRow + 1; i < rows.length; i++) {
       const row  = rows[i];
       const col1 = String(row[1] ?? '').trim();
@@ -3342,23 +3344,24 @@ function parseInvXLS(workbook) {
       const col5 = row[5]; // Disponib.
       const col7 = row[7]; // E/Pedid.
 
-      if (!col1) continue;
-
-      // Fila de familia/grupo: col1 tiene texto sin código numérico
-      if (!/^\d{8,}$/.test(col1) && !col3) {
-        // Descartar filas de total/subtotal (solo números)
-        if (/^[\d.,\s]+$/.test(col1)) continue;
-        familia = col1;
+      // Encabezado de página repetido (título → bodega → header de tabla): saltarlo entero.
+      if (/^existencias de inventario$/i.test(col1)) { enEncabezado = true; continue; }
+      if (enEncabezado) {
+        if (isHeaderRow(row)) enEncabezado = false; // fin del bloque al llegar al header
         continue;
       }
 
-      // Fila de producto: col1 es código numérico largo
-      if (/^\d{8,}$/.test(col1) && col3) {
-        if (vistos.has(col1)) continue; // deduplicar páginas repetidas
+      if (!col1) continue;                         // blanco / continuación de nombre sin código
+      if (col1.toLowerCase() === 'null') continue; // basura del export
+
+      // Fila de PRODUCTO: requiere código (numérico O alfanumérico) + descripción.
+      if (col3) {
+        if (isHeaderRow(row)) continue;            // header suelto
+        if (vistos.has(col1)) continue;            // deduplicar páginas repetidas
         vistos.add(col1);
 
-        const disponib  = parseFloat(String(col5 ?? '0').replace(',', '.')) || 0;
-        const enPedido  = parseFloat(String(col7 ?? '0').replace(',', '.')) || 0;
+        const disponib = parseFloat(String(col5 ?? '0').replace(',', '.')) || 0;
+        const enPedido = parseFloat(String(col7 ?? '0').replace(',', '.')) || 0;
 
         productos.push({
           codigo:   col1,
@@ -3369,7 +3372,13 @@ function parseInvXLS(workbook) {
           stockFisico: null,
           estado: 'pendiente'
         });
+        continue;
       }
+
+      // Sin descripción: subtotal/conteo (solo números) → descartar…
+      if (/^[\d.,\s]+$/.test(col1)) continue;
+      // …o encabezado de familia/grupo real (ej. "Gaming Headset")
+      familia = col1;
     }
   });
 
