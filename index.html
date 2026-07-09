@@ -2965,10 +2965,12 @@ function setupAuthListener() {
         profile = await getOrCreateUserProfile(firebaseUser);
       } catch (e) {
         console.error('No se pudo cargar el perfil (rol intacto, no se degrada):', e);
-        if (!sessionStorage.getItem('_profileRetry')) {
-          sessionStorage.setItem('_profileRetry', '1');
+        const _lastRetry = Number(sessionStorage.getItem('_profileRetry') || 0);
+        if (Date.now() - _lastRetry > 30000) {
+          sessionStorage.setItem('_profileRetry', String(Date.now()));
           location.reload();
         } else {
+          sessionStorage.removeItem('_profileRetry');
           $('s-loading').classList.remove('on');
           alert('No se pudo cargar tu perfil. Revisa tu conexión y recarga la página.');
         }
