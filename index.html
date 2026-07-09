@@ -545,6 +545,7 @@ body:not(.dark) input[type="time"] {
 }
 </style>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -716,7 +717,7 @@ body:not(.dark) input[type="time"] {
     </div>
 
     <label style="font-size:.6rem;font-weight:700;letter-spacing:.1em;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:6px">
-      Cargar lista (PDF o imagen)
+      Cargar lista (Excel, PDF o imagen)
     </label>
     <div class="dropzone" id="dropzone"
       onclick="document.getElementById('file-in').click()"
@@ -724,10 +725,10 @@ body:not(.dark) input[type="time"] {
       ondragleave="this.classList.remove('drag')"
       ondrop="onFileDrop(event)">
       <div class="drop-icon" id="drop-icon">⬆</div>
-      <div class="drop-title" id="drop-title">Subir PDF o imagen</div>
-      <div class="drop-sub" id="drop-sub">Toca aquí o arrastra el archivo<br/>PDF · JPG · PNG · WEBP — máx 20MB</div>
+      <div class="drop-title" id="drop-title">Subir Excel, PDF o imagen</div>
+      <div class="drop-sub" id="drop-sub">Toca aquí o arrastra el archivo<br/>XLS · CSV · PDF · JPG · PNG · WEBP — máx 20MB</div>
     </div>
-    <input type="file" id="file-in" accept=".pdf,image/jpeg,image/png,image/webp" style="display:none" onchange="onFileInput(this)"/>
+    <input type="file" id="file-in" accept=".pdf,.xls,.xlsx,.csv,image/jpeg,image/png,image/webp,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" style="display:none" onchange="onFileInput(this)"/>
 
     <div id="status-box" style="display:none;margin-bottom:.75rem"></div>
 
@@ -1657,8 +1658,8 @@ window.goNew = async () => {
   $('dsp-name').value = '';
   $('dropzone').className = 'dropzone';
   $('drop-icon').textContent = '⬆';
-  $('drop-title').textContent = 'Subir PDF o imagen';
-  $('drop-sub').textContent = 'Toca aquí o arrastra el archivo\nPDF · JPG · PNG · WEBP — máx 20MB';
+  $('drop-title').textContent = 'Subir Excel, PDF o imagen';
+  $('drop-sub').textContent = 'Toca aquí o arrastra el archivo\nXLS · CSV · PDF · JPG · PNG · WEBP — máx 20MB';
   $('status-box').style.display = 'none';
   $('review-wrap').style.display = 'none';
   $('no-file-wrap').style.display = 'block';
@@ -1723,6 +1724,12 @@ async function processFile(file) {
   $('drop-icon').textContent = mime === 'application/pdf' ? '📄' : '🖼';
   $('drop-title').textContent = file.name.length > 35 ? file.name.slice(0,33)+'…' : file.name;
   $('drop-sub').textContent = (file.size/1024/1024).toFixed(2) + ' MB · ' + ext.toUpperCase();
+
+  // ── Camino rápido: Excel/CSV se leen local (SheetJS), sin IA ──
+  if (['xls','xlsx','csv'].includes(ext)) {
+    await processSpreadsheet(file);
+    return;
+  }
 
   setStatus('Leyendo archivo...', 'info', true);
   let b64;
@@ -1810,6 +1817,122 @@ function fileToBase64(file) {
     r.onerror = () => rej(new Error('FileReader error'));
     r.readAsDataURL(file);
   });
+}
+
+// Lee la orden de envío en Excel/CSV y devuelve la MISMA forma que la IA:
+// { products:[{qty,code,name,family}], header:{orderNumber,orderDate,origin,destination} }
+function parseOrderXLS(workbook) {
+  const products = [];
+  const header   = {};
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  // raw:false → cada celda como texto ya formateado (fecha "24/06/2026", qty "5.00")
+  const rows  = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: false });
+
+  // 1) Localizar la fila de cabecera de la tabla (tiene "Cantidad" y "Codigo")
+  let hRow = -1, cQty = -1, cCode = -1, cName = -1, cFam = -1;
+  for (let i = 0; i < rows.length; i++) {
+    const r  = rows[i].map(v => String(v).trim().toLowerCase());
+    const qi = r.findIndex(v => v === 'cantidad');
+    const ci = r.findIndex(v => v === 'codigo' || v === 'código');
+    if (qi !== -1 && ci !== -1) {
+      hRow = i; cQty = qi; cCode = ci;
+      cName = r.findIndex(v => v === 'producto' || v === 'descripcion' || v === 'descripción');
+      cFam  = r.findIndex(v => v === 'familia');
+      break;
+    }
+  }
+  if (hRow === -1) throw new Error('No se encontró la tabla de productos (fila "Cantidad / Codigo").');
+  if (cName === -1) cName = cCode + 2; // fallback defensivo
+
+  // 2) Metadata: escanear filas ANTES del header por etiquetas
+  const valorTras = (rowArr, re) => {
+    const idx = rowArr.findIndex(v => re.test(String(v)));
+    if (idx === -1) return '';
+    for (let k = idx + 1; k < rowArr.length; k++) {
+      const val = String(rowArr[k] ?? '').trim();
+      if (val) return val;
+    }
+    return '';
+  };
+  for (let i = 0; i < hRow; i++) {
+    const rowArr = rows[i];
+    if (!header.origin      && rowArr.some(v => /sucursal\s*origen/i.test(String(v))))  header.origin      = valorTras(rowArr, /sucursal\s*origen/i);
+    if (!header.destination && rowArr.some(v => /sucursal\s*destino/i.test(String(v)))) header.destination = valorTras(rowArr, /sucursal\s*destino/i);
+    if (!header.orderNumber && rowArr.some(v => /no\.?\s*orden/i.test(String(v))))       header.orderNumber = valorTras(rowArr, /no\.?\s*orden/i);
+    if (!header.orderDate   && rowArr.some(v => /fecha\s*env/i.test(String(v))))          header.orderDate   = valorTras(rowArr, /fecha\s*env/i);
+  }
+
+  // 3) Filas de producto
+  for (let i = hRow + 1; i < rows.length; i++) {
+    const row  = rows[i];
+    const code = String(row[cCode] ?? '').trim();
+    const name = String(row[cName] ?? '').trim();
+    if (!code || !name) continue;                              // separadores en blanco / total / firmas
+    if (/^cantidad$/i.test(String(row[cQty] ?? '').trim())) continue; // header repetido por página
+    if (/^c[oó]digo$/i.test(code)) continue;
+    const qty = parseInt(parseFloat(String(row[cQty] ?? '').replace(',', '.'))) || 1;
+    const fam = cFam !== -1 ? String(row[cFam] ?? '').trim() : '';
+    products.push({
+      qty:    Math.max(1, qty),
+      code:   code,                    // alfanumérico permitido (CM01Z9RA, DGM20S, etc.)
+      name:   name,
+      family: fam || 'General'
+    });
+  }
+  return { products, header };
+}
+
+async function processSpreadsheet(file) {
+  $('drop-icon').textContent = '📊';
+  setStatus('Leyendo Excel…', 'info', true);
+  if (typeof XLSX === 'undefined') {
+    setStatus('No se pudo cargar el lector de Excel (SheetJS). Recarga la página e intenta de nuevo.', 'err');
+    $('no-file-wrap').style.display = 'block';
+    return;
+  }
+  try {
+    const buf = await file.arrayBuffer();
+    const wb  = XLSX.read(buf, { type: 'array' });
+    const result = parseOrderXLS(wb);
+    const products = result.products;
+    const header   = result.header || {};
+
+    if (!products || products.length === 0) {
+      setStatus('No se detectaron productos en el Excel. Revisa el archivo o ingresa la lista manualmente.', 'warn');
+      $('no-file-wrap').style.display = 'block';
+      return;
+    }
+
+    parsedProducts = products.map(p => ({
+      id: uid(),
+      qty: Math.max(1, parseInt(p.qty) || 1),
+      code: (p.code || '').toString().trim(),
+      name: (p.name || '').trim().toUpperCase(),
+      family: (p.family || 'General').trim()
+    }));
+
+    window._lastHeader = header;
+
+    if (header.orderNumber || header.orderDate) {
+      const num  = header.orderNumber ? `ORDEN ${header.orderNumber}` : '';
+      const date = header.orderDate || '';
+      $('dsp-name').value = [num, date].filter(Boolean).join('    ');
+    } else if (!$('dsp-name').value.trim()) {
+      $('dsp-name').value = `Pedido ${new Date().toLocaleDateString('es-SV',{day:'2-digit',month:'2-digit',year:'numeric'})}`;
+    }
+
+    if (header.origin)      $('dsp-origin').value      = matchUbicacion(header.origin)      || '';
+    if (header.destination) $('dsp-destination').value = matchUbicacion(header.destination) || '';
+
+    setStatus(`✓ ${parsedProducts.length} productos leídos del Excel. Revisa y ajusta antes de guardar.`, 'ok');
+    renderReview();
+    $('review-wrap').style.display = 'block';
+    $('no-file-wrap').style.display = 'none';
+  } catch(e) {
+    console.error(e);
+    setStatus('Error al leer el Excel: ' + (e.message || 'archivo no válido') + '. Puedes ingresar la lista manualmente.', 'err');
+    $('no-file-wrap').style.display = 'block';
+  }
 }
 
 async function aiExtractProducts(b64, mime) {
