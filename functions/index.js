@@ -38,16 +38,15 @@ exports.onDespachoAssigned = onDocumentWritten('despachos/{despachoId}', async (
     const alreadyNotified = after.lastNotifiedAssignedTo === assignedAfter;
     if (alreadyNotified) return null;
 
-    const usersSnap = await admin.firestore().collection('users')
-      .where('name', '==', assignedAfter).limit(1).get();
+    const userSnap = await admin.firestore().doc(`users/${assignedAfter}`).get();
 
-    if (usersSnap.empty) {
+    if (!userSnap.exists) {
       console.log(`Usuario "${assignedAfter}" no encontrado en users/`);
       return null;
     }
 
-    const userData = usersSnap.docs[0].data();
-    const tokens   = userData.fcmTokens || [];
+    const userData = userSnap.data();
+    const tokens   = userData.fcmTokens || (userData.fcmToken ? [userData.fcmToken] : []);
 
     if (!tokens.length) {
       console.log(`Sin tokens FCM para ${assignedAfter}`);
@@ -76,7 +75,7 @@ exports.onDespachoAssigned = onDocumentWritten('despachos/{despachoId}', async (
       const response = await admin.messaging().sendEach(messages);
       console.log(`Notificaciones: ${response.successCount}/${messages.length} a ${assignedAfter}`);
 
-      const uid = usersSnap.docs[0].id;
+      const uid = assignedAfter;
       const invalidTokens = response.responses
         .map((r, i) => (!r.success && r.error?.code === 'messaging/registration-token-not-registered') ? tokens[i] : null)
         .filter(Boolean);
