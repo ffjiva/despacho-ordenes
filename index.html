@@ -2939,28 +2939,42 @@ window.logout = async () => {
 };
 
 async function loadUserProfile(uid) {
-  try {
-    const snap = await fbMod.getDoc(fbMod.doc(db, 'users', uid));
-    return snap.exists() ? snap.data() : null;
-  } catch { return null; }
+  // Sin catch: un error de lectura debe propagarse, NO devolver null
+  // (null solo significa "el doc no existe").
+  const snap = await fbMod.getDoc(fbMod.doc(db, 'users', uid));
+  return snap.exists() ? snap.data() : null;
 }
 
 async function getOrCreateUserProfile(firebaseUser) {
   const { uid, email, displayName } = firebaseUser;
-  let profile = await loadUserProfile(uid);
+  const profile = await loadUserProfile(uid);   // si la lectura falla, lanza y NO se crea nada
   if (profile) return profile;
 
-  // Primer login: siempre collaborator — super se asigna manualmente desde el panel
-  profile = { name: displayName || email.split('@')[0], email, role: 'collaborator', createdAt: Date.now(), active: true };
-  try { await fbMod.setDoc(fbMod.doc(db, 'users', uid), profile); } catch{}
-  return profile;
+  // Solo se llega aquí si el doc realmente no existe → primer login real
+  const nuevo = { name: displayName || email.split('@')[0], email, role: 'collaborator', createdAt: Date.now(), active: true };
+  await fbMod.setDoc(fbMod.doc(db, 'users', uid), nuevo);
+  return nuevo;
 }
 
 function setupAuthListener() {
   if (!authMod || !auth) return;
   authMod.onAuthStateChanged(auth, async (firebaseUser) => {
     if (firebaseUser) {
-      const profile = await getOrCreateUserProfile(firebaseUser);
+      let profile;
+      try {
+        profile = await getOrCreateUserProfile(firebaseUser);
+      } catch (e) {
+        console.error('No se pudo cargar el perfil (rol intacto, no se degrada):', e);
+        if (!sessionStorage.getItem('_profileRetry')) {
+          sessionStorage.setItem('_profileRetry', '1');
+          location.reload();
+        } else {
+          $('s-loading').classList.remove('on');
+          alert('No se pudo cargar tu perfil. Revisa tu conexión y recarga la página.');
+        }
+        return;
+      }
+      sessionStorage.removeItem('_profileRetry');
       if (!profile || profile.active === false) {
         await authMod.signOut(auth);
         return;
