@@ -1307,7 +1307,7 @@ function startHomeListener() {
   try {
     const isCollaborator = ['collaborator', 'motorista'].includes(currentUser?.role);
     const q = isCollaborator
-      ? fbMod.query(fbMod.collection(db,'despachos'), fbMod.where('assignedTo','==',currentUser?.uid ?? ''), fbMod.orderBy('createdAt','desc'))
+      ? fbMod.query(fbMod.collection(db,'despachos'), fbMod.where('assignedTo','==',currentUser?.uid ?? ''), fbMod.where('archived','==',false), fbMod.orderBy('createdAt','desc'))
       : fbMod.query(fbMod.collection(db,'despachos'), fbMod.where('archived','==',false), fbMod.orderBy('createdAt','desc'));
     homeUnsub = fbMod.onSnapshot(q,
       snap => {
@@ -1567,8 +1567,8 @@ function renderDash(list) {
         ${archivadas.map(d => cardHtml(d, true)).join('')}
       </div>
     </div>`;
-  } else if (isSuper) {
-    // Super: el archivo NO viaja en el listener en vivo; se carga bajo demanda (últimos 60).
+  } else {
+    // Super y colaborador: el archivo NO viaja en el listener en vivo; se carga bajo demanda (últimos 60).
     html += `<div style="margin-top:1.5rem">
       <div class="section-lbl" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center" onclick="toggleArchivoLazy()">
         <span>📦 Archivo (recientes)</span>
@@ -1618,9 +1618,13 @@ window.toggleArchivoLazy = async () => {
   if (!willOpen || wrap.dataset.loaded === '1' || isLocal) return;
   wrap.innerHTML = '<div class="empty-state"><span class="spin"></span></div>';
   try {
+    const isSuper = currentUser?.role === 'super';
+    const filtros = isSuper
+      ? [fbMod.where('archived', '==', true)]
+      : [fbMod.where('assignedTo', '==', currentUser?.uid ?? ''), fbMod.where('archived', '==', true)];
     const snap = await fbMod.getDocs(fbMod.query(
       fbMod.collection(db, 'despachos'),
-      fbMod.where('archived', '==', true),
+      ...filtros,
       fbMod.orderBy('createdAt', 'desc'),
       fbMod.limit(60)
     ));
