@@ -2037,14 +2037,14 @@ window.openDespacho = async id => {
         // SUPER revisando una orden asignada a OTRO: solo lectura, SIN poner lock,
         // para no bloquear al colaborador asignado (aunque nadie la tenga abierta).
         if (isSuper && assignedToOther) {
-          await doOpenDespacho(id, true, lockedByOther ? d.lockedBy : '');
+          await doOpenDespacho(id, true, lockedByOther ? (d.lockedByName || d.lockedBy) : '');
           return;
         }
 
         // Orden en uso por otro:
         if (lockedByOther) {
           if (isSuper) {
-            await doOpenDespacho(id, true, d.lockedBy);
+            await doOpenDespacho(id, true, d.lockedByName || d.lockedBy);
             return;
           }
           openModal(
