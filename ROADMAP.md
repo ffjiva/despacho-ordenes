@@ -190,6 +190,21 @@ Solo persiste por FCM tokens legacy. No usar para nuevos desarrollos.
 
 ## Módulos completados ✅
 
+### Carga de picking list por Excel — 09 Jul 2026 *(index.html)*
+Camino híbrido en la pantalla "Nuevo Despacho": `.xls/.xlsx/.csv` se leen **local con
+SheetJS** (instantáneo, sin IA ni costo de API); `.pdf`/imagen mantienen la ruta de IA
+(`parseDocument`) como fallback para fotos/impresos.
+- `parseOrderXLS(workbook)`: detecta la fila de cabecera dinámicamente (busca "Cantidad"
+  + "Codigo"), mapea columnas Cantidad/Codigo/Producto/Familia, y extrae metadata
+  (origen, destino, fecha, No. orden) escaneando etiquetas sobre el header. Devuelve la
+  MISMA forma que la IA `{ products, header }`, por lo que el flujo de revisión/guardado
+  quedó intacto.
+- **Códigos alfanuméricos soportados** (CM01Z9RA, DGM20S, TEGC…) — no se restringe a
+  numéricos (evita de raíz el bug de `parseInvXLS`).
+- Salta filas en blanco, headers repetidos por página, fila de total y firmas al pie.
+- Plantilla `OrdenEnvio` estable; solo varían origen/destino/fecha/No. orden.
+- SheetJS (`xlsx.full.min.js` de cdnjs) ahora cargado también en index.html.
+
 ### Sesión de seguridad, fiabilidad y auditoría — 09 Jul 2026 *(functions/index.js + firestore.rules + index.html + ops.html + moto.html + reposicion.html)*
 
 Auditoría en frío de los 6 archivos a pedido del owner sobre tres ejes: bugs, seguridad
@@ -804,7 +819,8 @@ lista blanca de 137 categorías y auto-refresco de categoría al reutilizar.
 Botones "Ops"/"Órdenes" pasados a relativas (`ops.html` / `index.html`) y deep links `?orden=` a
 raíz-relativos (`/?orden=`). Los previews ya no saltan a producción. Verificado: cero
 `despacho-ordenes.web.app` en navegación (solo quedan `wa.me` externos y comentarios). Sin features
-inmediatos en cola — el próximo gran paso es modularizar ops.html (en chat nuevo, ver Backlog).
+inmediatos en cola — la carga de picking list por Excel quedó cerrada el 09 Jul 2026 (ver Módulos
+completados); el próximo gran paso sigue siendo modularizar ops.html (en chat nuevo, ver Backlog).
 
 ---
 
