@@ -619,8 +619,13 @@ body:not(.dark) input[type="time"] {
       </div>
       <div class="fld">
         <label>Contraseña</label>
-        <input id="login-pw" type="password" placeholder="••••••••"
-          autocomplete="current-password" onkeydown="if(event.key==='Enter')doEmailLogin()"/>
+        <div style="position:relative">
+          <input id="login-pw" type="password" placeholder="••••••••" style="padding-right:46px"
+            autocomplete="current-password" onkeydown="if(event.key==='Enter')doEmailLogin()"/>
+          <button type="button" aria-label="Mostrar u ocultar contraseña"
+            onclick="var i=this.parentNode.querySelector('input');var s=i.type==='password';i.type=s?'text':'password';this.textContent=s?'🙈':'👁';"
+            style="position:absolute;right:4px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--muted);cursor:pointer;font-size:.95rem;line-height:1;padding:6px 8px">👁</button>
+        </div>
       </div>
       <div id="login-err" class="box box-err" style="display:none;margin-bottom:.75rem"></div>
       <button class="btn btn-dark btn-full" id="btn-login" onclick="doEmailLogin()">Entrar →</button>
