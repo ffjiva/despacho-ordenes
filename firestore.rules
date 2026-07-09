@@ -19,7 +19,10 @@ service cloud.firestore {
     match /users/{uid} {
       allow read:   if isAuth();
       allow create: if isAuth() && request.auth.uid == uid;
-      allow update: if isSuper() || request.auth.uid == uid;
+      allow update: if isSuper()
+        || (request.auth.uid == uid &&
+            request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['fcmTokens', 'name']));
       allow delete: if isSuper();
     }
 
@@ -52,12 +55,12 @@ service cloud.firestore {
       allow write: if isSuper();
     }
 
-    // ── vueltas y domicilios: sin auth (usados por moto.html) ──
+    // ── vueltas y domicilios: requieren sesión (moto.html ya usa Auth) ──
     match /vueltas/{id} {
-      allow read, write: if true;
+      allow read, write: if isAuth();
     }
     match /domicilios/{id} {
-      allow read, write: if true;
+      allow read, write: if isAuth();
     }
 
     // ── ops_pendientes ───────────────────────────────────
