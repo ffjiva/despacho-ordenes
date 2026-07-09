@@ -190,6 +190,67 @@ Solo persiste por FCM tokens legacy. No usar para nuevos desarrollos.
 
 ## Módulos completados ✅
 
+### Sesión de seguridad, fiabilidad y auditoría — 09 Jul 2026 *(functions/index.js + firestore.rules + index.html + ops.html + moto.html + reposicion.html)*
+
+Auditoría en frío de los 6 archivos a pedido del owner sobre tres ejes: bugs, seguridad
+(puertas traseras) y escalabilidad. Hallazgos verificados en producción (navegador) y corregidos.
+
+**Seguridad — 2 puertas traseras cerradas** *(firestore.rules)*
+- **`vueltas`/`domicilios` abiertos a internet:** las reglas tenían `allow read, write: if true`
+  (legacy de cuando moto.html no usaba Auth). Cualquiera con el `projectId` (público en el cliente)
+  podía leer, escribir o borrar toda la base de entregas + PII de clientes (nombre, teléfono,
+  dirección, montos, forma de pago). Cambiado a `if isAuth()`. Verificado: lectura sin sesión →
+  `permission-denied` en las 6 colecciones probadas.
+- **Escalada de privilegios en `users`:** `allow update: if isSuper() || request.auth.uid == uid`
+  sin restricción de campos permitía que cualquier usuario se auto-asignara
+  `apps.despacho.role: 'super'` desde DevTools (la regla `isSuper()` lee justo ese campo, sin
+  fallback). Restringido el self-update a `hasOnly(['fcmTokens','name'])`. Verificado en prod:
+  Anderson (collaborator) → `permission-denied` al intentar escribir un campo fuera de la lista.
+
+**Seguridad — guard de costo de API** *(functions/index.js)*
+- `parseDocument` y `suggestReplenishment` solo exigían token válido → cualquier autenticado
+  (incluso motorista) podía quemar créditos de la API de Claude. Agregado helper `isCallerSuper(uid)`
+  + guard 403 en ambas (mismo patrón que `createUser`). Crear órdenes y reposición ya son super-only,
+  así que no rompe flujos. `parseXLS` se deja abierto-a-autenticado (usa SheetJS local, sin costo Anthropic).
+
+**Bug — notificación de orden asignada rota** *(functions/index.js)*
+- `onDespachoAssigned` buscaba al usuario con `where('name','==',assignedTo)`, pero `assignedTo`
+  guarda UID desde la Fundación de Identidad → `usersSnap.empty` siempre, el push "📦 Nueva orden
+  asignada" nunca se enviaba. Cambiado a lookup directo por UID (`doc(users/${assignedAfter})`),
+  consistente con `onVueltaAssigned`/`onInventarioAsignado`.
+
+**Bug crítico — degradación de rol por overwrite de perfil** *(index.html — commit 97d29d2)*
+- Incidente real durante la sesión: el doc `super` de Fernando se sobrescribió a `collaborator`
+  (perdió `apps`, `colaboradorId`, y el `name` pasó a "ffjiva"). Causa: `loadUserProfile` tenía
+  `try { getDoc } catch { return null }` que se tragaba errores de lectura; ante un token vencido
+  en una pestaña stale devolvía `null` → `getOrCreateUserProfile` lo interpretaba como "usuario
+  inexistente" y sobrescribía el doc con un perfil collaborator nuevo.
+- Fix: `loadUserProfile` ya no atrapa errores (los propaga; `null` solo significa doc inexistente).
+  `getOrCreateUserProfile` solo crea si el doc confirmadamente no existe. `setupAuthListener` envuelve
+  la carga en try/catch: ante error de lectura mantiene la sesión y reintenta (flag `_profileRetry`
+  con guard anti-loop), sin degradar. Patrón de overwrite confirmado presente SOLO en index.html;
+  ops/moto/reposicion solo leen el perfil. Doc de Fernando restaurado manualmente vía consola Firebase.
+
+**Bug — botón de login atascado en "Entrando…"** *(index.html + ops.html + moto.html + reposicion.html)*
+- Tras un login exitoso, `doEmailLogin` dejaba el botón en "Entrando…"/"Ingresando…" disabled
+  (nunca se reseteaba porque `onAuthStateChanged` navegaba). Al cerrar sesión, el botón seguía
+  atascado. Fix: reset del botón dentro de `showScreen` cuando `id === 's-login'` (cubre logout,
+  expiración y acceso denegado). Aplicado en los 4 archivos con su id (btn-login / btn-moto-login /
+  btn-rep-login). Verificado desplegado en los 4.
+
+**Escalabilidad — revisión, sin cambios necesarios**
+- Conclusión: la base soporta el crecimiento. Listeners con desuscripción disciplinada (sin fugas),
+  lecturas acotadas (despachos: `archived`+lazy; reposiciones: `limit(100)`; inventarios: `limit(30)`;
+  vueltas/domicilios por fecha; users cacheados por sesión). El crecimiento de `reposiciones` en
+  almacenamiento no afecta rendimiento (queries acotadas e indexadas). Único techo cosmético:
+  trazabilidad muestra las últimas 100 (paginar si algún día se necesita histórico más viejo).
+  XSS bien cubierto (`esc`/`escHtml` aplicados en los 4 archivos). `apiKey` en cliente = identificador
+  público de Firebase, no secreto.
+
+**Flag `_profileRetry` con timestamp — resuelto** *(index.html — commit ca47136)*
+- Refinado a versión con timestamp (auto-expira a los 30s), evitando que un flag viejo de una
+  sesión anterior salte el primer reintento. Aplicado y desplegado en la misma sesión.
+
 ### Sesión de rendimiento, fiabilidad y fixes — 07 Jul 2026 *(index.html + ops.html + moto.html + reposicion.html + firestore.rules + firestore.indexes.json)*
 
 Pasada de diagnóstico en frío + verificación en producción (navegador) sobre incidencias
@@ -854,4 +915,4 @@ Al abrir una sesión de implementación:
 
 ---
 
-*Última actualización: 07 Julio 2026 — Sesión de rendimiento, fiabilidad y fixes: home liviano (super + colaborador — U1/U2/U2b), persistencia offline + escritura atómica en picking, despacho del colaborador (reglas + validación + fin del fallo silencioso), lock del super en solo lectura, mostrar/ocultar contraseña en los logins, y banner de solo lectura sin UID. 2 índices compuestos nuevos + `hasOnly` de despachos ampliado.*
+*Última actualización: 09 Julio 2026 — Sesión de seguridad, fiabilidad y auditoría: 2 puertas traseras cerradas en firestore.rules (vueltas/domicilios abiertos a internet → isAuth; escalada a super en users → hasOnly), guard super en parseDocument/suggestReplenishment, fix de notificación de orden asignada (lookup por UID), fix crítico de degradación de rol por overwrite de perfil (commit 97d29d2), y reset del botón de login atascado en los 4 archivos. Revisión de escalabilidad: base sólida, sin cambios necesarios.*
