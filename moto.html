@@ -447,6 +447,10 @@ function showScreen(id) {
   document.querySelectorAll('.scr').forEach(s => s.classList.remove('on'));
   $(id).classList.add('on');
   window.scrollTo(0, 0);
+  if (id === 's-login') {
+    const _lb = $('btn-moto-login');
+    if (_lb) { _lb.disabled = false; _lb.textContent = 'Ingresar →'; }
+  }
 }
 
 window.doMotoLogin = async () => {
