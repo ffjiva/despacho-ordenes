@@ -3400,19 +3400,15 @@ async function stopScanner() {
   try { await scanner.stop(); scanner.clear(); } catch(e) {}
 }
 
-let _scanPrev = null, _scanPrevAt = 0;
 async function handleScan(code) {
   if (!code || !curData?.products) return;
   const isContinuous = document.getElementById('scanner-continuous').checked;
 
-  // Anti-misread: exige 2 lecturas idénticas seguidas (<1.2s) antes de actuar.
-  // Un read erróneo casi nunca se repite igual, así se descarta.
-  const _now = Date.now();
-  if (_scanPrev !== code || (_now - _scanPrevAt) > 1200) {
-    _scanPrev = code; _scanPrevAt = _now;
-    return;
-  }
-  _scanPrev = null; _scanPrevAt = 0;
+  // Lectura única: un escaneo válido marca al instante. La protección contra
+  // lecturas erróneas la dan (1) los formatos restringidos a EAN/UPC con dígito
+  // verificador (ver startScanner) y (2) que el código exista en la orden. El
+  // cooldown global (scannerCooldown) evita re-disparos mientras la cámara
+  // sigue apuntando al mismo código.
 
   const product = curData.products.find(p =>
     String(p.code || '').trim() === String(code).trim()
