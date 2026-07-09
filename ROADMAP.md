@@ -190,6 +190,62 @@ Solo persiste por FCM tokens legacy. No usar para nuevos desarrollos.
 
 ## Módulos completados ✅
 
+### Sesión de rendimiento, fiabilidad y fixes — 07 Jul 2026 *(index.html + ops.html + moto.html + reposicion.html + firestore.rules + firestore.indexes.json)*
+
+Pasada de diagnóstico en frío + verificación en producción (navegador) sobre incidencias
+reportadas: lentitud del home, "no carga al volver", desmarcado de ítems (Anderson), despacho
+del colaborador "no hace nada", y banner de solo lectura mostrando el UID. Nueve unidades
+validadas una por una.
+
+**Rendimiento del home (U1 + U2 + U2b)** *(index.html + firestore.indexes.json)*
+- **U1 — `2da05a4`:** usuarios de los filtros de super cacheados (`_supUsersCache`); antes se hacía
+  un `getDocs` a `users` en CADA snapshot del listener. `goHome()` libera el lock en segundo plano
+  (fire-and-forget) en vez de `await` con timeout de 10s → arregla "salgo de una orden y el home no
+  carga / hay que refrescar".
+- **U2 — `17bb044`:** el listener del super pasó de traer TODA la colección (medido: 182 docs, 180
+  archivadas) a solo activas (`where('archived','==',false)`). Archivo bajo demanda (`toggleArchivoLazy`,
+  últimos 60). `saveDespacho` escribe `archived:false`. Backfill one-time de `archived:false` en docs
+  sin el campo. Medido en prod: DOM 3.693 → 282 nodos, cards 182 → 3.
+- **U2b:** mismo patrón para colaborador/motorista: listener `assignedTo==uid AND archived==false` +
+  archivo lazy acotado a su uid. Anderson: 50 → 1 en vivo.
+
+**Desmarcado de ítems en picking (Anderson) — `8200be3`** *(index.html)*
+- Persistencia offline: `initializeFirestore` con `persistentLocalCache({ tabManager:
+  persistentMultipleTabManager() })` + fallback a memoria. Verificado: activa en single-tab (celular),
+  fallback benigno en multi-tab de escritorio.
+- Escritura atómica de `checked` por campo (`checked.<id>` / `deleteField()`) vía nueva `writeCheck()`;
+  reemplaza el overwrite del mapa completo en `toggleItem`/`saveNote`/`markItemFromScanner`. Cierra la
+  carrera de "lost update" que desmarcaba ítems al reconectar en móvil.
+
+**Despacho del colaborador — `ca95e6f` + firestore.rules** *(index.html + firestore.rules)*
+- Causa raíz (verificada en prod): las reglas rechazaban `activeMs` (no estaba en el `hasOnly` del
+  update del asignado) → `permission-denied` en todo el write, y `doDispatch` lo tragaba en silencio.
+  Se agregó `activeMs` y `archived` al `hasOnly`.
+- `confirmDispatch` role-aware: super despacha directo; el colaborador pasa por la validación
+  completa-o-notas (si faltan comentarios, se lo dirige a la orden). `doDispatch` con try/catch + banner
+  de error; lock/estado se limpian solo tras éxito.
+- Bonus: arregla bug latente donde completar una orden como colaborador perdía el `activeMs`.
+
+**Lock del super** *(index.html)*
+- `openDespacho` reescrita: el super, al abrir una orden asignada a OTRO, entra en solo lectura SIN
+  poner lock, para no bloquear al colaborador asignado (era la causa de "toco el despacho y no pasa
+  nada, me quedo en el home"). Para trabajar una orden ajena, el super la reasigna primero.
+
+**Fixes de UI**
+- **Color select de reasignar — `966fa92`:** usaba `color:#18180f` hardcodeado (invisible en tema
+  oscuro) → variables del tema. Agregada regla `#assign-sel option`.
+- **Mostrar/ocultar contraseña:** toggle 👁/🙈 inline en los 4 logins (index/ops/moto/reposicion) +
+  el campo de contraseña temporal al crear cuentas (ops.html).
+- **Banner solo-lectura ya no expone UID:** mostraba `lockedBy`/`assignedTo` (UID) cuando faltaba el
+  nombre. Banner inicial neutro ("MODO LECTURA") + fallbacks a "otro usuario"/"otro colaborador".
+
+**Índices compuestos agregados** *(firestore.indexes.json)*
+- `despachos`: `(archived ASC, createdAt DESC)` — listener del super + archivo lazy.
+- `despachos`: `(assignedTo ASC, archived ASC, createdAt DESC)` — listener del colaborador + su archivo lazy.
+
+**Reglas** *(firestore.rules)*: el `hasOnly` del `update` del asignado en `despachos` ahora incluye
+`activeMs` y `archived` (habilita despacho/cierre del colaborador y el auto-archivado de sus órdenes).
+
 ### Módulo 9 — Directorio de Colaboradores *(ops.html, super-only)* — 28 Jun 2026
 CRUD completo: crear, editar, activar/desactivar, eliminar. Foto vía Firebase Storage
 (`colaboradores/{id}/foto_{timestamp}.jpg`). Migrado desde `Colaboradores.xlsx` (54
@@ -798,4 +854,4 @@ Al abrir una sesión de implementación:
 
 ---
 
-*Última actualización: 06 Julio 2026 — Fundación de Identidad marcada ✅ completada: tabla de grants por cargo (apps.despacho.role + Ensamblador default), recuperación de contraseña, fix CI Node 20 documentado, y próxima etapa "Conectar el Ensamblador" agregada como pendiente.*
+*Última actualización: 07 Julio 2026 — Sesión de rendimiento, fiabilidad y fixes: home liviano (super + colaborador — U1/U2/U2b), persistencia offline + escritura atómica en picking, despacho del colaborador (reglas + validación + fin del fallo silencioso), lock del super en solo lectura, mostrar/ocultar contraseña en los logins, y banner de solo lectura sin UID. 2 índices compuestos nuevos + `hasOnly` de despachos ampliado.*
