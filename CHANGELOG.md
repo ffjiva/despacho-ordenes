@@ -559,6 +559,9 @@ Revisión minuciosa de los tres archivos. 25 bugs corregidos en total.
 
 ## Deuda técnica resuelta
 
+**[RESUELTO 21 Jun 2026] — Navegación con URLs relativas** *(index/ops/moto)*
+Botones "Ops"/"Órdenes" pasados a relativas (`ops.html` / `index.html`) y deep links `?orden=` a raíz-relativos (`/?orden=`). Los previews ya no saltan a producción. Verificado: cero `despacho-ordenes.web.app` en navegación (solo quedan `wa.me` externos y comentarios).
+
 **[RESUELTO 21 Jun 2026] — Cerrar grifo `config/team`** *(index.html)*
 El write real NO estaba en ops.html (solo un comentario) sino en index.html: cadena muerta pre-Auth
 `showNameModal()` → `_saveName()` → `saveUsersRemote()` → `setDoc(config/team)`, con cero callers de
