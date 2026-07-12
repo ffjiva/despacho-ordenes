@@ -40,7 +40,7 @@ service cloud.firestore {
         || (isAuth() && isActive() &&
             resource.data.assignedTo == request.auth.uid &&
             request.resource.data.diff(resource.data).affectedKeys()
-              .hasOnly(['checked', 'lockedBy', 'lockedByName', 'lockedAt', 'status', 'startedAt', 'completedAt', 'dispatchedAt', 'incompleteItems', 'activeMs', 'archived']));
+              .hasOnly(['checked', 'lockedBy', 'lockedByName', 'lockedAt', 'status', 'startedAt', 'completedAt', 'dispatchedAt', 'incompleteItems', 'activeMs', 'archived', 'photos']));
     }
 
     // ── config/{doc} ─────────────────────────────────────
