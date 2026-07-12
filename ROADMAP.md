@@ -190,6 +190,24 @@ Solo persiste por FCM tokens legacy. No usar para nuevos desarrollos.
 
 ## Módulos completados ✅
 
+### Sesión carga XLS, escáner y fixes de campo — 12 Jul 2026 *(index.html + moto.html + reposicion.html + firestore.rules)*
+
+**Carga de picking list por Excel** *(index.html)*. Camino híbrido en "Nuevo Despacho": `.xls/.xlsx/.csv` se leen local con SheetJS (instantáneo, sin IA ni costo de API); `.pdf`/imagen mantienen la ruta de IA (`parseDocument`) como fallback. `parseOrderXLS` detecta el header dinámicamente, mapea Cantidad/Codigo/Producto/Familia y extrae metadata (origen/destino/fecha/No. orden), devolviendo la misma forma `{products, header}` que la IA (flujo de revisión/guardado intacto). Soporta códigos alfanuméricos. Une nombres partidos por salto de página (fila sin cantidad + mismo código → se anexa al producto previo; evita productos/unidades fantasma). Validado con orden real (68 prod / 263 unid). Etiqueta de la lista pasó de "Productos detectados por IA" a "Productos detectados". SheetJS cargado en index.html.
+
+**Escáner de picking → lectura única** *(index.html)*. Se retiró el requisito de doble lectura (invisible en la 1ª lectura, se percibía como "no funciona"). Un escaneo válido marca al instante. Protección: formatos restringidos a EAN/UPC (dígito verificador) + el código debe existir en la orden + cooldown global.
+
+**Fix fotos de preparación para colaboradores** *(firestore.rules)*. La regla `allow update` de `despachos` para colaborador no incluía `photos` en su `hasOnly`, así que `updateDoc({photos})` se rechazaba con permission-denied (solo el super subía fotos). Agregado `photos`. Storage ya permitía escritura autenticada.
+
+**Notificaciones — activación visible** *(index.html + moto.html)*. El permiso se pedía en auto al login (poco confiable en móvil, sin gesto). Ahora chip "🔔 Activar avisos" en el home (gesto real), con guía para iPhone (agregar a inicio) y para permiso bloqueado; si ya está concedido, el token se registra en silencio. La cadena FCM (`onDespachoAssigned`, sw, tokens) ya funcionaba.
+
+**Inventario — parseInvXLS robusto** *(reposicion.html)*. Discrimina producto/familia por presencia de descripción, no por código numérico → recupera SKU alfanuméricos (antes cargaba 3 de 7). Salta el bloque de encabezado de página repetido (título→bodega→header), filas de continuación de nombre sin código, subtotales y basura `null`. Validado (62 prod, familia limpia).
+
+**Inventario — auto-extraer sucursal del XLS** *(reposicion.html)*. `extractBodegaXLS` lee la bodega de la cabecera y mapea a sucursal reusando `REP_SNAMES` (fuente única: ZONA DIGITAL MATRIX→M01, BODEGA MATRIX SF→B01, BODEGA CENTRAL→B02, BODEGA ORIENTE→B03…), preseleccionando el select (editable; el override manual gana). Preview muestra la bodega leída; si no se reconoce (ej. "Exhibicion Zoditech", dejada fuera a propósito), aviso ámbar y selección manual. Agregado **B03 Oriente** al dropdown y a SNAMES de crearConteoInv.
+
+**Inventario — reasignar usuario de un conteo** *(reposicion.html)*. Botón "🔄 Reasignar" en el detalle → modal con usuarios activos (preselecciona el actual) → actualiza `asignadoA`/`asignadoANombre`. La CF `onInventarioAsignado` (observa `asignadoA`) notifica al nuevo asignado automáticamente. ⚠️ Por ahora es solo lado super: `reposicion.html` sigue con `ALLOWED = ['super']`, así que el colaborador todavía no tiene una vista propia para ver/completar el conteo que le notifican — queda pendiente (ver "Mejoras inventario — post-migración").
+
+**Inventario — escáner en el conteo** *(reposicion.html)*. Botón "📷 Escanear" en el detalle: un código EAN/UPC salta al ítem (expande su familia, scroll, resalta y enfoca el input de conteo). Lectura única, no autocompleta cantidad. `html5-qrcode` cargado en reposicion.html; `data-code` por ítem.
+
 ### Carga de picking list por Excel — 09 Jul 2026 *(index.html)*
 Camino híbrido en la pantalla "Nuevo Despacho": `.xls/.xlsx/.csv` se leen **local con
 SheetJS** (instantáneo, sin IA ni costo de API); `.pdf`/imagen mantienen la ruta de IA
@@ -715,7 +733,7 @@ Criterio rector: **impacto en la operación diaria**.
    `foto-dom-gal-input`, Storage path `domicilios/{id}/...`, máximo 3 fotos. Thumbnails y
    botones visibles al expandir el card (mismo comportamiento que vueltas).
 6. **→ FRENTE ACTIVO: A3 — Sugerencias por historial** *(reposicion.html)*. Feature grande, 3 fases.
-7. Mejoras de inventario (códigos alfanuméricos, reasignación, auto-sucursal).
+7. ✅ **Mejoras de inventario** *(12 Jul 2026)* — códigos alfanuméricos, auto-sucursal y reasignación (lado super) resueltas. Quedan: modal pixel-art (estético) y vista de colaborador para conteos asignados (funcional — puntos 4 y 5 de "Mejoras inventario").
 
 Parqueado (no suma operatividad diaria): mapas/geocodificación, ruta
 optimizada, rediseño general, pixelart. Sub-proyectos dedicados.
@@ -741,10 +759,12 @@ optimizada, rediseño general, pixelart. Sub-proyectos dedicados.
 
 ### 🛠️ Mejoras inventario — post-migración
 Detectadas validando F3. Idénticas a ops (no introducidas por la extracción):
-1. **`parseInvXLS` ignora códigos alfanuméricos.** Solo acepta `/^\d{8,}$/` → en `InventarioMaono.xls` cargó 3 de 7 (SKU como `AUA04`, `DGM20S` se pierden). Fix: discriminar producto/familia por presencia de descripción (col D), no por código numérico. Producto = `col1 && col3`; familia = `col1 && !col3`; saltar subtotales `^[\d.,\s]+$`.
-2. **No se puede reasignar el usuario** de un conteo ya creado. Falta UI de reasignación (editar `assignedTo`/`assignedToName` post-creación). Encaja con el feature de inventario asignable a colaborador.
-3. **Auto-extraer sucursal del XLS** al crear conteo, manteniendo SIEMPRE el campo de asignación manual como override. (El XLS trae cabecera de bodega, ej. "BODEGA MATRIX SF" — mapear a sucursal.)
+1. ✅ **[RESUELTO 12 Jul 2026] `parseInvXLS` códigos alfanuméricos.** Ahora discrimina producto/familia por presencia de descripción, no por código numérico; salta encabezado de página repetido, continuaciones de nombre y subtotales.
+2. ✅ **[RESUELTO 12 Jul 2026, solo lado super] Reasignar usuario de un conteo.** Botón "🔄 Reasignar" en el detalle → modal de usuarios activos → actualiza `asignadoA`/`asignadoANombre`; notifica al nuevo asignado vía `onInventarioAsignado`. ⚠️ Hoy es informativo: el colaborador no tiene por dónde entrar a ver/completar su conteo (ver punto 5).
+3. ✅ **[RESUELTO 12 Jul 2026] Auto-extraer sucursal del XLS.** `extractBodegaXLS` + mapeo por `REP_SNAMES`, preselección editable (override manual gana). Agregado B03 Oriente al dropdown.
 4. **Modal de celebración (pixel-art):** el actual es SVG/CSS hecho a mano. Explorar mejora con herramienta externa de pixel-art (ej. sprite sheet de Aseprite/Piskel animado con `steps()`, o asset con licencia abierta), conservando la estética. *(Claude no genera pixel-art animado directamente; se diseña aparte y se integra.)*
+5. **Falta vista de colaborador para conteos asignados.** `reposicion.html` tiene el acceso cerrado a `ALLOWED = ['super']` (línea ~1076, con comentario "costura" ya dejado en el código). Asignar/reasignar un conteo hoy solo etiqueta el doc y dispara la notificación push — el colaborador no tiene dónde aterrizar esa notificación: ninguna otra app (`index.html`/`ops.html`/`moto.html`) referencia `inventarios`, y el gate de `reposicion.html` lo bloquea. Para cerrar el ciclo falta: (a) ramificar el gate agregando `'collaborator'` a `ALLOWED`, (b) una vista reducida solo-mis-conteos-asignados, (c) revisar `firestore.rules` de `inventarios` (hoy `allow write: if isSuper()` — el colaborador necesitaría poder guardar su propio avance de conteo).
+   **Nota (12 Jul 2026):** cuando se diseñe esta vista, revisar también a fondo todo el apartado de asignación/reasignación de usuario para conteos (creación en `crearConteoInv`, botón "🔄 Reasignar" del punto 2) — no dar por buena la UI actual de super sin repasarla en conjunto con el flujo de colaborador.
 
 ### ✅ Acciones de limpieza — post F4 (23 Jun 2026)
 - `ops.html.bak` (backup generado por `migrate_f4.js`) removido del tracking con `git rm --cached` y `*.bak` agregado a `.gitignore`. El archivo permanece en disco como seguridad local pero no se versiona.

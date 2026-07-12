@@ -886,6 +886,23 @@ html, body {
   </div>
 </div>
 
+<!-- Modal: reasignar conteo -->
+<div id="inv-reasignar-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:200;align-items:center;justify-content:center;padding:1rem">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:1.25rem;width:100%;max-width:420px">
+    <div style="font-size:.95rem;font-weight:700;margin-bottom:1rem">🔄 Reasignar conteo</div>
+
+    <label style="font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Asignar a</label>
+    <select id="inv-reasignar-select" style="width:100%;margin:.3rem 0 .85rem;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:.45rem .6rem;font-size:.82rem;color:var(--text)">
+      <option value="">Sin asignar</option>
+    </select>
+
+    <div style="display:flex;gap:.5rem;margin-top:1rem">
+      <button onclick="closeReasignarModal()" style="flex:1;padding:.55rem;border:1px solid var(--border);border-radius:var(--r);background:transparent;color:var(--text);font-size:.8rem;cursor:pointer">Cancelar</button>
+      <button onclick="guardarReasignar()" style="flex:1;padding:.55rem;border-radius:var(--r);background:var(--accent);color:#fff;font-size:.8rem;font-weight:600;border:none;cursor:pointer">Guardar</button>
+    </div>
+  </div>
+</div>
+
 <!-- Pantalla detalle / conteo en curso -->
 <div id="s-inventario-detalle" class="scr">
   <div class="topbar">
@@ -894,6 +911,7 @@ html, body {
       <div id="inv-det-fecha" style="font-size:.7rem;color:var(--muted);font-weight:400"></div>
     </div>
     <div class="topbar-actions">
+      <button class="btn btn-ghost" style="font-size:.65rem" onclick="openReasignarModal()">🔄 Reasignar</button>
       <button class="btn btn-ghost" style="font-size:.65rem" onclick="openInvScanner()">📷 Escanear</button>
       <button class="btn btn-ghost" style="font-size:.65rem" onclick="goBackFromInvDetalle()">← Volver</button>
     </div>
@@ -3710,6 +3728,50 @@ function handleInvScan(code) {
     if (input && !input.disabled) setTimeout(() => input.focus(), 350);
   }, 500);
 }
+
+// ── Modal: reasignar conteo ────────
+window.openReasignarModal = async () => {
+  if (!currentInvId) return;
+  const sel = $('inv-reasignar-select');
+  sel.innerHTML = '<option value="">Cargando…</option>';
+  $('inv-reasignar-modal').style.display = 'flex';
+
+  try {
+    const [invSnap, usersSnap] = await Promise.all([
+      fbMod.getDoc(fbMod.doc(db, 'inventarios', currentInvId)),
+      fbMod.getDocs(fbMod.query(fbMod.collection(db, 'users'), fbMod.where('active', '==', true)))
+    ]);
+    const asignadoActual = invSnap.exists() ? (invSnap.data().asignadoA || '') : '';
+    const opts = usersSnap.docs.map(d => {
+      const u = d.data();
+      return `<option value="${d.id}" data-name="${u.name || u.email}" ${d.id === asignadoActual ? 'selected' : ''}>${u.name || u.email}</option>`;
+    });
+    sel.innerHTML = '<option value="">Sin asignar</option>' + opts.join('');
+    sel.value = asignadoActual;
+  } catch(e) {
+    sel.innerHTML = '<option value="">Error cargando usuarios</option>';
+  }
+};
+
+window.closeReasignarModal = () => {
+  $('inv-reasignar-modal').style.display = 'none';
+};
+
+window.guardarReasignar = async () => {
+  if (!currentInvId) return;
+  const sel = $('inv-reasignar-select');
+  const asigUid = sel.value;
+  const asigNom = asigUid ? (sel.options[sel.selectedIndex]?.dataset.name || '') : '';
+  try {
+    await fbMod.updateDoc(fbMod.doc(db, 'inventarios', currentInvId), {
+      asignadoA: asigUid,
+      asignadoANombre: asigNom
+    });
+    closeReasignarModal();
+  } catch(e) {
+    alert('Error reasignando: ' + e.message);
+  }
+};
 
 async function openInvDetalle(invId) {
   currentInvId = invId;
