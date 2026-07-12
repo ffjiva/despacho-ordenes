@@ -841,6 +841,7 @@ html, body {
       <option value="">Seleccionar…</option>
       <option value="B01">B01 Hangar</option>
       <option value="B02">B02 Zdt</option>
+      <option value="B03">B03 Oriente</option>
       <option value="M01">M01 Merliot</option>
       <option value="S02">S02 San Salvador</option>
       <option value="S03">S03 San Miguel</option>
@@ -3448,6 +3449,42 @@ window.closeInvModal = () => {
   });
 })();
 
+// Extrae el nombre de bodega de la cabecera del XLS de inventario
+// (bloque superior, col1, excluyendo título y razón social).
+function extractBodegaXLS(workbook) {
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  const rows  = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: false });
+  for (const r of rows) {
+    if (/^c[oó]digo$/i.test(String(r[1] ?? '').trim()) &&
+        /^descripci/i.test(String(r[3] ?? '').trim())) break; // llegó a la tabla
+    const c1 = String(r[1] ?? '').trim();
+    if (!c1) continue;
+    if (/^existencias de inventario$/i.test(c1)) continue; // título
+    if (/S\.?A\.? DE C\.?V\.?/i.test(c1)) continue;         // razón social
+    return c1;
+  }
+  return '';
+}
+
+// Normaliza un nombre de bodega (mayúsculas, sin acentos, espacios colapsados).
+function _normBodega(s) {
+  return String(s || '')
+    .toUpperCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// Mapa normalizado bodega→sucursal, derivado de la fuente única REP_SNAMES.
+const _REP_SNAMES_NORM = Object.fromEntries(
+  Object.entries(REP_SNAMES).map(([k, v]) => [_normBodega(k), v])
+);
+
+// Código de sucursal para un nombre de bodega, o '' si no se reconoce.
+function sucFromBodega(nombre) {
+  return _REP_SNAMES_NORM[_normBodega(nombre)] || '';
+}
+
 window.onInvFilesChange = async (input) => {
   const preview = $('inv-modal-preview');
   preview.innerHTML = '<span style="color:var(--muted);font-size:.75rem">Procesando archivos…</span>';
@@ -3462,12 +3499,14 @@ window.onInvFilesChange = async (input) => {
 
   let allProducts = [];
   const nombres   = [];
+  let bodegaDetectada = '';
 
   for (const file of files) {
     try {
       const buf = await file.arrayBuffer();
       const wb  = XLSX.read(buf, { type: 'array' });
       const prods = parseInvXLS(wb);
+      if (!bodegaDetectada) bodegaDetectada = extractBodegaXLS(wb);
       allProducts = allProducts.concat(prods);
       nombres.push(file.name);
     } catch(e) {
@@ -3487,10 +3526,22 @@ window.onInvFilesChange = async (input) => {
   const familias = [...new Set(allProducts.map(p => p.familia))];
   window._invParsedProducts = allProducts;
 
+  // Auto-seleccionar sucursal según la bodega del XLS (el override manual siempre gana).
+  const sucAuto = sucFromBodega(bodegaDetectada);
+  const sucSel  = $('inv-modal-sucursal');
+  if (sucAuto && sucSel && !sucSel.value) sucSel.value = sucAuto;
+  let bodLine = '';
+  if (bodegaDetectada) {
+    const lbl = sucSel?.querySelector(`option[value="${sucAuto}"]`)?.textContent || sucAuto;
+    bodLine = sucAuto
+      ? `<br><span style="font-size:.7rem;color:var(--text2)">🏢 ${bodegaDetectada} → ${lbl} (editable arriba)</span>`
+      : `<br><span style="font-size:.7rem;color:#e0a030">🏢 ${bodegaDetectada} — no reconocida, elegí la sucursal manualmente</span>`;
+  }
+
   preview.innerHTML = `
     <div class="inv-preview-ok">
       ✓ ${allProducts.length} productos · ${familias.length} familia${familias.length !== 1 ? 's' : ''}<br>
-      <span style="font-size:.7rem;color:var(--muted)">${nombres.join(' · ')}</span>
+      <span style="font-size:.7rem;color:var(--muted)">${nombres.join(' · ')}</span>${bodLine}
     </div>`;
 };
 
@@ -3505,7 +3556,7 @@ window.crearConteoInv = async () => {
   if (!window._invParsedProducts?.length) { alert('Subí al menos un archivo XLS válido.'); return; }
 
   const SNAMES = {
-    B01:'B01 Hangar', B02:'B02 Zdt', M01:'M01 Merliot',
+    B01:'B01 Hangar', B02:'B02 Zdt', B03:'B03 Oriente', M01:'M01 Merliot',
     S02:'S02 San Salvador', S03:'S03 San Miguel',
     S04:'S04 Soyapango', S06:'S06 Zoditech', S07:'S07 Usulután'
   };
