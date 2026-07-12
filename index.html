@@ -648,6 +648,7 @@ body:not(.dark) input[type="time"] {
   <div class="home-header">
     <span class="home-meta" id="home-date"></span>
     <span class="home-user" id="home-user"></span>
+    <button id="notif-chip" onclick="enableNotifications()" style="display:none;margin-left:auto;font-size:.6rem;font-family:var(--mono);font-weight:700;padding:3px 9px;border:1px solid var(--warn-bd);border-radius:5px;background:var(--warn-bg);color:var(--warn-tx);cursor:pointer"></button>
   </div>
   <div id="collab-summary" style="display:none;padding:7px 14px 6px;background:var(--info-bg);border-bottom:1px solid var(--info-bd);font-size:.65rem;color:var(--info-tx);gap:10px;align-items:center"></div>
   <div class="dash-list">
@@ -1133,34 +1134,86 @@ window.showUsersModal = async () => {
   };
 };
 
-async function requestNotificationPermission() {
-  if (!('Notification' in window) || Notification.permission === 'denied') return;
-  if (!fbApp || !db || !fbMod || !currentUser?.uid) return;
+// Estado de notificaciones para la UI.
+function notifState() {
+  if (!('Notification' in window)) return 'unsupported';
+  const ua = navigator.userAgent || '';
+  const isIOS = /iphone|ipad|ipod/i.test(ua)
+    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const standalone = window.matchMedia('(display-mode: standalone)').matches
+    || window.navigator.standalone === true;
+  if (isIOS && !standalone) return 'ios-needs-install';
+  return Notification.permission; // 'granted' | 'denied' | 'default'
+}
+
+// Refleja el estado en el chip del home.
+function updateNotifUI() {
+  const chip = $('notif-chip');
+  if (!chip) return;
+  const st = notifState();
+  if (st === 'granted' || st === 'unsupported') { chip.style.display = 'none'; return; }
+  chip.style.display = '';
+  chip.textContent = st === 'denied' ? '🔕 Avisos bloqueados' : '🔔 Activar avisos';
+}
+
+// Obtiene y guarda el token FCM. Asume permiso ya concedido; NO pide permiso.
+async function registerFcmToken() {
+  if (!fbApp || !db || !fbMod || !currentUser?.uid) return false;
+  if (!('Notification' in window) || Notification.permission !== 'granted') return false;
   try {
     const { getMessaging, getToken } = await import(
       'https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging.js'
     );
     const messaging = getMessaging(fbApp);
     const swReg = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
-    const permission = await Notification.requestPermission();
-    if (permission !== 'granted') return;
     const token = await getToken(messaging, {
       vapidKey: 'BAd50NP_cteokVTzaDCzDQeaqaZLRAgpbc2VcRveRsFBLHgl2VhBGlvQA47lJ095umC3c08luqVeFG4WPDSXuzg',
       serviceWorkerRegistration: swReg
     });
-    if (!token) return;
-    // Guardar token en users/{uid} en vez de config/team
+    if (!token) return false;
     const userRef = fbMod.doc(db, 'users', currentUser.uid);
     const snap = await fbMod.getDoc(userRef);
-    if (!snap.exists()) return;
+    if (!snap.exists()) return false;
     const tokens = snap.data().fcmTokens || [];
     if (!tokens.includes(token)) {
       await fbMod.updateDoc(userRef, { fcmTokens: [...tokens, token] });
     }
+    return true;
   } catch(e) {
     console.warn('FCM token error:', e.message);
+    return false;
   }
 }
+
+// Al iniciar sesión: si ya hay permiso, refresca el token en silencio (sin prompt,
+// poco confiable en móvil). Si no, el usuario activa con el botón del home.
+async function requestNotificationPermission() {
+  if (notifState() === 'granted') await registerFcmToken();
+  updateNotifUI();
+}
+
+// Disparado por el botón (gesto real del usuario → prompt confiable).
+async function enableNotifications() {
+  const st = notifState();
+  if (st === 'unsupported') { alert('Este navegador no soporta notificaciones.'); return; }
+  if (st === 'ios-needs-install') {
+    alert('En iPhone/iPad, para recibir avisos primero agregá esta página a la pantalla de inicio:\n\nBotón Compartir → "Agregar a inicio". Luego abrila desde ese ícono y volvé a tocar "Activar avisos".');
+    return;
+  }
+  if (st === 'denied') {
+    alert('Los avisos están bloqueados en este navegador. Activalos así:\n\nTocá el candado/ícono junto a la dirección → Notificaciones → Permitir. Luego recargá la página.');
+    return;
+  }
+  let perm;
+  try { perm = await Notification.requestPermission(); } catch(e) { perm = 'default'; }
+  if (perm === 'granted') {
+    const ok = await registerFcmToken();
+    alert(ok ? '🔔 Avisos activados. Recibirás una notificación cuando te asignen una orden.'
+             : 'Avisos permitidos, pero no se pudo registrar el dispositivo. Reintentá.');
+  }
+  updateNotifUI();
+}
+window.enableNotifications = enableNotifications;
 
 /* ═══════════════════════════════════════
    STORAGE HELPERS
@@ -1299,6 +1352,7 @@ window.goHome = async () => {
   const topTitle = document.querySelector('#s-home .topbar-title');
   if (topTitle) topTitle.textContent = ['collaborator', 'motorista'].includes(currentUser?.role) ? '📦 Mis Órdenes' : '📦 Despachos';
   updateThemeBtn();
+  updateNotifUI();
 
   startHomeListener();
 };

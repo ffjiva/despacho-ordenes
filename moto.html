@@ -303,6 +303,7 @@ body:not(.dark) input[type="time"] {
         <div class="m-date" id="m-date-lbl"></div>
       </div>
       <div style="display:flex;gap:6px">
+        <button class="m-logout" id="notif-chip" onclick="enableNotifications()" style="display:none"></button>
         <button class="m-logout" id="theme-btn" onclick="toggleDark()" title="Modo oscuro">🌙</button>
         <button class="m-logout" onclick="doLogout()">Salir</button>
       </div>
@@ -513,35 +514,79 @@ function getGPS() {
   });
 }
 
-async function registerFCMToken(userName) {
-  if (!messagingMod || !db) return;
-  try {
-    const permission = await Notification.requestPermission();
-    if (permission !== 'granted') return;
+function notifState() {
+  if (!('Notification' in window)) return 'unsupported';
+  const ua = navigator.userAgent || '';
+  const isIOS = /iphone|ipad|ipod/i.test(ua)
+    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const standalone = window.matchMedia('(display-mode: standalone)').matches
+    || window.navigator.standalone === true;
+  if (isIOS && !standalone) return 'ios-needs-install';
+  return Notification.permission;
+}
 
-    const { initializeApp, getApps } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
+function updateNotifUI() {
+  const chip = $('notif-chip');
+  if (!chip) return;
+  const st = notifState();
+  if (st === 'granted' || st === 'unsupported') { chip.style.display = 'none'; return; }
+  chip.style.display = '';
+  chip.textContent = st === 'denied' ? '🔕 Avisos' : '🔔 Activar avisos';
+}
+
+async function enableNotifications() {
+  const st = notifState();
+  if (st === 'unsupported') { alert('Este navegador no soporta notificaciones.'); return; }
+  if (st === 'ios-needs-install') {
+    alert('En iPhone/iPad, para recibir avisos primero agregá esta página a la pantalla de inicio:\n\nBotón Compartir → "Agregar a inicio". Luego abrila desde ese ícono y volvé a tocar "Activar avisos".');
+    return;
+  }
+  if (st === 'denied') {
+    alert('Los avisos están bloqueados. Activalos así:\n\nTocá el candado/ícono junto a la dirección → Notificaciones → Permitir. Luego recargá.');
+    return;
+  }
+  let perm;
+  try { perm = await Notification.requestPermission(); } catch(e) { perm = 'default'; }
+  if (perm === 'granted') {
+    const ok = await registerFCMToken(currentDriver);
+    alert(ok ? '🔔 Avisos activados. Recibirás notificación de nuevas vueltas y entregas.'
+             : 'Avisos permitidos, pero no se pudo registrar el dispositivo. Reintentá.');
+  }
+  updateNotifUI();
+}
+window.enableNotifications = enableNotifications;
+
+// Registra el token FCM. NO pide permiso (eso lo hace el botón); solo si ya está concedido.
+async function registerFCMToken(userName) {
+  updateNotifUI();
+  if (!messagingMod || !db) return false;
+  if (notifState() !== 'granted') return false;
+  try {
+    const { getApps } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
     const existing = getApps().find(a => a.name === 'moto-main');
-    if (!existing) return;
+    if (!existing) return false;
 
     const messaging = messagingMod.getMessaging(existing);
     const token = await messagingMod.getToken(messaging, {
       vapidKey: 'BAd50NP_cteokVTzaDCzDQeaqaZLRAgpbc2VcRveRsFBLHgl2VhBGlvQA47lJ095umC3c08luqVeFG4WPDSXuzg',
       serviceWorkerRegistration: await navigator.serviceWorker.register('/firebase-messaging-sw.js')
     });
-    if (!token) return;
+    if (!token) return false;
 
-    if (!auth?.currentUser?.uid) return;
+    if (!auth?.currentUser?.uid) return false;
     const userRef = fbMod.doc(db, 'users', auth.currentUser.uid);
     const userSnap = await fbMod.getDoc(userRef);
-    if (!userSnap.exists()) return;
+    if (!userSnap.exists()) return false;
     const tokens = userSnap.data().fcmTokens || [];
     if (!tokens.includes(token)) {
       tokens.push(token);
       await fbMod.updateDoc(userRef, { fcmTokens: tokens });
     }
     console.log('FCM token registrado para', userName);
+    return true;
   } catch(e) {
     console.warn('FCM token error:', e.message);
+    return false;
   }
 }
 
