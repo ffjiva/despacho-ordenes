@@ -1549,7 +1549,7 @@ function renderDash(list) {
           const completadoEn = new Date(d.completedAt); completadoEn.setHours(0,0,0,0);
           if (completadoEn < hoy) { _archiveQueued.add(d.id); dbUpdate(d.id, { archived: true }).catch(() => {}); }
         }
-        if (d.status === 'dispatched' && d.dispatchedAt) {
+        if ((d.status === 'dispatched' || d.status === 'dispatched_incomplete') && d.dispatchedAt) {
           const despachado = new Date(d.dispatchedAt); despachado.setHours(0,0,0,0);
           if (despachado < hoy) { _archiveQueued.add(d.id); dbUpdate(d.id, { archived: true }).catch(() => {}); }
         }
