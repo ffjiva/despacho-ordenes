@@ -228,9 +228,38 @@ en su `AuthScreen`/`AdminPanel`. Los permisos ya se pueden pre-cargar desde ahor
   el Leaflet ya previsto para Módulo 9b. Direcciones SV informales → precisión
   variable. Comparar Google-pago vs OSM-gratis con números antes de decidir.
 
+**Recepción en sucursal destino — cotejo de despacho** *(por diseñar — nueva vista, posible `recepcion.html` o pantalla en `index.html`)*
+Hoy quien recibe en la sucursal imprime la hoja y coteja los productos a mano.
+Idea: una vista para el **recepcionista de cada sucursal**. Cuando una orden pasa a
+`dispatched` / `dispatched_incomplete`, "le cae" al recepcionista de la sucursal
+destino; al llegar el producto físico, coteja lo despachado de bodega contra lo
+recibido (checklist espejo del picking). Cierra el loop del faltante: confirma
+discrepancias de despacho incompleto o daños/faltantes en tránsito.
+
+- **Reutiliza `despachos`:** filtrar por `destination == <sucursal del recepcionista>`
+  y `status ∈ [dispatched, dispatched_incomplete]`. Registrar el cotejo en un mapa
+  espejo aparte (ej. `received: { [productId]: { ok, qtyRecibida, note, time } }`)
+  **sin tocar** el `checked` del picking de bodega.
+- **Rol nuevo `recepcionista`** scopeado por sucursal — evaluar si absorbe el
+  `operador` "pendiente de definir" ya listado en el ROADMAP, o es rol propio.
+
+Preguntas de diseño abiertas (resolver antes de código):
+1. ¿El recepcionista se ata a `colaboradores`/`users` con un campo `sucursal`?
+2. ¿Vista propia (`recepcion.html`) o pantalla dentro de `index.html` con gate por rol?
+3. ¿Estado al terminar el cotejo — nuevo `recibida` / `recibida_con_diferencias`,
+   y notificación de vuelta a bodega/super?
+4. `firestore.rules`: que el recepcionista escriba solo el mapa `received` de las
+   órdenes de SU sucursal.
+
 ### ⚪ Menor / estético
 
 **Modal de celebración (pixel-art):** el actual es SVG/CSS hecho a mano. Explorar mejora con herramienta externa de pixel-art (ej. sprite sheet de Aseprite/Piskel animado con `steps()`, o asset con licencia abierta), conservando la estética. *(Claude no genera pixel-art animado directamente; se diseña aparte y se integra.)*
+
+### 🔧 Deuda técnica
+
+**Notificaciones FCM — unificar los 3 triggers** *(`functions/index.js`)*. `onDespachoAssigned`, `onVueltaAssigned` y `onInventarioAsignado` arrancaron iguales y divergieron por copy-paste: solo el de despachos limpia tokens FCM inválidos y envía a **todos** los dispositivos (`sendEach`); vueltas e inventario envían a **uno solo** (`tokens[tokens.length-1]`) y no limpian. Además el comentario de la línea ~128 dice "enviar a todos los tokens" pero el código de abajo envía a uno. Consecuencia: en un segundo dispositivo se pierden las notificaciones de vuelta/inventario y los tokens muertos se acumulan. **Fix:** extraer un helper `notifyOnAssignment(event, { field, notifiedField, buildMessage })` con limpieza de inválidos y envío multi-dispositivo para los tres → corrige el comportamiento y elimina ~70 líneas.
+
+**Menor — consolidar al tocar el archivo:** el plumbing de la API de Claude (options/headers, strip de markdown, guard de `max_tokens`) está duplicado en `parseDocument` y `suggestReplenishment`, con el modelo `'claude-haiku-4-5'` hardcodeado en dos lugares; y el bloque CORS repetido 3×. Un helper `callClaude(body)` y uno de CORS centralizan ambos.
 
 ---
 
