@@ -13,6 +13,32 @@
 
 ## Sesiones y módulos
 
+### Sesión fixes de home/despacho, foto en moto y segmentación de XLS — 23 Jul 2026 *(index.html + moto.html + reposicion.html)*
+
+**fix(despacho): archivar despachadas incompletas en el home** *(index.html)*
+El auto-archivado de `renderDash` solo contemplaba `dispatched` y las 100% completas;
+las `dispatched_incomplete` nunca se archivaban y quedaban en el home de colaborador y
+super indefinidamente. Se agregó `dispatched_incomplete` a la regla de archivado por día
+anterior (marca `archived: true`, sale del home y pasa a Archivadas). El faltante se
+sigue viendo en la lista como antes.
+
+**fix(moto): mantener tarjeta abierta al subir foto + mensaje del home vacío** *(moto.html)*
+`renderCards` reconstruía la lista con `innerHTML` en cada `onSnapshot` y las tarjetas
+nacían cerradas, así que al subir una foto la tarjeta se cerraba sola (se sentía como que
+solo se podía agregar una). Se agregó un `Set` de tarjetas expandidas (`openCards`) y del
+panel de foto de vueltas (`openFotoActions`) que se reaplica tras cada render — aplica a
+vueltas (`mc-detail-`) y entregas (`cd-`). El soporte de 3 fotos ya existía (commit 0a1dba7);
+solo faltaba que la tarjeta no colapsara. Además, mensaje del home sin asignaciones cambiado
+a "No tenes nada que hacer, háblale a Diego para que te ponga algo".
+
+**feat(reposicion): segmentar XLS en bloques de máx 30 ítems** *(reposicion.html)*
+Órdenes muy grandes abrumaban al colaborador que prepara. Ahora, al generar el XLS, si el
+listado pasa de 30 ítems se parte en varios archivos balanceados (N = ceil(total/30); ej.
+50 → 25/25, 61 → 21/21/19), con sufijo `_1de2` en el nombre. Aplica a ambos generadores
+(`generateRepXLS` stock y `generateCompraRepXLS` compra) vía helper `repChunkEntries`. El
+formato del XLS (encabezado + Código/Cantidad, el que acepta facturación) se mantiene idéntico
+en cada archivo; la trazabilidad sigue con un solo registro por (origen, destino).
+
 ### Sesión carga XLS, escáner y fixes de campo — 12 Jul 2026 *(index.html + moto.html + reposicion.html + firestore.rules)*
 
 **Carga de picking list por Excel** *(index.html)*. Camino híbrido en "Nuevo Despacho": `.xls/.xlsx/.csv` se leen local con SheetJS (instantáneo, sin IA ni costo de API); `.pdf`/imagen mantienen la ruta de IA (`parseDocument`) como fallback. `parseOrderXLS` detecta el header dinámicamente, mapea Cantidad/Codigo/Producto/Familia y extrae metadata (origen/destino/fecha/No. orden), devolviendo la misma forma `{products, header}` que la IA (flujo de revisión/guardado intacto). Soporta códigos alfanuméricos. Une nombres partidos por salto de página (fila sin cantidad + mismo código → se anexa al producto previo; evita productos/unidades fantasma). Validado con orden real (68 prod / 263 unid). Etiqueta de la lista pasó de "Productos detectados por IA" a "Productos detectados". SheetJS cargado en index.html.
