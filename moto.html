@@ -365,6 +365,8 @@ let storage         = null;
 let messagingMod    = null;
 let fotoVueltaId    = null;
 let fotoDomId       = null;
+const openCards       = new Set();  // detalles de tarjeta expandidos (persisten tras re-render)
+const openFotoActions = new Set();  // panel Cámara/Galería de vueltas expandido
 let noEntregaId     = null;
 let noEntregaMotivo = '';
 const MOTIVOS_NE = ['Cliente no contesta', 'Dirección incorrecta', 'Cliente reagendó', 'Devolver a bodega'];
@@ -888,7 +890,7 @@ function renderCards(list) {
       ? 'No tienes entregas asignadas para hoy.'
       : motoFilter === 'vueltas'
       ? 'No tienes vueltas asignadas para hoy.<br/>Consulta con el supervisor.'
-      : 'No tienes vueltas ni entregas para hoy.<br/>Consulta con el supervisor.';
+      : 'No tenes nada que hacer, háblale a Diego para que te ponga algo';
     el.innerHTML = `<div class="empty-state"><div class="empty-icon">${icon}</div><div class="empty-text">${msg}</div></div>`;
     return;
   }
@@ -903,6 +905,26 @@ function renderCards(list) {
   el.innerHTML = sorted.map(item =>
     item.type === 'domicilio' ? buildDomCard(item) : buildVueltaCard(item)
   ).join('');
+
+  // Reaplicar estado expandido tras el re-render (evita que la tarjeta se cierre al subir foto)
+  openCards.forEach(detailId => {
+    const detail = document.getElementById(detailId);
+    if (!detail) { openCards.delete(detailId); return; }
+    if (detailId.startsWith('mc-detail-')) {
+      detail.style.display = 'block';
+      const ch = document.getElementById(detailId.replace('mc-detail-', 'mc-chevron-'));
+      if (ch) ch.textContent = '▲';
+    } else {
+      detail.style.display = '';
+      const ch = document.getElementById(detailId.replace('cd-', 'ch-'));
+      if (ch) ch.style.transform = 'rotate(180deg)';
+    }
+  });
+  openFotoActions.forEach(faId => {
+    const fa = document.getElementById(faId);
+    if (!fa) { openFotoActions.delete(faId); return; }
+    fa.style.display = 'block';
+  });
 }
 
 function buildVueltaCard(v) {
@@ -989,7 +1011,7 @@ function buildVueltaCard(v) {
               : `<button class="btn-foto" disabled>📷 3/3 — máximo alcanzado</button>`}
           </div>
           <button class="btn-foto" style="margin:0 14px 12px;width:calc(100% - 28px)"
-            onclick="const el=document.getElementById('foto-actions-${v.id}');el.style.display=el.style.display==='none'?'block':'none'">
+            onclick="toggleFotoActions('${v.id}')">
             📷 Agregar foto</button>
         ` : ''}
         <div style="padding:4px 14px 10px">
@@ -1036,6 +1058,17 @@ window.toggleVueltaDetail = id => {
   const open = detail.style.display === 'none';
   detail.style.display  = open ? 'block' : 'none';
   if (chevron) chevron.textContent = open ? '▲' : '▼';
+  if (open) openCards.add(`mc-detail-${id}`);
+  else { openCards.delete(`mc-detail-${id}`); openFotoActions.delete(`foto-actions-${id}`); }
+};
+
+window.toggleFotoActions = id => {
+  const el = document.getElementById('foto-actions-' + id);
+  if (!el) return;
+  const open = el.style.display === 'none';
+  el.style.display = open ? 'block' : 'none';
+  if (open) openFotoActions.add('foto-actions-' + id);
+  else openFotoActions.delete('foto-actions-' + id);
 };
 
 window.toggleVComentario = id => {
@@ -1301,6 +1334,7 @@ window.toggleCard = id => {
   const isOpen = detail.style.display !== 'none';
   detail.style.display = isOpen ? 'none' : '';
   if (chevron) chevron.style.transform = isOpen ? '' : 'rotate(180deg)';
+  if (isOpen) openCards.delete('cd-' + id); else openCards.add('cd-' + id);
 };
 
 window.toggleDomComentario = id => {
