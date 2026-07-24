@@ -194,13 +194,28 @@ Solo persiste por FCM tokens legacy. No usar para nuevos desarrollos.
 
 ## 🎯 Frente activo
 
-Sin código aún — los "Historial" que hoy existen en reposicion.html son la trazabilidad e
-inventario, no sugerencias por consumo. Prerrequisito cumplido (reposición extraída, F0–F4).
+**Reposición — PDF "Proyección de envío" + envío al encargado** *(reposicion.html + nueva Cloud Function — PRÓXIMO cambio, sesión desde 0)*
+Al generar el XLS de reposición (que mantiene su formato mínimo para facturación),
+generar además un **2º archivo PDF** con info robusta que replique la "ORDEN DE ENVIO"
+del sistema de facturación, y enviarlo al encargado de la sucursal destino.
 
-**Reposición — Sugerencias basadas en historial** *(reposicion.html — A3, frente activo)*
-Usar la colección `reposiciones` de Firestore para aprender la frecuencia de reposición y,
-eventualmente, la velocidad de consumo a partir de snapshots del Gerencial. Plantear en tres
-fases. Prerrequisito completado: reposición extraída a `reposicion.html` (F0–F4, Jun 2026).
+- **PDF:** réplica de formato (la app no tiene la plantilla de facturación → reconstruir
+  con librería PDF). Encabezado dice **"PROYECCIÓN DE ENVÍO"**; origen B01→destino; fecha
+  de hoy; No. Envío = **"PROVISIONAL xxx"**; cuerpo idéntico (Cantidad, Código, Producto,
+  Familia, Lote/Vto) en misma fuente/espaciado/posiciones. Una proyección **por destino**
+  (junta todos los orígenes/segmentos), no por bodega. Requiere: specs/plantilla del PDF de
+  facturación (fuente serif, tamaños, márgenes, x de columnas) y confirmar campo `familia`.
+- **Envío:** correo es la vía real de auto-envío (Cloud Function + servicio de email tipo
+  Resend/SendGrid, adjunta PDF). WhatsApp NO adjunta archivo sin la Business API (de paga);
+  `wa.me` es semi-manual. **Decisión pendiente de Fernando: correo (recomendado) vs WhatsApp.**
+- **Encargado:** desde `colaboradores` (`sucursal` + `cargo` Encargado → `correo`/`telefono`).
+- **Numeración "PROVISIONAL xxx":** contador (¿global o por sucursal?) en `config/*`.
+- **Texto "esta orden está en cola de preparación, revisala y me decís que más querés que te
+  envíe":** en Observaciones del PDF y/o cuerpo del correo.
+- **Disparo:** botón aparte "Generar proyección + enviar" (no automático al generar XLS, para
+  no spamear en regeneraciones).
+
+Prerrequisitos antes de codear: (1) decidir correo vs WhatsApp; (2) plantilla/specs del PDF.
 
 ---
 
@@ -220,6 +235,13 @@ del Ensamblador al proyecto de Despacho; (2) re-sembrar `catalogo`/`parametros`/
 en su `AuthScreen`/`AdminPanel`. Los permisos ya se pueden pre-cargar desde ahora.
 
 ### 🟡 Soporte
+
+**Reposición — Sugerencias basadas en historial** *(reposicion.html — A3)*
+Sin código aún — los "Historial" que hoy existen en reposicion.html son la trazabilidad e
+inventario, no sugerencias por consumo. Usar la colección `reposiciones` de Firestore para
+aprender la frecuencia de reposición y, eventualmente, la velocidad de consumo a partir de
+snapshots del Gerencial. Plantear en tres fases. Prerrequisito completado: reposición
+extraída a `reposicion.html` (F0–F4, Jun 2026).
 
 - Geocodificar dirección del XLS de envíos → ubicación en la ficha de moto,
   para que Anderson tenga mejor referencia. *(moto.html)* ⚠️ Bandera de costo:
