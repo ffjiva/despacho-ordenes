@@ -2487,31 +2487,54 @@ function repStkPassive(w) {
 function generateRepXLS(sucId, codeSet) {
   if (typeof XLSX === 'undefined') return;
   const bySource = assignOrigins(sucId);
+  const fecha = getTodaySV();
+  const suf   = codeSet ? '_filtrado' : '';
 
+  let fileIdx = 0;      // escalona los writeFile
   let generated = 0;
   Object.entries(bySource).forEach(([originId, sendMap]) => {
     const entries = Object.entries(sendMap)
       .filter(([code, v]) => v > 0 && (!codeSet || codeSet.has(code)));
     if (!entries.length) return;
-    const rows      = entries.map(([code, qty]) => [code, qty]);
-    const recordMap = Object.fromEntries(entries);   // trazabilidad = solo lo exportado
+    generated++;
 
-    setTimeout(() => {
-      const ws = XLSX.utils.aoa_to_sheet([['Código', 'Cantidad'], ...rows]);
-      ws['!cols'] = [{ wch: 22 }, { wch: 10 }];
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Reposicion');
-      const fecha = getTodaySV();
-      const suf   = codeSet ? '_filtrado' : '';
-      XLSX.writeFile(wb,
-        `Reposicion_${REP_ORIGIN_NAMES[originId]}_${REP_FNAMES[sucId]}${suf}_${fecha}.xls`,
-        { bookType: 'biff8' }
-      );
-      saveReposicionRecord(originId, sucId, recordMap, fecha, codeSet ? { parcial: true } : undefined);
-    }, generated++ * 400);
+    // Trazabilidad: UN registro por (origen, destino), con todo lo exportado
+    saveReposicionRecord(originId, sucId, Object.fromEntries(entries), fecha,
+      codeSet ? { parcial: true } : undefined);
+
+    // Segmentar en bloques de máx 30 ítems (balanceado) para que el colaborador
+    // no se abrume. El formato del XLS (encabezado + Código/Cantidad) es idéntico
+    // en cada archivo — es el que acepta facturación.
+    const chunks = repChunkEntries(entries, 30);
+    const total  = chunks.length;
+    chunks.forEach((chunk, i) => {
+      const parte = total > 1 ? `_${i + 1}de${total}` : '';
+      setTimeout(() => {
+        const rows = chunk.map(([code, qty]) => [code, qty]);
+        const ws = XLSX.utils.aoa_to_sheet([['Código', 'Cantidad'], ...rows]);
+        ws['!cols'] = [{ wch: 22 }, { wch: 10 }];
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Reposicion');
+        XLSX.writeFile(wb,
+          `Reposicion_${REP_ORIGIN_NAMES[originId]}_${REP_FNAMES[sucId]}${suf}${parte}_${fecha}.xls`,
+          { bookType: 'biff8' }
+        );
+      }, fileIdx++ * 400);
+    });
   });
 
   if (!generated) alert(`Sin cantidades para ${REP_LBLS[sucId]}.`);
+}
+
+// Reparto balanceado en bloques de máx `max` ítems: N = ceil(total/max),
+// repartido lo más parejo posible (50 con max 30 → 25/25; 61 → 21/21/19).
+function repChunkEntries(entries, max) {
+  const n = Math.ceil(entries.length / max);
+  if (n <= 1) return [entries];
+  const size = Math.ceil(entries.length / n);
+  const chunks = [];
+  for (let i = 0; i < entries.length; i += size) chunks.push(entries.slice(i, i + size));
+  return chunks;
 }
 
 async function saveReposicionRecord(origen, destino, sendMap, fecha, extra) {
@@ -3069,18 +3092,28 @@ window.handleCompraFile = async inputEl => {
 function generateCompraRepXLS(sucId) {
   if (typeof XLSX === 'undefined') return;
   const send = repCompraData[sucId] || {};
-  const rows = Object.entries(send).filter(([,v]) => v > 0).map(([code, qty]) => [code, qty]);
-  if (!rows.length) { alert(`Sin cantidades para ${REP_LBLS[sucId]}.`); return; }
-  const ws = XLSX.utils.aoa_to_sheet([['Código', 'Cantidad'], ...rows]);
-  ws['!cols'] = [{ wch: 22 }, { wch: 10 }];
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Reposicion');
+  const entries = Object.entries(send).filter(([,v]) => v > 0);
+  if (!entries.length) { alert(`Sin cantidades para ${REP_LBLS[sucId]}.`); return; }
   const fecha = getTodaySV();
-  XLSX.writeFile(wb,
-    `Compra_${REP_ORIGIN_NAMES['B01']}_${REP_FNAMES[sucId]}_${fecha}.xls`,
-    { bookType: 'biff8' }
-  );
-  saveReposicionRecord('B01', sucId, send, fecha);
+
+  saveReposicionRecord('B01', sucId, send, fecha);   // trazabilidad: un registro
+
+  const chunks = repChunkEntries(entries, 30);
+  const total  = chunks.length;
+  chunks.forEach((chunk, i) => {
+    const parte = total > 1 ? `_${i + 1}de${total}` : '';
+    setTimeout(() => {
+      const rows = chunk.map(([code, qty]) => [code, qty]);
+      const ws = XLSX.utils.aoa_to_sheet([['Código', 'Cantidad'], ...rows]);
+      ws['!cols'] = [{ wch: 22 }, { wch: 10 }];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Reposicion');
+      XLSX.writeFile(wb,
+        `Compra_${REP_ORIGIN_NAMES['B01']}_${REP_FNAMES[sucId]}${parte}_${fecha}.xls`,
+        { bookType: 'biff8' }
+      );
+    }, i * 400);
+  });
 }
 
 window.analyzeWithAI = async () => {
