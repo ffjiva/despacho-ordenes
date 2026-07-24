@@ -772,6 +772,9 @@ html, body {
           onclick="generateFilteredRepXLS()">⬇ Filtrado</button>
         <button class="btn btn-dark" style="font-size:.6rem"
           onclick="generateAllRepXLS()">⬇ Todos</button>
+        <button class="btn btn-outline" style="font-size:.6rem"
+          title="Genera el PDF de proyección (réplica ORDEN DE ENVIO) del destino activo, para revisión del encargado."
+          onclick="generateActiveProjection()">🧾 Proyección</button>
       </div>
     </div>
     <div id="rep-table-wrap" class="rep-table-wrap"></div>
@@ -970,6 +973,7 @@ html, body {
 
 <!-- SheetJS — precargado para el código migrado en F1–F3 -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 
 <script type="module">
@@ -2483,6 +2487,137 @@ const REP_ORIGIN_NAMES = {
 function repStkPassive(w) {
   return !(REP_ORIGIN_SOURCES[repOrigin] || REP_ORIGIN_SOURCES.B01B02).includes(w);
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// PROYECCIÓN DE ENVÍO — réplica de la ORDEN DE ENVIO de facturación
+// (Fase 1: genera + descarga PDF. Sin Firestore, sin correo.)
+// ═══════════════════════════════════════════════════════════════════
+
+// Nombres exactos de facturación: id → nombre impreso (inverso de REP_SNAMES).
+const REP_FACT_NAMES = Object.fromEntries(
+  Object.entries(REP_SNAMES).map(([name, id]) => [id, name])
+);
+const PROJ_ORIGIN_NAME = 'BODEGA MATRIX SF';   // B01
+
+// Fecha dd/mm/aaaa (el formato de facturación; getTodaySV usa YYYY-MM-DD).
+function fmtDateDMY() {
+  return new Date().toLocaleDateString('en-GB', { timeZone: 'America/El_Salvador' });
+}
+
+// Junta TODOS los orígenes/segmentos de un destino en una sola lista.
+// Devuelve [{ code, qty, name, familia }] ordenada por nombre.
+function buildProjectionItems(sucId) {
+  const bySource = assignOrigins(sucId);   // { B01:{code:qty}, B02:{...}, ... }
+  const totals = {};
+  Object.values(bySource).forEach(map => {
+    for (const [code, qty] of Object.entries(map)) {
+      if (qty > 0) totals[code] = (totals[code] || 0) + qty;
+    }
+  });
+  const items = Object.entries(totals).map(([code, qty]) => {
+    const p = repProductMap.get(code);
+    return { code, qty, name: p ? p.name : code, familia: (p && p.cat) ? p.cat : '' };
+  });
+  items.sort((a, b) => a.name.localeCompare(b.name, 'es'));
+  return items;
+}
+
+// Genera el PDF calcado. ordenNo: número del correlativo por sucursal
+// (Fase 1 = muestra; Fase 2 lo reemplaza por el contador atómico de config/proyeccion).
+function generateProjectionPDF(sucId, ordenNo = 1) {
+  if (!window.jspdf || !window.jspdf.jsPDF) { alert('jsPDF no cargó.'); return; }
+  const items = buildProjectionItems(sucId);
+  if (!items.length) { alert(`Sin cantidades para ${REP_LBLS[sucId] || sucId}.`); return; }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'pt', format: 'letter' });   // 612 x 792
+  const PAGE_W = 612, PAGE_H = 792;
+
+  // x exactos del documento real
+  const CANT_X = 16, CODE_X = 59, PROD_X = 143, PROD_W = 384 - 143 - 4;
+  const FAM_X = 386, LOTE_CX = (472 + 582) / 2;
+  const ROW_TOP0 = 143.3, LINE_H = 11.4, ITEM_GAP = 14, FOOT_LIMIT = 758;
+
+  const fmtQty = q => Number(q).toFixed(2);
+  const label  = `Provisional ${ordenNo}`;
+
+  function drawHeader() {
+    doc.setFont('helvetica', 'bold').setFontSize(14);
+    doc.text('ORDEN DE ENVIO', PAGE_W / 2, 23.6, { baseline: 'top', align: 'center' });
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Sucursal Origen:',  39,  93.3, { baseline: 'top' });
+    doc.text('Sucursal Destino:', 39,  108.3, { baseline: 'top' });
+    doc.text('Fecha Envio:',      384, 93.3, { baseline: 'top' });
+    doc.text('No.Orden Envio:',   384, 108.3, { baseline: 'top' });
+    doc.setFont('helvetica', 'normal');
+    doc.text(PROJ_ORIGIN_NAME,               134, 93.3,  { baseline: 'top' });
+    doc.text(REP_FACT_NAMES[sucId] || sucId, 134, 108.3, { baseline: 'top' });
+    doc.text(fmtDateDMY(),                    461, 93.3,  { baseline: 'top' });
+    doc.text(label,                           461, 108.3, { baseline: 'top' });
+    // Caja del header de tabla (verticales x=14,57,141,384,472,582; y 127→141)
+    doc.setLineWidth(0.5);
+    [14, 57, 141, 384, 472, 582].forEach(x => doc.line(x, 127, x, 141));
+    doc.line(14, 127, 582, 127);
+    doc.line(14, 141, 582, 141);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Cantidad', 35.5,  129.3, { baseline: 'top', align: 'center' });
+    doc.text('Codigo',   99,    129.3, { baseline: 'top', align: 'center' });
+    doc.text('Producto', 262.5, 129.3, { baseline: 'top', align: 'center' });
+    doc.text('Familia',  428,   129.3, { baseline: 'top', align: 'center' });
+    doc.text('Lote/Fecha Vencimiento', 527, 129.3, { baseline: 'top', align: 'center' });
+    doc.setFont('helvetica', 'normal');
+  }
+
+  drawHeader();
+  let y = ROW_TOP0, totalQty = 0;
+
+  items.forEach(it => {
+    const nameLines = doc.splitTextToSize(it.name, PROD_W);
+    const blockH = Math.max(ITEM_GAP, nameLines.length * LINE_H);
+    if (y + blockH > FOOT_LIMIT) { doc.addPage(); drawHeader(); y = ROW_TOP0; }
+    doc.text(fmtQty(it.qty),  CANT_X, y, { baseline: 'top' });
+    doc.text(String(it.code), CODE_X, y, { baseline: 'top' });
+    nameLines.forEach((ln, i) => doc.text(ln, PROD_X, y + i * LINE_H, { baseline: 'top' }));
+    doc.text(it.familia, FAM_X, y, { baseline: 'top' });
+    doc.text('n/a', LOTE_CX, y, { baseline: 'top', align: 'center' });
+    y += blockH;
+    totalQty += Number(it.qty);
+  });
+
+  // Salto de página si el pie no cabe
+  if (y + 140 > PAGE_H - 20) { doc.addPage(); drawHeader(); y = ROW_TOP0; }
+
+  // Total (línea corta encima + valor bold bajo Cantidad)
+  doc.line(16, y - 1, 56, y - 1);
+  doc.setFont('helvetica', 'bold');
+  doc.text(fmtQty(totalQty), CANT_X, y + 2, { baseline: 'top' });
+  doc.setFont('helvetica', 'normal');
+  y += 20;
+
+  doc.text('*'.repeat(41), PAGE_W / 2, y, { baseline: 'top', align: 'center' });
+  y += 14;
+  doc.setFont('helvetica', 'bold');
+  doc.text('Observaciones:', 41, y, { baseline: 'top' });
+  doc.setFont('helvetica', 'normal');
+
+  // Firmas
+  const yF = Math.min(y + 86, PAGE_H - 40);
+  doc.text('_______________________________', 39,  yF, { baseline: 'top' });
+  doc.text('_______________________________', 210, yF, { baseline: 'top' });
+  doc.text('_______________________________', 381, yF, { baseline: 'top' });
+  doc.setFont('helvetica', 'bold');
+  doc.text('AUTORIZADO', 87.5, yF + 11, { baseline: 'top' });
+  doc.text('PREPARADO',  261,  yF + 11, { baseline: 'top' });
+  doc.text('DESPACHADO', 428,  yF + 11, { baseline: 'top' });
+  doc.setFont('helvetica', 'normal');
+
+  doc.save(`Proyeccion_${REP_FACT_NAMES[sucId] || sucId}_${fmtDateDMY().replace(/\//g, '-')}.pdf`);
+}
+
+// Exponer al scope global para el onclick del botón (mismo patrón que el resto de la app)
+// Wrapper sin args: lee repActiveTab dentro del módulo (mismo patrón que generateActiveRepXLS)
+window.generateActiveProjection = () => generateProjectionPDF(repActiveTab);
 
 function generateRepXLS(sucId, codeSet) {
   if (typeof XLSX === 'undefined') return;
