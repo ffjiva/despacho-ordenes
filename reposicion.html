@@ -784,7 +784,7 @@ html, body {
 
 <div id="s-trazabilidad" class="scr">
   <div class="topbar">
-    <div class="topbar-title">📋 Historial de Reposiciones</div>
+    <div class="topbar-title">📋 Historial</div>
     <div class="topbar-actions">
       <button class="btn btn-ghost" style="font-size:.65rem"
         onclick="goBackFromTrazabilidad()">← Volver</button>
@@ -793,6 +793,10 @@ html, body {
   <div id="traz-loading" style="display:none;text-align:center;padding:3rem 1rem">
     <span class="spin"></span>
     <span style="font-size:.72rem;color:var(--muted);margin-left:8px">Cargando…</span>
+  </div>
+  <div style="padding:.6rem 1rem 0;display:flex;gap:6px">
+    <button id="traz-tab-rep"  class="btn btn-dark"    style="font-size:.62rem" onclick="setTrazTab('reposiciones')">Reposiciones</button>
+    <button id="traz-tab-proy" class="btn btn-outline" style="font-size:.62rem" onclick="setTrazTab('proyecciones')">Proyecciones enviadas</button>
   </div>
   <div style="padding:.75rem 1rem .25rem;display:flex;gap:8px;flex-wrap:wrap;border-bottom:1px solid var(--border2)">
     <select id="traz-fil-origen" onchange="renderTrazabilidad()"
@@ -3496,10 +3500,16 @@ window.goBackFromTrazabilidad = () => { showScreen('s-reposicion'); };
 
 // ── Módulo 7 — Trazabilidad ───────────────────────────────────────────────
 let trazRecords = [];
+let proyRecords = [];
+let trazTab = 'reposiciones';
 
 async function loadTrazabilidad() {
   console.log('[Trazabilidad] db:', db, 'fbMod:', typeof fbMod);
   if (!db) { console.warn('[Trazabilidad] db no inicializado'); return; }
+  trazTab = 'reposiciones';
+  if ($('traz-tab-rep'))    $('traz-tab-rep').className  = 'btn btn-dark';
+  if ($('traz-tab-proy'))   $('traz-tab-proy').className = 'btn btn-outline';
+  if ($('traz-fil-origen')) $('traz-fil-origen').style.display = '';
   $('traz-loading').style.display = 'block';
   $('traz-list').innerHTML = '';
   try {
@@ -3516,6 +3526,7 @@ async function loadTrazabilidad() {
 }
 
 window.renderTrazabilidad = function() {
+  if (trazTab === 'proyecciones') { renderProyecciones(); return; }
   const filOrigen = $('traz-fil-origen').value;
   const filDest   = $('traz-fil-destino').value;
   const filFecha  = $('traz-fil-fecha').value;
@@ -3562,6 +3573,81 @@ window.renderTrazabilidad = function() {
 
 window.toggleTrazDetail = (id) => {
   const el = $(`traz-detail-${id}`);
+  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+};
+
+window.setTrazTab = (tab) => {
+  trazTab = tab;
+  $('traz-tab-rep').className  = 'btn ' + (tab === 'reposiciones' ? 'btn-dark' : 'btn-outline');
+  $('traz-tab-proy').className = 'btn ' + (tab === 'proyecciones' ? 'btn-dark' : 'btn-outline');
+  $('traz-fil-origen').style.display = tab === 'proyecciones' ? 'none' : '';   // origen no aplica a proyecciones
+  if (tab === 'proyecciones') loadProyecciones();
+  else loadTrazabilidad();
+};
+
+async function loadProyecciones() {
+  if (!db) return;
+  $('traz-loading').style.display = 'block';
+  $('traz-list').innerHTML = '';
+  try {
+    const { collection, getDocs, query, orderBy, limit } = fbMod;
+    const q = query(collection(db, 'proyecciones'), orderBy('timestamp', 'desc'), limit(100));
+    const snap = await getDocs(q);
+    proyRecords = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderProyecciones();
+  } catch (e) {
+    $('traz-list').innerHTML = `<div class="empty-state">Error al cargar: ${e.message}</div>`;
+  } finally {
+    $('traz-loading').style.display = 'none';
+  }
+}
+
+window.renderProyecciones = function() {
+  const filDest  = $('traz-fil-destino').value;
+  const filFecha = $('traz-fil-fecha').value;
+  let list = proyRecords;
+  if (filDest)  list = list.filter(r => r.destino === filDest);
+  if (filFecha) list = list.filter(r => r.fecha   === filFecha);
+  const wrap = $('traz-list');
+  if (!list.length) { wrap.innerHTML = '<div class="empty-state">Sin proyecciones enviadas aún.</div>'; return; }
+  wrap.innerHTML = list.map(r => {
+    const dt = new Date(r.timestamp);
+    const hora = dt.toLocaleTimeString('es-SV', { hour: '2-digit', minute: '2-digit' });
+    const correos = (r.encargadoCorreos || []).join(', ');
+    const prods = r.productos || [];
+    return `
+    <div class="traz-card">
+      <div class="traz-card-hdr" onclick="toggleProyDetail('${r.id}')">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <span class="traz-badge traz-badge-dest">${r.destino}</span>
+          <span style="font-size:.7rem;color:var(--muted)">${r.provisional || ('Provisional ' + (r.ordenNo || ''))}</span>
+          <span style="font-size:.7rem;color:var(--muted)">${r.fecha} ${hora}</span>
+        </div>
+        <div style="display:flex;gap:12px;align-items:center">
+          <span style="font-size:.7rem;color:var(--muted)">${r.totalUnidades} uds · ${prods.length} prods</span>
+          <span style="font-size:.75rem;color:var(--muted)">▾</span>
+        </div>
+      </div>
+      <div id="proy-detail-${r.id}" class="traz-detail" style="display:none">
+        <div style="padding:6px 14px;font-size:.65rem;color:var(--muted)">
+          Enviado a: ${correos || '—'}${r.encargadoNombre ? ' · ' + r.encargadoNombre : ''}
+        </div>
+        ${prods.map(p => `
+        <div class="traz-prod-row">
+          <span class="traz-prod-code">${p.codigo}</span>
+          <span class="traz-prod-name">${p.nombre}</span>
+          <span class="traz-prod-qty">${p.cantidad}</span>
+        </div>`).join('')}
+        <div style="padding:8px 14px;font-size:.65rem;color:var(--muted)">
+          Enviado por: ${r.enviadoPor || '—'}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+};
+
+window.toggleProyDetail = (id) => {
+  const el = $(`proy-detail-${id}`);
   if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
 };
 
