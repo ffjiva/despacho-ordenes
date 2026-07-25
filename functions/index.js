@@ -28,193 +28,179 @@ async function isCallerSuper(uid) {
   return !!d && (d.apps?.despacho?.role ?? d.role) === 'super';
 }
 
+// ── CORS + preflight helper ──────────────────────────────
+// Aplica cabeceras CORS y resuelve preflight/método inválido.
+// Devuelve true si la petición ya fue respondida (el handler debe cortar):
+//   if (handleCors(req, res)) return;
+function handleCors(req, res) {
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  if (req.method === 'OPTIONS') { res.status(204).send(''); return true; }
+  if (req.method !== 'POST')   { res.status(405).json({ error: 'Method Not Allowed' }); return true; }
+  return false;
+}
+
+// ── Cliente Claude API (https nativo, sin SDK) ───────────
+// Recibe { messages, max_tokens }, agrega el modelo, hace la request,
+// valida errores/truncado y devuelve el texto ya limpio de markdown.
+const CLAUDE_MODEL = 'claude-haiku-4-5';
+
+function callClaude({ messages, max_tokens }) {
+  return new Promise((resolve, reject) => {
+    const apiKey = process.env.ANTHROPIC_KEY;
+    if (!apiKey) { reject(new Error('API key not configured')); return; }
+
+    const body = JSON.stringify({ model: CLAUDE_MODEL, max_tokens, messages });
+    const options = {
+      hostname: 'api.anthropic.com',
+      path: '/v1/messages',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'Content-Length': Buffer.byteLength(body),
+      },
+    };
+    const apiReq = https.request(options, apiRes => {
+      let data = '';
+      apiRes.on('data', chunk => data += chunk);
+      apiRes.on('end', () => {
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed.error) throw new Error(parsed.error.message);
+          if (parsed.stop_reason === 'max_tokens') {
+            throw new Error('Respuesta truncada: el modelo alcanzó max_tokens (reducí el lote o subí max_tokens).');
+          }
+          const text = parsed.content.filter(b => b.type === 'text').map(b => b.text).join('').trim()
+            .replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim();
+          resolve(text);
+        } catch(e) { reject(e); }
+      });
+    });
+    apiReq.on('error', reject);
+    apiReq.write(body);
+    apiReq.end();
+  });
+}
+
 const { onDocumentWritten } = require('firebase-functions/v2/firestore');
 const { onRequest }         = require('firebase-functions/v2/https');
 const { onSchedule }        = require('firebase-functions/v2/scheduler');
 
-exports.onDespachoAssigned = onDocumentWritten('despachos/{despachoId}', async (event) => {
-    const before = event.data.before.exists ? event.data.before.data() : null;
-    const after  = event.data.after.exists  ? event.data.after.data()  : null;
-    if (!after) return null;
-
-    const assignedBefore = before?.assignedTo || '';
-    const assignedAfter  = after.assignedTo   || '';
-
-    if (!assignedAfter || assignedAfter === assignedBefore) return null;
-
-    const alreadyNotified = after.lastNotifiedAssignedTo === assignedAfter;
-    if (alreadyNotified) return null;
-
-    const userSnap = await admin.firestore().doc(`users/${assignedAfter}`).get();
-
-    if (!userSnap.exists) {
-      console.log(`Usuario "${assignedAfter}" no encontrado en users/`);
-      return null;
-    }
-
-    const userData = userSnap.data();
-    const tokens   = userData.fcmTokens || (userData.fcmToken ? [userData.fcmToken] : []);
-
-    if (!tokens.length) {
-      console.log(`Sin tokens FCM para ${assignedAfter}`);
-      return null;
-    }
-
-    const orderLabel = after.orderNumber
-      ? `Orden ${after.orderNumber}`
-      : after.name || 'Nueva orden';
-    const dest = after.destination || '';
-
-    const messages = tokens.map(token => ({
-      token,
-      notification: {
-        title: '📦 Nueva orden asignada',
-        body:  `${orderLabel}${dest ? ' → ' + dest : ''}`
-      },
-      android: { priority: 'high' },
-      webpush: {
-        notification: { icon: 'https://despacho-ordenes.web.app/favicon.png' },
-        fcmOptions:   { link: 'https://despacho-ordenes.web.app' }
-      }
-    }));
-
-    try {
-      const response = await admin.messaging().sendEach(messages);
-      console.log(`Notificaciones: ${response.successCount}/${messages.length} a ${assignedAfter}`);
-
-      const uid = assignedAfter;
-      const invalidTokens = response.responses
-        .map((r, i) => (!r.success && r.error?.code === 'messaging/registration-token-not-registered') ? tokens[i] : null)
-        .filter(Boolean);
-
-      if (invalidTokens.length) {
-        const cleanTokens = tokens.filter(t => !invalidTokens.includes(t));
-        await admin.firestore().doc(`users/${uid}`).update({ fcmTokens: cleanTokens });
-        console.log(`Tokens inválidos removidos: ${invalidTokens.length}`);
-      }
-
-      await event.data.after.ref.update({ lastNotifiedAssignedTo: assignedAfter });
-    } catch(e) {
-      console.error('Error enviando notificación:', e.message);
-    }
-    return null;
-});
-
-exports.onVueltaAssigned = onDocumentWritten('vueltas/{vueltaId}', async (event) => {
-    const before = event.data.before.exists ? event.data.before.data() : null;
-    const after  = event.data.after.exists  ? event.data.after.data()  : null;
-    if (!after) return null;
-
-    const assignedBefore = before?.assignedTo || '';
-    const assignedAfter  = after.assignedTo   || '';
-
-    if (!assignedAfter || assignedAfter === assignedBefore) return null;
-
-    const alreadyNotified = after.lastNotifiedAssignedTo === assignedAfter;
-    if (alreadyNotified) return null;
-
-    // assignedAfter es el uid del usuario
-    const userSnap = await admin.firestore().doc(`users/${assignedAfter}`).get();
-    if (!userSnap.exists) {
-      console.log(`Usuario no encontrado: ${assignedAfter}`);
-      return null;
-    }
-    const userData = userSnap.data();
-    const tokens = userData.fcmTokens || (userData.fcmToken ? [userData.fcmToken] : []);
-    if (!tokens.length) {
-      console.log(`Sin token FCM para ${userData.name || assignedAfter}`);
-      return null;
-    }
-    // Enviar a todos los tokens del usuario (múltiples dispositivos)
-    const token = tokens[tokens.length - 1]; // usar el más reciente
-
-    const dest = after.destination || '';
-    const fecha = after.date || '';
-
-    const message = {
-      token,
-      notification: {
-        title: '🚐 Nueva vuelta asignada',
-        body:  `${dest ? dest : 'Revisa tus vueltas'}${fecha ? ' — ' + fecha : ''}`
-      },
-      android: { priority: 'high' },
-      webpush: {
-        notification: { icon: 'https://despacho-ordenes.web.app/favicon.png' },
-        fcmOptions:   { link: 'https://despacho-ordenes.web.app/moto.html' }
-      }
-    };
-
-    try {
-      await admin.messaging().send(message);
-      console.log(`Notificación vuelta enviada a ${assignedAfter}`);
-      await event.data.after.ref.update({ lastNotifiedAssignedTo: assignedAfter });
-    } catch(e) {
-      console.error('Error enviando notificación vuelta:', e.message);
-    }
-    return null;
-  });
-
-exports.onInventarioAsignado = onDocumentWritten('inventarios/{invId}', async (event) => {
+// ── Helper unificado de notificación por asignación ──────────
+// Envía a TODOS los dispositivos del usuario asignado (sendEach) y limpia
+// tokens FCM inválidos. Compartido por los 3 triggers de asignación.
+//   field:         campo del doc con el uid asignado (ej. 'assignedTo')
+//   notifiedField: campo espejo anti-doble-envío (ej. 'lastNotifiedAssignedTo')
+//   buildMessage:  (after) => ({ title, body, link })
+async function notifyOnAssignment(event, { field, notifiedField, buildMessage }) {
   const before = event.data.before.exists ? event.data.before.data() : null;
   const after  = event.data.after.exists  ? event.data.after.data()  : null;
   if (!after) return null;
 
-  const assignedBefore = before?.asignadoA || '';
-  const assignedAfter  = after.asignadoA   || '';
-
+  const assignedBefore = before?.[field] || '';
+  const assignedAfter  = after[field]    || '';
   if (!assignedAfter || assignedAfter === assignedBefore) return null;
-
-  const alreadyNotified = after.lastNotifiedAsignadoA === assignedAfter;
-  if (alreadyNotified) return null;
+  if (after[notifiedField] === assignedAfter) return null;
 
   const userSnap = await admin.firestore().doc(`users/${assignedAfter}`).get();
   if (!userSnap.exists) {
-    console.log(`Usuario no encontrado: ${assignedAfter}`);
+    console.log(`Usuario no encontrado en users/: ${assignedAfter}`);
     return null;
   }
   const userData = userSnap.data();
-  const tokens   = userData.fcmTokens || (userData.fcmToken ? [userData.fcmToken] : []);
+  const tokens = userData.fcmTokens || (userData.fcmToken ? [userData.fcmToken] : []);
   if (!tokens.length) {
-    console.log(`Sin token FCM para ${userData.name || assignedAfter}`);
+    console.log(`Sin tokens FCM para ${userData.name || assignedAfter}`);
     return null;
   }
-  const token = tokens[tokens.length - 1];
 
-  const suc    = after.sucursalNombre || after.sucursal || '';
-  const titulo = after.titulo || 'Conteo';
-
-  const message = {
+  const { title, body, link } = buildMessage(after);
+  const messages = tokens.map(token => ({
     token,
-    notification: {
-      title: '📋 Conteo de inventario asignado',
-      body:  `${suc} — ${titulo}`
-    },
+    notification: { title, body },
     android: { priority: 'high' },
     webpush: {
       notification: { icon: 'https://despacho-ordenes.web.app/favicon.png' },
-      fcmOptions:   { link: 'https://despacho-ordenes.web.app/ops.html' }
+      fcmOptions:   { link }
     }
-  };
+  }));
 
   try {
-    await admin.messaging().send(message);
-    console.log(`Notificación inventario enviada a ${assignedAfter}`);
-    await event.data.after.ref.update({ lastNotifiedAsignadoA: assignedAfter });
+    const response = await admin.messaging().sendEach(messages);
+    console.log(`Notificaciones: ${response.successCount}/${messages.length} a ${assignedAfter}`);
+
+    const invalidTokens = response.responses
+      .map((r, i) => (!r.success && r.error?.code === 'messaging/registration-token-not-registered') ? tokens[i] : null)
+      .filter(Boolean);
+    if (invalidTokens.length) {
+      const cleanTokens = tokens.filter(t => !invalidTokens.includes(t));
+      await admin.firestore().doc(`users/${assignedAfter}`).update({ fcmTokens: cleanTokens });
+      console.log(`Tokens inválidos removidos: ${invalidTokens.length}`);
+    }
+
+    await event.data.after.ref.update({ [notifiedField]: assignedAfter });
   } catch(e) {
-    console.error('Error enviando notificación inventario:', e.message);
+    console.error('Error enviando notificación:', e.message);
   }
   return null;
-});
+}
+
+exports.onDespachoAssigned = onDocumentWritten('despachos/{despachoId}', (event) =>
+  notifyOnAssignment(event, {
+    field: 'assignedTo',
+    notifiedField: 'lastNotifiedAssignedTo',
+    buildMessage: (after) => {
+      const orderLabel = after.orderNumber ? `Orden ${after.orderNumber}` : (after.name || 'Nueva orden');
+      const dest = after.destination || '';
+      return {
+        title: '📦 Nueva orden asignada',
+        body:  `${orderLabel}${dest ? ' → ' + dest : ''}`,
+        link:  'https://despacho-ordenes.web.app'
+      };
+    }
+  })
+);
+
+exports.onVueltaAssigned = onDocumentWritten('vueltas/{vueltaId}', (event) =>
+  notifyOnAssignment(event, {
+    field: 'assignedTo',
+    notifiedField: 'lastNotifiedAssignedTo',
+    buildMessage: (after) => {
+      const dest  = after.destination || '';
+      const fecha = after.date || '';
+      return {
+        title: '🚐 Nueva vuelta asignada',
+        body:  `${dest ? dest : 'Revisa tus vueltas'}${fecha ? ' — ' + fecha : ''}`,
+        link:  'https://despacho-ordenes.web.app/moto.html'
+      };
+    }
+  })
+);
+
+exports.onInventarioAsignado = onDocumentWritten('inventarios/{invId}', (event) =>
+  notifyOnAssignment(event, {
+    field: 'asignadoA',
+    notifiedField: 'lastNotifiedAsignadoA',
+    buildMessage: (after) => {
+      const suc    = after.sucursalNombre || after.sucursal || '';
+      const titulo = after.titulo || 'Conteo';
+      return {
+        title: '📋 Conteo de inventario asignado',
+        body:  `${suc} — ${titulo}`,
+        link:  'https://despacho-ordenes.web.app/ops.html'
+      };
+    }
+  })
+);
 
 exports.parseDocument = onRequest(
   { timeoutSeconds: 300, memory: '1GiB' },
   async (req, res) => {
   console.log("Request received:", req.method);
-  res.set("Access-Control-Allow-Origin", "*");
-  res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
-  if (req.method === "OPTIONS") { res.status(204).send(""); return; }
-  if (req.method !== "POST") { res.status(405).send("Method Not Allowed"); return; }
+  if (handleCors(req, res)) return;
 
   const user = await verifyFirebaseToken(req, res);
   if (!user) return;
@@ -225,9 +211,6 @@ exports.parseDocument = onRequest(
 
   const { base64Data, mediaType } = req.body;
   if (!base64Data || !mediaType) { res.status(400).json({ error: "Missing base64Data or mediaType" }); return; }
-
-  const apiKey = process.env.ANTHROPIC_KEY;
-  if (!apiKey) { res.status(500).json({ error: "API key not configured" }); return; }
 
   const isPDF = mediaType === "application/pdf";
   const contentBlock = isPDF
@@ -255,80 +238,43 @@ Este PDF puede contener filas de productos que se cortan al final de una página
 - El código compartido
 Nunca incluyas duplicados de un mismo código en el resultado final.`;
 
-  const body = JSON.stringify({
-    model: "claude-haiku-4-5",
-    max_tokens: 16000,
-    messages: [{ role: "user", content: [contentBlock, { type: "text", text: prompt }] }]
-  });
+  try {
+    const text = await callClaude({
+      max_tokens: 16000,
+      messages: [{ role: "user", content: [contentBlock, { type: "text", text: prompt }] }]
+    });
+    console.log("Model response preview:", text.substring(0, 300));
 
-  const options = {
-    hostname: "api.anthropic.com",
-    path: "/v1/messages",
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-      "Content-Length": Buffer.byteLength(body)
-    }
-  };
+    const normalizeQty = p => ({
+      ...p,
+      qty: Math.round(parseFloat(String(p.qty)) || 0)
+    });
 
-  const apiReq = https.request(options, (apiRes) => {
-    let data = "";
-    apiRes.on("data", chunk => data += chunk);
-apiRes.on("end", () => {
+    // Intentar como objeto {header, products}
+    const objMatch = text.match(/\{[\s\S]*\}/);
+    if (objMatch) {
       try {
-        const parsed = JSON.parse(data);
-        if (parsed.error) throw new Error(parsed.error.message);
-        if (parsed.stop_reason === "max_tokens") {
-          throw new Error("Lista demasiado larga: la respuesta del modelo se truncó (subí max_tokens o dividí el PDF).");
-        }
-        let text = parsed.content.map(i => i.text || "").join("").trim();
-        console.log("Model response preview:", text.substring(0, 300));
-
-        // Limpiar backticks de markdown de forma agresiva
-        text = text
-          .replace(/^```json\s*/i, '')
-          .replace(/^```\s*/i, '')
-          .replace(/\s*```$/i, '')
-          .trim();
-
-        const normalizeQty = p => ({
-          ...p,
-          qty: Math.round(parseFloat(String(p.qty)) || 0)
-        });
-
-        // Intentar como objeto {header, products}
-        const objMatch = text.match(/\{[\s\S]*\}/);
-        if (objMatch) {
-          try {
-            const result = JSON.parse(objMatch[0]);
-            if (result.products && Array.isArray(result.products)) {
-              res.json({ header: result.header || null, products: result.products.map(normalizeQty) });
-              return;
-            }
-          } catch(e) {}
-        }
-
-        // Intentar como array directo [...]
-        const arrMatch = text.match(/\[[\s\S]*\]/);
-        if (arrMatch) {
-          const products = JSON.parse(arrMatch[0]).map(normalizeQty);
-          res.json({ header: null, products });
+        const result = JSON.parse(objMatch[0]);
+        if (result.products && Array.isArray(result.products)) {
+          res.json({ header: result.header || null, products: result.products.map(normalizeQty) });
           return;
         }
+      } catch(e) {}
+    }
 
-        throw new Error("No se pudo extraer productos. Respuesta: " + text.substring(0, 150));
-      } catch (e) {
-        console.error("Parse error:", e.message);
-        res.status(500).json({ error: e.message });
-      }
-    });
-  });
+    // Intentar como array directo [...]
+    const arrMatch = text.match(/\[[\s\S]*\]/);
+    if (arrMatch) {
+      const products = JSON.parse(arrMatch[0]).map(normalizeQty);
+      res.json({ header: null, products });
+      return;
+    }
 
-  apiReq.on("error", e => { res.status(500).json({ error: e.message }); });
-  apiReq.write(body);
-  apiReq.end();
+    throw new Error("No se pudo extraer productos. Respuesta: " + text.substring(0, 150));
+  } catch (e) {
+    console.error("Parse error:", e.message);
+    res.status(500).json({ error: e.message });
+  }
 });
 
 exports.parseXLS = onRequest({
@@ -512,11 +458,7 @@ async function buildCierreResumenAdmin(db, fecha) {
 exports.suggestReplenishment = onRequest(
   { timeoutSeconds: 120, memory: '512MiB' },
   async (req, res) => {
-  res.set('Access-Control-Allow-Origin', '*');
-  res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  if (req.method === 'OPTIONS') { res.status(204).send(''); return; }
-  if (req.method !== 'POST')   { res.status(405).json({ error: 'Method not allowed' }); return; }
+  if (handleCors(req, res)) return;
 
   const user = await verifyFirebaseToken(req, res);
   if (!user) return;
@@ -527,9 +469,6 @@ exports.suggestReplenishment = onRequest(
 
   const { products, origin = 'B01B02', servedDests } = req.body;
   if (!products?.length) { res.status(400).json({ error: 'No products' }); return; }
-
-  const apiKey = process.env.ANTHROPIC_KEY;
-  if (!apiKey) { res.status(500).json({ error: 'API key not configured' }); return; }
 
   // Bodegas que forman el pool del origen seleccionado
   const ORIGIN_SRC = { B01B02: ['B01','B02'], B01: ['B01'], B02: ['B02'], B03: ['B03'] };
@@ -571,47 +510,17 @@ ${lines}
 Respondé ÚNICAMENTE con JSON válido sin markdown:
 ${schema}`;
 
-  const body = JSON.stringify({
-    model: 'claude-haiku-4-5',
-    max_tokens: 8192,
-    messages: [{ role: 'user', content: prompt }],
-  });
-
-  const options = {
-    hostname: 'api.anthropic.com',
-    path: '/v1/messages',
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-      'Content-Length': Buffer.byteLength(body),
-    },
-  };
-
-  const apiReq = https.request(options, apiRes => {
-    let data = '';
-    apiRes.on('data', chunk => data += chunk);
-    apiRes.on('end', () => {
-      try {
-        const parsed = JSON.parse(data);
-        if (parsed.error) throw new Error(parsed.error.message);
-        if (parsed.stop_reason === 'max_tokens') {
-          throw new Error('Respuesta truncada (lote demasiado grande). Reducí el tamaño del lote.');
-        }
-        const text = parsed.content.filter(b => b.type === 'text').map(b => b.text).join('').trim()
-          .replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim();
-        const result = JSON.parse(text.match(/\{[\s\S]*\}/)[0]);
-        res.json(result);
-      } catch(e) {
-        console.error('suggestReplenishment parse error:', e.message);
-        res.status(500).json({ error: e.message });
-      }
+  try {
+    const text = await callClaude({
+      max_tokens: 8192,
+      messages: [{ role: 'user', content: prompt }],
     });
-  });
-  apiReq.on('error', e => res.status(500).json({ error: e.message }));
-  apiReq.write(body);
-  apiReq.end();
+    const result = JSON.parse(text.match(/\{[\s\S]*\}/)[0]);
+    res.json(result);
+  } catch(e) {
+    console.error('suggestReplenishment parse error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
 });
 
 exports.autoCierreJornada = onSchedule({
@@ -646,11 +555,7 @@ exports.autoCierreJornada = onSchedule({
 exports.createUser = onRequest(
   { timeoutSeconds: 60, memory: '256MiB' },
   async (req, res) => {
-    res.set('Access-Control-Allow-Origin', '*');
-    res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
-    res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    if (req.method === 'OPTIONS') { res.status(204).send(''); return; }
-    if (req.method !== 'POST') { res.status(405).send('Method Not Allowed'); return; }
+    if (handleCors(req, res)) return;
 
     const authHeader = req.headers.authorization || '';
     const idToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
@@ -718,11 +623,7 @@ const SMTP_PASS = defineSecret('SMTP_PASS');
 exports.sendProjection = onRequest(
   { timeoutSeconds: 120, memory: '512MiB', secrets: [SMTP_PASS] },
   async (req, res) => {
-    res.set("Access-Control-Allow-Origin", "*");
-    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
-    res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
-    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
-    if (req.method !== "POST") { res.status(405).send("Method Not Allowed"); return; }
+    if (handleCors(req, res)) return;
 
     const user = await verifyFirebaseToken(req, res);
     if (!user) return;
