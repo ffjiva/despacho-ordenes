@@ -731,7 +731,7 @@ exports.sendProjection = onRequest(
       return;
     }
 
-    const { toEmail, subject, html, pdfBase64, filename } = req.body || {};
+    const { toEmail, subject, html, pdfBase64, filename, bcc } = req.body || {};
     if (!toEmail || !pdfBase64) {
       res.status(400).json({ error: 'Faltan toEmail o pdfBase64.' });
       return;
@@ -749,6 +749,7 @@ exports.sendProjection = onRequest(
       await transporter.sendMail({
         from: `"Zona Digital — Operaciones" <${SMTP_USER}>`,
         to: toEmail,
+        bcc: bcc || undefined,
         subject: subject || 'Proyección de envío',
         html: html || '<p>Proyección de envío adjunta.</p>',
         attachments: [{

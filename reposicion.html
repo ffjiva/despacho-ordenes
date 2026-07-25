@@ -2377,6 +2377,7 @@ window.generateActiveRepXLS = () => {
   if (repMode === 'redist') { generateRedistXLS(repRedistActiveOrig); return; }
   if (!repPreflightGate()) return;   // gate solo en flujo stock
   generateRepXLS(repActiveTab);
+  setTimeout(() => maybeSendProjection(repActiveTab), 300);   // confirm + envío (solo stock)
 };
 
 window.generateAllRepXLS = () => {
@@ -2524,10 +2525,10 @@ function buildProjectionItems(sucId) {
 
 // Genera el PDF calcado. ordenNo: número del correlativo por sucursal
 // (Fase 1 = muestra; Fase 2 lo reemplaza por el contador atómico de config/proyeccion).
-function generateProjectionPDF(sucId, ordenNo = 1) {
-  if (!window.jspdf || !window.jspdf.jsPDF) { alert('jsPDF no cargó.'); return; }
+function buildProjectionDoc(sucId, ordenNo = 1) {
+  if (!window.jspdf || !window.jspdf.jsPDF) return null;
   const items = buildProjectionItems(sucId);
-  if (!items.length) { alert(`Sin cantidades para ${REP_LBLS[sucId] || sucId}.`); return; }
+  if (!items.length) return null;
 
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: 'pt', format: 'letter' });   // 612 x 792
@@ -2612,35 +2613,126 @@ function generateProjectionPDF(sucId, ordenNo = 1) {
   doc.text('DESPACHADO', 428,  yF + 11, { baseline: 'top' });
   doc.setFont('helvetica', 'normal');
 
+  return doc;
+}
+
+// Preview/descarga manual (botón "🧾 Proyección"), sin enviar.
+function generateProjectionPDF(sucId, ordenNo = 1) {
+  const doc = buildProjectionDoc(sucId, ordenNo);
+  if (!doc) { alert(`Sin cantidades para ${REP_LBLS[sucId] || sucId} (o jsPDF no cargó).`); return; }
   doc.save(`Proyeccion_${REP_FACT_NAMES[sucId] || sucId}_${fmtDateDMY().replace(/\//g, '-')}.pdf`);
+}
+
+// Encargado: devuelve AMBOS correos (trabajo primero, luego personal), deduplicados.
+async function findEncargado(sucId) {
+  const snap = await fbMod.getDocs(fbMod.query(
+    fbMod.collection(db, 'colaboradores'),
+    fbMod.where('sucursal', '==', sucId),
+    fbMod.where('cargo', '==', 'Encargado')
+  ));
+  let found = null;
+  snap.forEach(d => {
+    if (found) return;
+    const c = d.data();
+    const correos = [...new Set([c.correoTrabajo, c.correo]
+      .map(x => (x || '').trim()).filter(Boolean))];
+    if (correos.length) found = { nombre: c.nombre || '', correos };
+  });
+  return found;
+}
+
+// Correlativo Provisional N por sucursal (transacción atómica en config/proyeccion).
+async function nextProyeccionNo(sucId) {
+  const ref = fbMod.doc(db, 'config', 'proyeccion');
+  return await fbMod.runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    const counters = (snap.exists() ? snap.data().counters : null) || {};
+    const next = (counters[sucId] || 0) + 1;
+    counters[sucId] = next;
+    tx.set(ref, { counters }, { merge: true });
+    return next;
+  });
+}
+
+// Trazabilidad: registra la proyección enviada.
+async function saveProyeccionRecord(sucId, destNombre, ordenNo, encargado, items) {
+  await fbMod.addDoc(fbMod.collection(db, 'proyecciones'), {
+    destino: sucId,
+    destinoNombre: destNombre,
+    fecha: fmtDateDMY(),
+    timestamp: Date.now(),
+    ordenNo,
+    provisional: `Provisional ${ordenNo}`,
+    encargadoNombre: encargado.nombre || null,
+    encargadoCorreos: encargado.correos,
+    totalUnidades: items.reduce((s, p) => s + Number(p.qty), 0),
+    productos: items.map(p => ({ codigo: p.code, nombre: p.name, cantidad: p.qty, familia: p.familia })),
+    enviadoPor: currentUser?.name || 'ops',
+  });
+}
+
+// Confirm + envío de la proyección al encargado (solo se llama en flujo stock).
+async function maybeSendProjection(sucId) {
+  const items = buildProjectionItems(sucId);
+  if (!items.length) return;
+  const destNombre = REP_FACT_NAMES[sucId] || sucId;
+  if (!confirm(`¿Enviar la proyección de envío al encargado de ${REP_LBLS[sucId] || sucId}?`)) return;
+
+  let encargado;
+  try { encargado = await findEncargado(sucId); }
+  catch (e) { alert('No se pudo consultar el encargado: ' + e.message); return; }
+  if (!encargado || !encargado.correos.length) {
+    alert(`No hay encargado con correo para ${REP_LBLS[sucId] || sucId}.\nRevisá en Colaboradores: cargo "Encargado" + correo (personal o de trabajo).`);
+    return;
+  }
+
+  let ordenNo;
+  try { ordenNo = await nextProyeccionNo(sucId); }
+  catch (e) { alert('No se pudo generar el número de proyección: ' + e.message); return; }
+
+  const doc = buildProjectionDoc(sucId, ordenNo);
+  if (!doc) { alert('No se pudo generar el PDF.'); return; }
+  const pdfBase64 = doc.output('datauristring').split(',')[1];
+  const fecha = fmtDateDMY();
+  const filename = `Proyeccion_${destNombre}_${fecha.replace(/\//g, '-')}.pdf`;
+  const primerNombre = encargado.nombre ? encargado.nombre.split(' ')[0] : '';
+  const html =
+    `<p>Buen día ooo ${primerNombre},</p>` +
+    `<p>Adjunto la proyección de envío para <b>${destNombre}</b>. Esta orden está en cola de ` +
+    `preparación — revisala y decime qué más querés que te envíe.</p>` +
+    `<p>Va pues ooo,<br>Operaciones — Zona Digital</p>`;
+
+  let idToken = null;
+  try { if (authMod && auth?.currentUser) idToken = await authMod.getIdToken(auth.currentUser); } catch (e) {}
+
+  let ok = false, errMsg = '';
+  try {
+    const resp = await fetch('https://us-central1-despacho-ordenes.cloudfunctions.net/sendProjection', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {}) },
+      body: JSON.stringify({
+        toEmail: encargado.correos,          // array → trabajo + personal
+        bcc: 'operaciones@zonadigitalsv.com',
+        subject: `Proyección de envío — ${destNombre} — ${fecha}`,
+        html, pdfBase64, filename,
+      }),
+    });
+    const data = await resp.json().catch(() => ({}));
+    ok = resp.ok && data.ok;
+    if (!ok) errMsg = data.error || ('HTTP ' + resp.status);
+  } catch (e) { errMsg = e.message; }
+
+  if (!ok) { alert(`No se pudo enviar la proyección: ${errMsg}`); return; }
+
+  try { await saveProyeccionRecord(sucId, destNombre, ordenNo, encargado, items); }
+  catch (e) { console.warn('saveProyeccionRecord:', e); }
+
+  alert(`✓ Proyección "Provisional ${ordenNo}" enviada a ${encargado.correos.join(', ')}.`);
 }
 
 // Exponer al scope global para el onclick del botón (mismo patrón que el resto de la app)
 // Wrapper sin args: lee repActiveTab dentro del módulo (mismo patrón que generateActiveRepXLS)
 window.generateActiveProjection = () => generateProjectionPDF(repActiveTab);
-
-// TEMPORAL (smoke test 2a) — enviar un PDF de prueba a ffjiva@gmail.com.
-// Se elimina en la sub-unidad 2b.
-window.__testSendProjection = async () => {
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ unit: 'pt', format: 'letter' });
-  doc.text('TEST — smoke test SMTP desde Cloud Function', 40, 60);
-  const b64 = doc.output('datauristring').split(',')[1];
-  let idToken = null;
-  try { if (authMod && auth?.currentUser) idToken = await authMod.getIdToken(auth.currentUser); } catch (e) {}
-  const resp = await fetch('https://us-central1-despacho-ordenes.cloudfunctions.net/sendProjection', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {}) },
-    body: JSON.stringify({
-      toEmail: 'ffjiva@gmail.com',
-      subject: 'TEST Proyección — smoke test SMTP',
-      html: '<p>Prueba de envío SMTP desde la Cloud Function.</p>',
-      pdfBase64: b64,
-      filename: 'Test_Proyeccion.pdf',
-    }),
-  });
-  console.log('sendProjection →', resp.status, await resp.json());
-};
 
 function generateRepXLS(sucId, codeSet) {
   if (typeof XLSX === 'undefined') return;
