@@ -13,6 +13,35 @@
 
 ## Sesiones y módulos
 
+### Sesión Proyección de envío al encargado — 25 Jul 2026 *(reposicion.html + functions/index.js + firestore.rules + ops.html)*
+
+**feat(reposicion): PDF "Proyección de envío" réplica de facturación** *(reposicion.html)*
+Genera con jsPDF client-side un PDF indistinguible de la ORDEN DE ENVIO del sistema de
+facturación (Helvetica 9/14, columnas y posiciones calcadas del documento real:
+Cantidad · Código · Producto · Familia · Lote/Fecha Vencimiento). Una proyección **por
+destino** (junta todos los orígenes/segmentos vía `assignOrigins`, paginada, encabezado
+repetido por página), con fila de total, asteriscos, Observaciones y firmas
+AUTORIZADO/PREPARADO/DESPACHADO. Datos: Familia = `cat`, Lote/Vto = "n/a" (como el real).
+Único campo no calcado: `No.Orden Envio = "Provisional N"` — correlativo propio por sucursal,
+para que el encargado no lo confunda con una orden real. Botón "🧾 Proyección" genera/descarga
+sin enviar (preview).
+
+**feat: auto-envío por correo al encargado (SMTP)** *(functions/index.js + reposicion.html)*
+Cloud Function `sendProjection` (v2, super-only) que envía el PDF adjunto por SMTP con
+nodemailer vía `mail.zonadigitalsv.com:465`, remitente `operaciones@zonadigitalsv.com`
+(secret `SMTP_PASS`). Se evaluó Resend y se descartó: exigía verificar el dominio por DNS
+(sin acceso). Disparo: `confirm` al generar **"XLS activo"** (solo flujo stock; nunca en
+Filtrado/Todos, para no spamear). Destinatarios: encargado desde `colaboradores` (`sucursal`
++ `cargo` "Encargado"), a **correo de trabajo + personal**, con **BCC a operaciones@** de
+respaldo. Saludo del cuerpo según hora de El Salvador (días/tardes/noches).
+
+**feat: correlativo, trazabilidad y correo de trabajo**
+Correlativo `Provisional N` por sucursal en `config/proyeccion.counters[sucId]` (transacción
+atómica client-side, desde 1). Cada envío se registra en la colección nueva `proyecciones`
+(regla en `firestore.rules`: read auth / write super) y se ve en el Historial con un toggle
+"Reposiciones / Proyecciones enviadas". Campo nuevo `correoTrabajo` en la ficha de
+colaboradores (`ops.html`), independiente del `correo` de la cuenta de acceso.
+
 ### Sesión fixes de home/despacho, foto en moto y segmentación de XLS — 23 Jul 2026 *(index.html + moto.html + reposicion.html)*
 
 **fix(despacho): archivar despachadas incompletas en el home** *(index.html)*

@@ -148,6 +148,14 @@ reposiciones/{id}
 fecha, timestamp, origen, destino
 productos: [{ codigo, nombre, cantidad }]
 totalUnidades, generadoPor: string
+proyecciones/{id}
+destino, destinoNombre, fecha, timestamp
+ordenNo, provisional: string   ← "Provisional N" (correlativo por sucursal)
+encargadoNombre, encargadoCorreos: string[]
+productos: [{ codigo, nombre, cantidad, familia }]
+totalUnidades, enviadoPor: string
+config/proyeccion
+counters: { [sucId]: number }   ← correlativo Provisional por sucursal (desde 1)
 config/agenda
 events: []
 config/team
@@ -168,6 +176,7 @@ Solo persiste por FCM tokens legacy. No usar para nuevos desarrollos.
 | `onInventarioAsignado` | Trigger Firestore: notificación FCM al asignar validación de inventario físico (módulo 8b). Mismo patrón que `onDespachoAssigned`. |
 | `suggestReplenishment` | Sugerencias IA para módulo 6c (claude-haiku-4-5). Requiere Firebase Auth token. |
 | `autoCierreJornada` | Cierre automático de jornada. |
+| `sendProjection` | Envía por correo (SMTP nodemailer, `mail.zonadigitalsv.com:465`, remitente `operaciones@zonadigitalsv.com`, secret `SMTP_PASS`) el PDF de proyección de envío al encargado. v2, super-only. |
 
 **Patrones técnicos:**
 - HTTP client: `https` nativo (no @anthropic-ai/sdk)
@@ -194,28 +203,9 @@ Solo persiste por FCM tokens legacy. No usar para nuevos desarrollos.
 
 ## 🎯 Frente activo
 
-**Reposición — PDF "Proyección de envío" + envío al encargado** *(reposicion.html + nueva Cloud Function — PRÓXIMO cambio, sesión desde 0)*
-Al generar el XLS de reposición (que mantiene su formato mínimo para facturación),
-generar además un **2º archivo PDF** con info robusta que replique la "ORDEN DE ENVIO"
-del sistema de facturación, y enviarlo al encargado de la sucursal destino.
-
-- **PDF:** réplica de formato (la app no tiene la plantilla de facturación → reconstruir
-  con librería PDF). Encabezado dice **"PROYECCIÓN DE ENVÍO"**; origen B01→destino; fecha
-  de hoy; No. Envío = **"PROVISIONAL xxx"**; cuerpo idéntico (Cantidad, Código, Producto,
-  Familia, Lote/Vto) en misma fuente/espaciado/posiciones. Una proyección **por destino**
-  (junta todos los orígenes/segmentos), no por bodega. Requiere: specs/plantilla del PDF de
-  facturación (fuente serif, tamaños, márgenes, x de columnas) y confirmar campo `familia`.
-- **Envío:** correo es la vía real de auto-envío (Cloud Function + servicio de email tipo
-  Resend/SendGrid, adjunta PDF). WhatsApp NO adjunta archivo sin la Business API (de paga);
-  `wa.me` es semi-manual. **Decisión pendiente de Fernando: correo (recomendado) vs WhatsApp.**
-- **Encargado:** desde `colaboradores` (`sucursal` + `cargo` Encargado → `correo`/`telefono`).
-- **Numeración "PROVISIONAL xxx":** contador (¿global o por sucursal?) en `config/*`.
-- **Texto "esta orden está en cola de preparación, revisala y me decís que más querés que te
-  envíe":** en Observaciones del PDF y/o cuerpo del correo.
-- **Disparo:** botón aparte "Generar proyección + enviar" (no automático al generar XLS, para
-  no spamear en regeneraciones).
-
-Prerrequisitos antes de codear: (1) decidir correo vs WhatsApp; (2) plantilla/specs del PDF.
+*Sin frente activo definido. La Proyección de envío al encargado se completó y desplegó
+(ver CHANGELOG, 25 Jul 2026). Próximo candidato a elegir desde Pendientes: vista de
+colaborador para conteos asignados (🟢) o A3 — sugerencias por historial (🟡).*
 
 ---
 
@@ -334,6 +324,7 @@ Nuevo rol en consideración. Aún sin definir: archivos a los que tendrá acceso
 - **Imagen en viñetas de vueltas** — foto adjunta en cards de vueltas (ops.html)
 - **GPS picking** — registrar coordenadas al iniciar y completar una orden de bodega (index.html)
 - **Agente WhatsApp** — notificaciones o comandos por WhatsApp (largo plazo)
+- **Aviso por WhatsApp al enviar proyección** *(reposicion.html + posible Cloud Function)* — tras el auto-envío del correo (ya funcionando), notificar al encargado por WhatsApp como empujón para que revise el correo (NO adjuntar el PDF; el correo ya lo lleva). Evaluar dos vías: (a) `wa.me` semi-manual — gratis, un clic, sin adjunto; (b) WhatsApp Cloud API — automático, de paga por mensaje desde jul 2025 pero "utility" baratísimo (~USD 0.004–0.045, El Salvador en rango bajo; 1,000 conversaciones de servicio gratis/mes). El costo real no es la plata sino el setup: número dedicado (no el WhatsApp personal) + plantillas pre-aprobadas por Meta + cuenta Business. Parqueado — evaluar en sesión aparte.
 - **Rediseño home ops.html** — revisión estética del layout de navegación principal. Dos conceptos bocetados en sesión 03 Jun 2026: (A) home con botones por módulo agrupados por sección, (B) tabs superiores por módulo. Pendiente de evaluar cuando haya espacio.
 - **Modularizar ops.html** — *condicional, no prioritario.* Medición 12 Jul: ops.html
   ~4.672 líneas y **ningún apartado justifica archivo propio** (el más pesado es
@@ -381,8 +372,7 @@ hacia el CHANGELOG.
 
 ---
 
-*Última actualización: 12 Julio 2026 — Reorganización del ROADMAP: historial completado
-migrado a `CHANGELOG.md`; este archivo queda como referencia viva (arquitectura + frente
-activo + pendientes + futuro). Sesión previa (12 Jul): carga de picking list por XLS, escáner
-de lectura única, robustez de `parseInvXLS`, auto-sucursal y reasignación de conteos (lado
-super), y fixes de campo — ver CHANGELOG.*
+*Última actualización: 25 Julio 2026 — Sesión Proyección de envío al encargado: PDF réplica
+de facturación (jsPDF), auto-envío SMTP (`sendProjection` + nodemailer + secret `SMTP_PASS`),
+correlativo `Provisional N`, trazabilidad `proyecciones` + toggle en Historial, y campo
+`correoTrabajo` en colaboradores. Sin frente activo definido; próximo candidato desde Pendientes.*
