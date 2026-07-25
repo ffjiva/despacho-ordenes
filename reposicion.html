@@ -2671,6 +2671,21 @@ async function saveProyeccionRecord(sucId, destNombre, ordenNo, encargado, items
   });
 }
 
+// Saludo según hora de El Salvador:
+//   03:00–12:00 → Buenos días · 12:01–18:00 → Buenas tardes · 18:01–02:59 → Buenas noches
+function saludoHora() {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/El_Salvador', hour: '2-digit', minute: '2-digit', hour12: false
+  }).formatToParts(new Date());
+  let hh = parseInt(parts.find(p => p.type === 'hour').value, 10);
+  const mm = parseInt(parts.find(p => p.type === 'minute').value, 10);
+  if (hh === 24) hh = 0;
+  const t = hh * 60 + mm;
+  if (t >= 180 && t <= 720)  return 'Buenos días ooo';    // 03:00–12:00
+  if (t >= 721 && t <= 1080) return 'Buenas tardes ooo';  // 12:01–18:00
+  return 'Buenas noches ooo';                             // 18:01–02:59
+}
+
 // Confirm + envío de la proyección al encargado (solo se llama en flujo stock).
 async function maybeSendProjection(sucId) {
   const items = buildProjectionItems(sucId);
@@ -2697,7 +2712,7 @@ async function maybeSendProjection(sucId) {
   const filename = `Proyeccion_${destNombre}_${fecha.replace(/\//g, '-')}.pdf`;
   const primerNombre = encargado.nombre ? encargado.nombre.split(' ')[0] : '';
   const html =
-    `<p>Buen día ooo ${primerNombre},</p>` +
+    `<p>${saludoHora()}${primerNombre ? ' ' + primerNombre : ''},</p>` +
     `<p>Adjunto la proyección de envío para <b>${destNombre}</b>. Esta orden está en cola de ` +
     `preparación — revisala y decime qué más querés que te envíe.</p>` +
     `<p>Va pues ooo,<br>Operaciones — Zona Digital</p>`;
