@@ -2619,6 +2619,29 @@ function generateProjectionPDF(sucId, ordenNo = 1) {
 // Wrapper sin args: lee repActiveTab dentro del módulo (mismo patrón que generateActiveRepXLS)
 window.generateActiveProjection = () => generateProjectionPDF(repActiveTab);
 
+// TEMPORAL (smoke test 2a) — enviar un PDF de prueba a ffjiva@gmail.com.
+// Se elimina en la sub-unidad 2b.
+window.__testSendProjection = async () => {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'pt', format: 'letter' });
+  doc.text('TEST — smoke test SMTP desde Cloud Function', 40, 60);
+  const b64 = doc.output('datauristring').split(',')[1];
+  let idToken = null;
+  try { if (authMod && auth?.currentUser) idToken = await authMod.getIdToken(auth.currentUser); } catch (e) {}
+  const resp = await fetch('https://us-central1-despacho-ordenes.cloudfunctions.net/sendProjection', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {}) },
+    body: JSON.stringify({
+      toEmail: 'ffjiva@gmail.com',
+      subject: 'TEST Proyección — smoke test SMTP',
+      html: '<p>Prueba de envío SMTP desde la Cloud Function.</p>',
+      pdfBase64: b64,
+      filename: 'Test_Proyeccion.pdf',
+    }),
+  });
+  console.log('sendProjection →', resp.status, await resp.json());
+};
+
 function generateRepXLS(sucId, codeSet) {
   if (typeof XLSX === 'undefined') return;
   const bySource = assignOrigins(sucId);

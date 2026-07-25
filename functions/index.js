@@ -709,3 +709,58 @@ exports.createUser = onRequest(
     }
   }
 );
+
+const nodemailer = require('nodemailer');
+const { defineSecret } = require('firebase-functions/params');
+const SMTP_PASS = defineSecret('SMTP_PASS');
+
+// Envía la proyección de envío por correo (SMTP del dominio) con el PDF adjunto.
+exports.sendProjection = onRequest(
+  { timeoutSeconds: 120, memory: '512MiB', secrets: [SMTP_PASS] },
+  async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "POST") { res.status(405).send("Method Not Allowed"); return; }
+
+    const user = await verifyFirebaseToken(req, res);
+    if (!user) return;
+    if (!(await isCallerSuper(user.uid))) {
+      res.status(403).json({ error: 'Solo el supervisor puede usar esta función.' });
+      return;
+    }
+
+    const { toEmail, subject, html, pdfBase64, filename } = req.body || {};
+    if (!toEmail || !pdfBase64) {
+      res.status(400).json({ error: 'Faltan toEmail o pdfBase64.' });
+      return;
+    }
+
+    const SMTP_USER = 'operaciones@zonadigitalsv.com';
+    const transporter = nodemailer.createTransport({
+      host: 'mail.zonadigitalsv.com',
+      port: 465,
+      secure: true,
+      auth: { user: SMTP_USER, pass: SMTP_PASS.value() },
+    });
+
+    try {
+      await transporter.sendMail({
+        from: `"Zona Digital — Operaciones" <${SMTP_USER}>`,
+        to: toEmail,
+        subject: subject || 'Proyección de envío',
+        html: html || '<p>Proyección de envío adjunta.</p>',
+        attachments: [{
+          filename: filename || 'Proyeccion.pdf',
+          content: Buffer.from(pdfBase64, 'base64'),
+          contentType: 'application/pdf',
+        }],
+      });
+      res.status(200).json({ ok: true });
+    } catch (e) {
+      console.error('sendProjection error:', e);
+      res.status(500).json({ error: 'No se pudo enviar el correo: ' + e.message });
+    }
+  }
+);
