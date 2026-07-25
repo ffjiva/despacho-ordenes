@@ -3939,6 +3939,7 @@ window.openColabModal = id => {
   $('cf-cumple').value        = dateToInput(c?.cumpleanos);
   $('cf-tel').value          = c?.telefono || '';
   $('cf-correo').value       = c?.correo || '';
+  $('cf-correo-trabajo').value = c?.correoTrabajo || '';
   $('cf-sucursal').value      = c?.sucursal || 'M01';
   $('cf-cargo').value        = c?.cargo || '';
   $('cf-diadescanso').value  = c?.diaDescanso || '';
@@ -4198,6 +4199,7 @@ window.saveColab = async () => {
       cumpleanos:          inputToDate($('cf-cumple').value),
       telefono:            $('cf-tel').value.trim() || null,
       correo:              $('cf-correo').value.trim().toLowerCase() || null,
+      correoTrabajo:       $('cf-correo-trabajo').value.trim().toLowerCase() || null,
       sucursal:            $('cf-sucursal').value,
       cargo:               $('cf-cargo').value.trim() || null,
       diaDescanso:         $('cf-diadescanso').value || null,
@@ -4386,6 +4388,7 @@ document.addEventListener('DOMContentLoaded', init);
       <div class="fld" style="flex:1"><label>Alias ZD</label><input id="cf-alias" type="text" autocomplete="off"/></div>
       <div class="fld" style="flex:1"><label>Correo</label><input id="cf-correo" type="email" autocomplete="off"/></div>
     </div>
+    <div class="fld"><label>Correo de trabajo (encargados)</label><input id="cf-correo-trabajo" type="email" autocomplete="off" placeholder="Correo laboral donde recibe las proyecciones de envío"/></div>
 
     <div class="colab-section-title">Datos laborales</div>
     <div style="display:flex;gap:8px">
