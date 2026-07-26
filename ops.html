@@ -2690,7 +2690,7 @@ function buildDomCard(d, STATUS_LABEL, prefix) {
               ${d.telefono ? `<div class="dcard-tel">📞 ${escHtml(d.telefono)}</div>` : ''}
             </div>
             <div style="display:flex;align-items:center;gap:5px;flex-shrink:0">
-              ${d.prioritario ? `<span style="font-size:.58rem;font-weight:700;color:#ff3b30;letter-spacing:.05em">🔴</span>` : ''}
+              ${d.prioritario ? `<span class="emergency-badge">🚨 EMERGENCIA</span>` : ''}
               <span class="dbadge dbadge-${st}">${stLbl}</span>
               <span class="vcard-chevron" id="ch-${cid}">▾</span>
             </div>
@@ -2728,7 +2728,7 @@ function buildDomCard(d, STATUS_LABEL, prefix) {
           </div>` : ''}
         <div class="dcard-actions" style="padding:6px 12px 10px;border-top:1px solid var(--border2);background:var(--surface2)">
           <button class="btn btn-outline" style="font-size:.6rem;padding:4px 10px" onclick="openEditDomModal('${d.id}')">✎ Editar</button>
-          <button class="btn btn-outline" style="font-size:.6rem;padding:4px 10px" onclick="togglePrioritarioDom('${d.id}',${!!d.prioritario})">${d.prioritario ? '✓ Normal' : '🔴 Prioritario'}</button>
+          <button class="btn btn-outline" style="font-size:.6rem;padding:4px 10px" onclick="togglePrioritarioDom('${d.id}',${!!d.prioritario})">${d.prioritario ? '✓ Normal' : '🚨 Emergencia'}</button>
           <button class="btn btn-danger"  style="font-size:.6rem;padding:4px 10px" onclick="deleteDomicilio('${d.id}','${escAttr(d.cliente||'')}')">✕ Eliminar</button>
         </div>
       </div>

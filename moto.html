@@ -754,7 +754,7 @@ function startDomiciliosListener() {
       if (!firstDomSnap) {
         list.forEach(d => {
           if (d.prioritario && !prevPrioIds.has(d.id))
-            notify('🔴 Entrega prioritaria', `${d.cliente || 'Revisa tus entregas'}`);
+            notify('🚨 Entrega de emergencia', `${d.cliente || 'Revisa tus entregas'}`);
           else if (!prevDomIds.has(d.id))
             notify('📦 Nueva entrega asignada', `${d.cliente || 'Revisa tus entregas'}`);
         });
@@ -1133,7 +1133,7 @@ function buildDomCard(d) {
   return `
     <div class="mcard ${cardCls}" id="${cid}">
 
-      ${isPrio ? `<div class="emergency-bar">🔴 ENTREGA PRIORITARIA</div>` : ''}
+      ${isPrio ? `<div class="emergency-bar">🚨 ENTREGA DE EMERGENCIA</div>` : ''}
       ${d._carryover
         ? `<div style="font-size:.58rem;font-weight:700;padding:3px 10px;
                background:var(--err-bg);color:var(--err-tx);
