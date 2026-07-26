@@ -13,6 +13,31 @@
 
 ## Sesiones y módulos
 
+### Sesión deuda técnica de funciones + push de emergencia — 25 Jul 2026 *(functions/index.js + ops.html + moto.html)*
+
+**refactor(functions): unificar los 3 triggers FCM + centralizar plumbing Claude/CORS** *(commit 5d6cccd)*
+`onDespachoAssigned`, `onVueltaAssigned` y `onInventarioAsignado` habían divergido por copy-paste: solo
+despachos enviaba a **todos** los dispositivos (`sendEach`) y limpiaba tokens muertos; vueltas e inventario
+mandaban a uno solo (`tokens[length-1]`) sin limpieza. Se extrajo el helper `notifyOnAssignment(event, {
+field, notifiedField, buildMessage })` — los tres ahora envían multi-dispositivo y limpian inválidos.
+Además `handleCors(req,res)` reemplaza los 4 bloques CORS inline y `callClaude({messages, max_tokens})` +
+`CLAUDE_MODEL` eliminan el `https.request` duplicado en `parseDocument`/`suggestReplenishment` (modelo en un
+solo lugar). Sin cambios de lógica salvo el fix multi-dispositivo. Validado con `node --check`.
+
+**feat(functions): push de emergencia en vueltas + dedup de tokens FCM** *(commit c6478ee)*
+Nuevo trigger `onVueltaEmergencia` (`vueltas/{vueltaId}`): dispara push real al motorista asignado cuando la
+vuelta pasa de normal → emergencia (transición `false→true`), y llega con la app cerrada igual que la
+asignación. Antes solo existía una notificación local en `moto.html` que requería el portal abierto. El envío
+se centralizó en un helper `pushToUser(uid, {title, body, link})` compartido con la asignación, que además
+**deduplica** el array de tokens (`[...new Set(...)]`) — fix del duplicado detectado en la prueba
+multi-dispositivo (el mismo token repetido producía notificaciones dobles con `sendEach`).
+
+**refactor(ops,moto): renombrar "Prioritario" → "Emergencia" en entregas** *(commit ecfd74b)*
+Unificación de nomenclatura con las vueltas: en la vista de entregas, el badge y el botón de `ops.html` y la
+notificación local y la barra de `moto.html` pasan de "🔴 Prioritario/Prioritaria" a "🚨 Emergencia",
+reutilizando las clases CSS existentes (`.emergency-badge`, `.emergency-bar`). Es solo texto visible — el
+campo Firestore `prioritario` y la función `togglePrioritarioDom` se mantienen sin cambios (sin migración).
+
 ### Sesión Proyección de envío al encargado — 25 Jul 2026 *(reposicion.html + functions/index.js + firestore.rules + ops.html)*
 
 **feat(reposicion): PDF "Proyección de envío" réplica de facturación** *(reposicion.html)*

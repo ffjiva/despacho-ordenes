@@ -267,12 +267,6 @@ Preguntas de diseño abiertas (resolver antes de código):
 
 **Modal de celebración (pixel-art):** el actual es SVG/CSS hecho a mano. Explorar mejora con herramienta externa de pixel-art (ej. sprite sheet de Aseprite/Piskel animado con `steps()`, o asset con licencia abierta), conservando la estética. *(Claude no genera pixel-art animado directamente; se diseña aparte y se integra.)*
 
-### 🔧 Deuda técnica
-
-**Notificaciones FCM — unificar los 3 triggers** *(`functions/index.js`)*. `onDespachoAssigned`, `onVueltaAssigned` y `onInventarioAsignado` arrancaron iguales y divergieron por copy-paste: solo el de despachos limpia tokens FCM inválidos y envía a **todos** los dispositivos (`sendEach`); vueltas e inventario envían a **uno solo** (`tokens[tokens.length-1]`) y no limpian. Además el comentario de la línea ~128 dice "enviar a todos los tokens" pero el código de abajo envía a uno. Consecuencia: en un segundo dispositivo se pierden las notificaciones de vuelta/inventario y los tokens muertos se acumulan. **Fix:** extraer un helper `notifyOnAssignment(event, { field, notifiedField, buildMessage })` con limpieza de inválidos y envío multi-dispositivo para los tres → corrige el comportamiento y elimina ~70 líneas.
-
-**Menor — consolidar al tocar el archivo:** el plumbing de la API de Claude (options/headers, strip de markdown, guard de `max_tokens`) está duplicado en `parseDocument` y `suggestReplenishment`, con el modelo `'claude-haiku-4-5'` hardcodeado en dos lugares; y el bloque CORS repetido 3×. Un helper `callClaude(body)` y uno de CORS centralizan ambos.
-
 ---
 
 ## 🔭 Futuro (diseñado, sin fecha)
@@ -372,7 +366,9 @@ hacia el CHANGELOG.
 
 ---
 
-*Última actualización: 25 Julio 2026 — Sesión Proyección de envío al encargado: PDF réplica
-de facturación (jsPDF), auto-envío SMTP (`sendProjection` + nodemailer + secret `SMTP_PASS`),
-correlativo `Provisional N`, trazabilidad `proyecciones` + toggle en Historial, y campo
-`correoTrabajo` en colaboradores. Sin frente activo definido; próximo candidato desde Pendientes.*
+*Última actualización: 25 Julio 2026 — Sesión deuda técnica + push de emergencia: unificación de los 3 triggers
+FCM (helper `notifyOnAssignment`, envío multi-dispositivo con limpieza), plumbing de Claude y CORS centralizado
+(`callClaude`/`handleCors`), nuevo trigger `onVueltaEmergencia` (push real con app cerrada) + dedup de tokens
+(`pushToUser`), y rename Prioritario→Emergencia en entregas. Deuda técnica de funciones saldada. Sin frente
+activo definido; próximo candidato desde Pendientes: vista de colaborador para conteos (🟢) o A3 sugerencias por
+historial (🟡).*
