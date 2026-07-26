@@ -89,9 +89,50 @@ const { onDocumentWritten } = require('firebase-functions/v2/firestore');
 const { onRequest }         = require('firebase-functions/v2/https');
 const { onSchedule }        = require('firebase-functions/v2/scheduler');
 
+// ── Push a un usuario (multi-dispositivo + limpieza de tokens) ──────
+// Envía a TODOS los dispositivos del usuario (sendEach), deduplica el array
+// de tokens y limpia los inválidos. Devuelve true si logró enviar.
+async function pushToUser(uid, { title, body, link }) {
+  const userSnap = await admin.firestore().doc(`users/${uid}`).get();
+  if (!userSnap.exists) {
+    console.log(`Usuario no encontrado en users/: ${uid}`);
+    return false;
+  }
+  const userData = userSnap.data();
+  // Dedup: el array puede traer el mismo token repetido (registros múltiples);
+  // sin esto sendEach mostraría notificaciones duplicadas en el mismo dispositivo.
+  const tokens = [...new Set(userData.fcmTokens || (userData.fcmToken ? [userData.fcmToken] : []))];
+  if (!tokens.length) {
+    console.log(`Sin tokens FCM para ${userData.name || uid}`);
+    return false;
+  }
+
+  const messages = tokens.map(token => ({
+    token,
+    notification: { title, body },
+    android: { priority: 'high' },
+    webpush: {
+      notification: { icon: 'https://despacho-ordenes.web.app/favicon.png' },
+      fcmOptions:   { link }
+    }
+  }));
+
+  const response = await admin.messaging().sendEach(messages);
+  console.log(`Notificaciones: ${response.successCount}/${messages.length} a ${uid}`);
+
+  const invalidTokens = response.responses
+    .map((r, i) => (!r.success && r.error?.code === 'messaging/registration-token-not-registered') ? tokens[i] : null)
+    .filter(Boolean);
+  if (invalidTokens.length) {
+    const cleanTokens = tokens.filter(t => !invalidTokens.includes(t));
+    await admin.firestore().doc(`users/${uid}`).update({ fcmTokens: cleanTokens });
+    console.log(`Tokens inválidos removidos: ${invalidTokens.length}`);
+  }
+  return true;
+}
+
 // ── Helper unificado de notificación por asignación ──────────
-// Envía a TODOS los dispositivos del usuario asignado (sendEach) y limpia
-// tokens FCM inválidos. Compartido por los 3 triggers de asignación.
+// Detecta el cambio de asignación y delega el envío en pushToUser.
 //   field:         campo del doc con el uid asignado (ej. 'assignedTo')
 //   notifiedField: campo espejo anti-doble-envío (ej. 'lastNotifiedAssignedTo')
 //   buildMessage:  (after) => ({ title, body, link })
@@ -105,43 +146,9 @@ async function notifyOnAssignment(event, { field, notifiedField, buildMessage })
   if (!assignedAfter || assignedAfter === assignedBefore) return null;
   if (after[notifiedField] === assignedAfter) return null;
 
-  const userSnap = await admin.firestore().doc(`users/${assignedAfter}`).get();
-  if (!userSnap.exists) {
-    console.log(`Usuario no encontrado en users/: ${assignedAfter}`);
-    return null;
-  }
-  const userData = userSnap.data();
-  const tokens = userData.fcmTokens || (userData.fcmToken ? [userData.fcmToken] : []);
-  if (!tokens.length) {
-    console.log(`Sin tokens FCM para ${userData.name || assignedAfter}`);
-    return null;
-  }
-
-  const { title, body, link } = buildMessage(after);
-  const messages = tokens.map(token => ({
-    token,
-    notification: { title, body },
-    android: { priority: 'high' },
-    webpush: {
-      notification: { icon: 'https://despacho-ordenes.web.app/favicon.png' },
-      fcmOptions:   { link }
-    }
-  }));
-
   try {
-    const response = await admin.messaging().sendEach(messages);
-    console.log(`Notificaciones: ${response.successCount}/${messages.length} a ${assignedAfter}`);
-
-    const invalidTokens = response.responses
-      .map((r, i) => (!r.success && r.error?.code === 'messaging/registration-token-not-registered') ? tokens[i] : null)
-      .filter(Boolean);
-    if (invalidTokens.length) {
-      const cleanTokens = tokens.filter(t => !invalidTokens.includes(t));
-      await admin.firestore().doc(`users/${assignedAfter}`).update({ fcmTokens: cleanTokens });
-      console.log(`Tokens inválidos removidos: ${invalidTokens.length}`);
-    }
-
-    await event.data.after.ref.update({ [notifiedField]: assignedAfter });
+    const sent = await pushToUser(assignedAfter, buildMessage(after));
+    if (sent) await event.data.after.ref.update({ [notifiedField]: assignedAfter });
   } catch(e) {
     console.error('Error enviando notificación:', e.message);
   }
@@ -179,6 +186,33 @@ exports.onVueltaAssigned = onDocumentWritten('vueltas/{vueltaId}', (event) =>
     }
   })
 );
+
+// Push cuando una vuelta pasa de normal → emergencia (transición false→true),
+// dirigido al motorista asignado. Independiente del trigger de asignación.
+exports.onVueltaEmergencia = onDocumentWritten('vueltas/{vueltaId}', async (event) => {
+  const before = event.data.before.exists ? event.data.before.data() : null;
+  const after  = event.data.after.exists  ? event.data.after.data()  : null;
+  if (!after) return null;
+
+  // Solo al ENCENDER la emergencia (no en cada re-escritura ni al apagarla)
+  if (before?.emergency || !after.emergency) return null;
+
+  const uid = after.assignedTo || '';
+  if (!uid) return null; // sin motorista asignado, no hay a quién avisar
+
+  const dest  = after.destination || '';
+  const fecha = after.date || '';
+  try {
+    await pushToUser(uid, {
+      title: '🚨 Vuelta marcada como EMERGENCIA',
+      body:  `${dest ? dest : 'Revisa tus vueltas'}${fecha ? ' — ' + fecha : ''}`,
+      link:  'https://despacho-ordenes.web.app/moto.html'
+    });
+  } catch(e) {
+    console.error('Error enviando notificación emergencia:', e.message);
+  }
+  return null;
+});
 
 exports.onInventarioAsignado = onDocumentWritten('inventarios/{invId}', (event) =>
   notifyOnAssignment(event, {
