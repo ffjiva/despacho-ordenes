@@ -540,6 +540,10 @@ html, body {
   animation: inv-box-drop .6s ease .3s both;
   display: inline-block;
 }
+/* Vista reducida del colaborador en conteos: sin crear, reasignar ni historial global */
+body.inv-collab #inv-btn-historial,
+body.inv-collab #inv-fab-new,
+body.inv-collab #inv-btn-reasignar { display: none !important; }
 </style>
 </head>
 <body>
@@ -832,12 +836,12 @@ html, body {
   <div class="topbar">
     <div class="topbar-title">📋 Inventario físico</div>
     <div class="topbar-actions">
-      <button class="btn btn-ghost" style="font-size:.65rem" onclick="goInvHistorial()">📜 Historial</button>
+      <button id="inv-btn-historial" class="btn btn-ghost" style="font-size:.65rem" onclick="goInvHistorial()">📜 Historial</button>
       <button class="btn btn-ghost" style="font-size:.65rem" onclick="goBackFromInventario()">← Volver</button>
     </div>
   </div>
   <div id="inv-list" style="padding:.75rem .875rem 5rem"></div>
-  <button class="inv-fab" onclick="openInvModal()" title="Nuevo conteo">＋</button>
+  <button id="inv-fab-new" class="inv-fab" onclick="openInvModal()" title="Nuevo conteo">＋</button>
 </div>
 
 <!-- Modal nuevo conteo -->
@@ -918,7 +922,7 @@ html, body {
       <div id="inv-det-fecha" style="font-size:.7rem;color:var(--muted);font-weight:400"></div>
     </div>
     <div class="topbar-actions">
-      <button class="btn btn-ghost" style="font-size:.65rem" onclick="openReasignarModal()">🔄 Reasignar</button>
+      <button id="inv-btn-reasignar" class="btn btn-ghost" style="font-size:.65rem" onclick="openReasignarModal()">🔄 Reasignar</button>
       <button class="btn btn-ghost" style="font-size:.65rem" onclick="openInvScanner()">📷 Escanear</button>
       <button class="btn btn-ghost" style="font-size:.65rem" onclick="goBackFromInvDetalle()">← Volver</button>
     </div>
@@ -1093,7 +1097,7 @@ async function init() {
       //   al habilitarlo, agregar 'collaborator' a ALLOWED y ramificar la vista
       //   (super = acceso total; collaborator = solo su inventario asignado).
       //   El andamiaje queda listo para ramificar sin reescritura. Ver ROADMAP.
-      const ALLOWED = ['super'];
+      const ALLOWED = ['super', 'collaborator'];
       if (!ALLOWED.includes(role)) {
         await authMod.signOut(auth);
         showScreen('s-login');
@@ -1103,7 +1107,12 @@ async function init() {
       // ──────────────────────────────────────────────────────────────────────
 
       currentUser = { uid: fbUser.uid, email: fbUser.email, name: profile.name || fbUser.email, role };
-      goHome();
+      if (role === 'collaborator') {
+        document.body.classList.add('inv-collab');   // oculta controles solo-super
+        routeCollabInv();                             // colaborador: solo sus conteos
+      } else {
+        goHome();
+      }
     } catch (e) {
       console.error('Auth check error:', e);
       showScreen('s-login');
@@ -1135,6 +1144,22 @@ function goHome() {
   showScreen('s-home');
 }
 window.goHome = goHome;
+
+// ── Ruteo del colaborador: solo sus conteos asignados (F-conteos) ──
+function routeCollabInv() { handleInvHash(); }
+
+// #inv=<id> → abre ese conteo; sin hash → lista de mis conteos.
+function handleInvHash() {
+  if (currentUser?.role !== 'collaborator') return;
+  const m = (location.hash || '').match(/inv=([^&]+)/);
+  if (m && m[1]) {
+    openInvDetalle(decodeURIComponent(m[1]));
+  } else {
+    showScreen('s-inventario');
+    initInvScreen();
+  }
+}
+window.addEventListener('hashchange', handleInvHash);
 
 // Entradas de sección — STUBS en F0; F1–F3 reemplazan estas funciones por las migradas.
 
@@ -3853,6 +3878,7 @@ window.goInventario = () => {
 
 window.goBackFromInventario = () => {
   if (invUnsub) { invUnsub(); invUnsub = null; }
+  if (currentUser?.role === 'collaborator') { location.href = 'index.html'; return; }
   showScreen('s-home');
 };
 
@@ -3881,19 +3907,28 @@ async function initInvScreen() {
   const list = $('inv-list');
   list.innerHTML = '<p style="padding:.75rem 1rem;color:var(--muted);font-size:.8rem">Cargando…</p>';
 
-  const q = fbMod.query(
-    fbMod.collection(db, 'inventarios'),
-    fbMod.orderBy('creadoAt', 'desc'),
-    fbMod.limit(30)
-  );
+  const isCollab = currentUser?.role === 'collaborator';
+  // Colaborador: solo sus conteos (sin orderBy para no exigir índice compuesto; se
+  // ordena en cliente). Super: todos, como hasta ahora.
+  const q = isCollab
+    ? fbMod.query(
+        fbMod.collection(db, 'inventarios'),
+        fbMod.where('asignadoA', '==', currentUser.uid),
+        fbMod.limit(50))
+    : fbMod.query(
+        fbMod.collection(db, 'inventarios'),
+        fbMod.orderBy('creadoAt', 'desc'),
+        fbMod.limit(30));
 
   invUnsub = fbMod.onSnapshot(q, snap => {
     if (snap.empty) {
-      list.innerHTML = '<p style="padding:.75rem 1rem;color:var(--muted);font-size:.8rem">Sin conteos registrados.</p>';
+      list.innerHTML = `<p style="padding:.75rem 1rem;color:var(--muted);font-size:.8rem">${isCollab ? 'No tenés conteos asignados.' : 'Sin conteos registrados.'}</p>`;
       return;
     }
     list.innerHTML = '';
-    snap.forEach(doc => {
+    const docs = snap.docs.slice();
+    if (isCollab) docs.sort((a, b) => (b.data().creadoAt || 0) - (a.data().creadoAt || 0));
+    docs.forEach(doc => {
       const d = doc.data();
       const total     = d.resumen?.total     || 0;
       const contados  = d.resumen?.contados  || 0;
@@ -4349,6 +4384,17 @@ window.guardarReasignar = async () => {
 };
 
 async function openInvDetalle(invId) {
+  // Guarda para colaborador: solo su conteo asignado (las rules también lo imponen).
+  if (currentUser?.role === 'collaborator') {
+    try {
+      const snap = await fbMod.getDoc(fbMod.doc(db, 'inventarios', invId));
+      if (!snap.exists() || snap.data().asignadoA !== currentUser.uid) {
+        alert('Ese conteo no está asignado a vos.');
+        showScreen('s-inventario'); initInvScreen();
+        return;
+      }
+    } catch (e) { alert('No se pudo abrir el conteo: ' + e.message); return; }
+  }
   currentInvId = invId;
   showScreen('s-inventario-detalle');
   renderInvDetalle(invId);

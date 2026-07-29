@@ -91,8 +91,16 @@ service cloud.firestore {
 
     // ── inventarios ──────────────────────────────────────────
     match /inventarios/{invId} {
-      allow read: if isAuth();
-      allow write: if isSuper();
+      allow read:           if isAuth();
+      allow create, delete: if isSuper();
+      // Super puede todo. El colaborador ASIGNADO guarda solo su avance de conteo:
+      // no puede reasignarse, ni tocar metadatos, ni crear/borrar.
+      allow update: if isSuper()
+        || ( isAuth()
+             && resource.data.asignadoA == request.auth.uid
+             && request.resource.data.asignadoA == resource.data.asignadoA
+             && request.resource.data.diff(resource.data).affectedKeys()
+                  .hasOnly(['productos', 'resumen', 'status', 'iniciadoAt', 'completadoAt']) );
     }
 
     // ── colaboradores ─────────────────────────────────────────

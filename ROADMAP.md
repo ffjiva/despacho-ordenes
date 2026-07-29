@@ -207,9 +207,9 @@ proveedores: string[], codigos: string[], keywords: string[]
 
 ## 🎯 Frente activo
 
-*Sin frente activo definido. La Proyección de envío al encargado se completó y desplegó
-(ver CHANGELOG, 25 Jul 2026). Próximo candidato a elegir desde Pendientes: vista de
-colaborador para conteos asignados (🟢) o A3 — sugerencias por historial (🟡).*
+*Vista de colaborador para conteos asignados — Fase 1 de 3 implementada (29 Jul 2026),
+código commiteado y pendiente de deploy + smoke test manual (ver Pendientes 🟢). Fase 2
+(entrada en index.html) y Fase 3 (filtro de asignables) siguen sin código.*
 
 ---
 
@@ -217,10 +217,27 @@ colaborador para conteos asignados (🟢) o A3 — sugerencias por historial (�
 
 ### 🟢 Habilitan operación / delegación
 
-**Falta vista de colaborador para conteos asignados.** `reposicion.html` tiene el acceso cerrado a `ALLOWED = ['super']` (línea ~1076, con comentario "costura" ya dejado en el código). Asignar/reasignar un conteo hoy solo etiqueta el doc y dispara la notificación push — el colaborador no tiene dónde aterrizar esa notificación: ninguna otra app (`index.html`/`ops.html`/`moto.html`) referencia `inventarios`, y el gate de `reposicion.html` lo bloquea. Para cerrar el ciclo falta: (a) ramificar el gate agregando `'collaborator'` a `ALLOWED`, (b) una vista reducida solo-mis-conteos-asignados, (c) revisar `firestore.rules` de `inventarios` (hoy `allow write: if isSuper()` — el colaborador necesitaría poder guardar su propio avance de conteo).
-**Nota (12 Jul 2026):** cuando se diseñe esta vista, revisar también a fondo todo el apartado de asignación/reasignación de usuario para conteos (creación en `crearConteoInv`, botón "🔄 Reasignar" del punto 2) — no dar por buena la UI actual de super sin repasarla en conjunto con el flujo de colaborador.
-
-- **Entrada del colaborador (index.html):** cuando se active la asignación de inventarios, el botón vive en `index.html` (donde el colaborador ya entra), con deep-link directo a SU inventario asignado en reposicion.html (ej. `reposicion.html#inv=<id>`), saltándose el home. El super sigue entrando por el botón Reposición de ops. Requiere: ruteo por hash en `reposicion.html` + gate role-aware (la costura de F0).
+**Vista de colaborador para conteos asignados — Fase 1 de 3 ✅ implementada (29 Jul 2026, sin desplegar).**
+`reposicion.html` ya ramifica el gate: `ALLOWED = ['super', 'collaborator']`, con vista reducida
+(`body.inv-collab` oculta FAB＋/Historial/Reasignar), lista filtrada por `asignadoA == uid`,
+ruteo `#inv=<id>` con guarda de acceso en `openInvDetalle`, y `firestore.rules` de `inventarios`
+permite que el colaborador asignado guarde su propio avance (`productos`/`resumen`/`status`/
+`iniciadoAt`/`completadoAt`) sin poder reasignarse ni crear/borrar. El colaborador cuenta y
+finaliza su conteo; el super mantiene acceso total. Detalle completo en
+`Conteos_Fase1_ClaudeCode.md` (raíz del repo).
+**Pendiente antes de dar por cerrado el ciclo:**
+- Deploy: `firebase deploy --only firestore:rules,hosting` (commit ya hecho, falta desplegar).
+- Smoke test manual en navegador con un colaborador real con conteo asignado (los 6 pasos
+  del documento) — no se pudo automatizar en esta sesión por falta de navegador headless
+  funcional en el entorno de Claude Code.
+- **Fase 2 — entrada en `index.html`:** botón para el colaborador con deep-link directo a
+  `reposicion.html#inv=<id>` (saltándose el home), más el deep-link en la notificación push
+  de asignación.
+- **Fase 3 — filtro de asignables:** al crear/reasignar un conteo, limitar el selector de
+  usuario a colaboradores relevantes (hoy lista todos).
+- Revisar a fondo el apartado de asignación/reasignación (creación en `crearConteoInv`, botón
+  "🔄 Reasignar") en conjunto con el flujo de colaborador ya implementado — no dar por buena
+  la UI actual de super sin repasarla junto a esto.
 
 **Conectar el Ensamblador-ZD** — pausado, a retomar con los archivos del Ensamblador actualizados.
 Con la identidad lista, la conexión se reduce a: (1) apuntar el `firebaseConfig`
@@ -370,9 +387,8 @@ hacia el CHANGELOG.
 
 ---
 
-*Última actualización: 25 Julio 2026 — Sesión deuda técnica + push de emergencia: unificación de los 3 triggers
-FCM (helper `notifyOnAssignment`, envío multi-dispositivo con limpieza), plumbing de Claude y CORS centralizado
-(`callClaude`/`handleCors`), nuevo trigger `onVueltaEmergencia` (push real con app cerrada) + dedup de tokens
-(`pushToUser`), y rename Prioritario→Emergencia en entregas. Deuda técnica de funciones saldada. Sin frente
-activo definido; próximo candidato desde Pendientes: vista de colaborador para conteos (🟢) o A3 sugerencias por
-historial (🟡).*
+*Última actualización: 29 Julio 2026 — Fase 1 de "Conteos asignables al colaborador"
+implementada en `reposicion.html` + `firestore.rules` (gate por rol, vista reducida, ruteo
+`#inv=<id>`, rules de avance del colaborador). Commiteado; falta deploy y smoke test manual
+en navegador (no automatizable en este entorno). Fase 2 (entrada en index.html) y Fase 3
+(filtro de asignables) siguen pendientes.*
