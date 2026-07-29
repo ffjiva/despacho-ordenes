@@ -13,6 +13,21 @@
 
 ## Sesiones y módulos
 
+### Sesión modo compra — correo de proyección + Reporte de Compras por Producto — 28 Jul 2026 *(reposicion.html)*
+
+**feat(reposicion): correo de proyección en modo compra + parser de Reporte de Compras por Producto con exclusiones configurables**
+El envío de proyección al encargado (correo con PDF, vía `sendProjection`) solo corría en flujo stock.
+Se extrajo el helper compartido `sendProjectionFor(sucId, items, opts)` — `maybeSendProjection` (stock)
+y el nuevo `maybeSendProjectionCompra` (compra, origen B01 desde `repCompraData`) reusan la misma lógica
+de confirm/envío/registro; `buildProjectionDoc` ahora acepta un `itemsOverride`. Dispara solo en
+"XLS activo" por destino, igual que stock (nunca en "Todos"/"Filtrado"). Nuevo input de subida:
+`parseCompraReporteXLS` reconoce el formato "Reporte de Compras por Producto" con autodetección
+(`detectCompraFormat`) y coexiste con la factura de compra individual en el mismo botón. Se excluyen
+no-inventariables (combustibles/servicios, proveedor Roceli) vía blocklist configurable en UI (panel
+⚙️ Exclusiones → `config/compraExclusions`: proveedores + códigos + palabras clave, sembrada por
+defecto con Roceli/combustibles/lubricantes). Productos que no están en el Gerencial se incluyen
+igual pero se marcan en ámbar (`◆ NUEVO`) tanto en la tabla como en el resumen.
+
 ### Sesión deuda técnica de funciones + push de emergencia — 25 Jul 2026 *(functions/index.js + ops.html + moto.html)*
 
 **refactor(functions): unificar los 3 triggers FCM + centralizar plumbing Claude/CORS** *(commit 5d6cccd)*

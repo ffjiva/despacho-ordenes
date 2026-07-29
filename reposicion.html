@@ -1026,6 +1026,18 @@ let repRedistActiveOrig  = 'M01';
 let repRedistDestFilter  = null;
 let repCompraTouched  = {}; // { code: Set<sucId> } — sucursales editadas manualmente por producto
 let repCompraPostMode = false; // true = usar stock Gerencial (B01+B02) como pool
+
+// ── Exclusiones del "Reporte de Compras por Producto" (no inventariables) ──
+// Editable desde el panel ⚙️ del modo compra. Persiste en config/compraExclusions
+// (regla existente: read auth / write super). Match sin acentos ni caso.
+const COMPRA_EXCL_DEFAULT = {
+  proveedores: ['ROCELI'],
+  codigos:     ['420111'],
+  keywords:    ['COMBUSTIBLE', 'LUBRICANTE', 'SERVICIO', 'FLETE'],
+};
+let repCompraExclusions    = JSON.parse(JSON.stringify(COMPRA_EXCL_DEFAULT));
+let repCompraExclLoaded    = false;
+let repCompraExcludedLines = [];   // líneas ignoradas del último parse (feedback UI)
 let repDisplayLimit   = 300;
 
 /* ── Helpers compartidos (mismos que ops; el código migrado los usa) ── */
@@ -2377,7 +2389,11 @@ function repPreflightGate() {
 }
 
 window.generateActiveRepXLS = () => {
-  if (repMode === 'compra') { generateCompraRepXLS(repActiveTab); return; }
+  if (repMode === 'compra') {
+    generateCompraRepXLS(repActiveTab);
+    setTimeout(() => maybeSendProjectionCompra(repActiveTab), 300);   // confirm + envío (compra)
+    return;
+  }
   if (repMode === 'redist') { generateRedistXLS(repRedistActiveOrig); return; }
   if (!repPreflightGate()) return;   // gate solo en flujo stock
   generateRepXLS(repActiveTab);
@@ -2529,9 +2545,9 @@ function buildProjectionItems(sucId) {
 
 // Genera el PDF calcado. ordenNo: número del correlativo por sucursal
 // (Fase 1 = muestra; Fase 2 lo reemplaza por el contador atómico de config/proyeccion).
-function buildProjectionDoc(sucId, ordenNo = 1) {
+function buildProjectionDoc(sucId, ordenNo = 1, itemsOverride = null) {
   if (!window.jspdf || !window.jspdf.jsPDF) return null;
-  const items = buildProjectionItems(sucId);
+  const items = itemsOverride || buildProjectionItems(sucId);
   if (!items.length) return null;
 
   const { jsPDF } = window.jspdf;
@@ -2690,12 +2706,14 @@ function saludoHora() {
   return 'Buenas noches ooo';                             // 18:01–02:59
 }
 
-// Confirm + envío de la proyección al encargado (solo se llama en flujo stock).
-async function maybeSendProjection(sucId) {
-  const items = buildProjectionItems(sucId);
+// Envío de la proyección al encargado — helper compartido (stock y compra).
+// items: [{ code, qty, name, familia }] ya armados por el modo que llama.
+async function sendProjectionFor(sucId, items, opts = {}) {
   if (!items.length) return;
   const destNombre = REP_FACT_NAMES[sucId] || sucId;
-  if (!confirm(`¿Enviar la proyección de envío al encargado de ${REP_LBLS[sucId] || sucId}?`)) return;
+  const confirmMsg = opts.confirmMsg ||
+    `¿Enviar la proyección de envío al encargado de ${REP_LBLS[sucId] || sucId}?`;
+  if (!confirm(confirmMsg)) return;
 
   let encargado;
   try { encargado = await findEncargado(sucId); }
@@ -2709,7 +2727,7 @@ async function maybeSendProjection(sucId) {
   try { ordenNo = await nextProyeccionNo(sucId); }
   catch (e) { alert('No se pudo generar el número de proyección: ' + e.message); return; }
 
-  const doc = buildProjectionDoc(sucId, ordenNo);
+  const doc = buildProjectionDoc(sucId, ordenNo, items);
   if (!doc) { alert('No se pudo generar el PDF.'); return; }
   const pdfBase64 = doc.output('datauristring').split(',')[1];
   const fecha = fmtDateDMY();
@@ -2730,7 +2748,7 @@ async function maybeSendProjection(sucId) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {}) },
       body: JSON.stringify({
-        toEmail: encargado.correos,          // array → trabajo + personal
+        toEmail: encargado.correos,
         bcc: 'operaciones@zonadigitalsv.com',
         subject: `Proyección de envío — ${destNombre} — ${fecha}`,
         html, pdfBase64, filename,
@@ -2747,6 +2765,32 @@ async function maybeSendProjection(sucId) {
   catch (e) { console.warn('saveProyeccionRecord:', e); }
 
   alert(`✓ Proyección "Provisional ${ordenNo}" enviada a ${encargado.correos.join(', ')}.`);
+}
+
+// Flujo STOCK: arma items desde repSendData (assignOrigins) y envía.
+async function maybeSendProjection(sucId) {
+  return sendProjectionFor(sucId, buildProjectionItems(sucId));
+}
+
+// Items de proyección en MODO COMPRA (origen B01, datos en repCompraData).
+function buildProjectionItemsCompra(sucId) {
+  const send = repCompraData[sucId] || {};
+  const items = Object.entries(send)
+    .filter(([, qty]) => qty > 0)
+    .map(([code, qty]) => {
+      const p  = repProductMap.get(code);
+      const cp = repCompraProducts.find(x => x.code === code);
+      return { code, qty, name: p ? p.name : (cp ? cp.name : code),
+               familia: (p && p.cat) ? p.cat : '' };
+    });
+  items.sort((a, b) => a.name.localeCompare(b.name, 'es'));
+  return items;
+}
+
+// Flujo COMPRA: arma items desde repCompraData y envía.
+async function maybeSendProjectionCompra(sucId) {
+  return sendProjectionFor(sucId, buildProjectionItemsCompra(sucId),
+    { confirmMsg: `¿Enviar la proyección de envío (compra) al encargado de ${REP_LBLS[sucId] || sucId}?` });
 }
 
 // Exponer al scope global para el onclick del botón (mismo patrón que el resto de la app)
@@ -2834,6 +2878,98 @@ async function saveReposicionRecord(origen, destino, sendMap, fecha, extra) {
 
 // ── MODO COMPRA ──────────────────────────────────────────────────────────────
 
+// Normaliza para comparar sin acentos, espacios ni caso.
+function compraNorm(s) {
+  return String(s || '').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+}
+function compraExclProvider(prov) {
+  const n = compraNorm(prov);
+  return repCompraExclusions.proveedores.some(x => x && n.includes(compraNorm(x)));
+}
+function compraExclCode(code) {
+  const n = compraNorm(code);
+  return repCompraExclusions.codigos.some(x => compraNorm(x) === n);
+}
+function compraExclName(name) {
+  const n = compraNorm(name);
+  return repCompraExclusions.keywords.some(x => x && n.includes(compraNorm(x)));
+}
+
+async function loadCompraExclusions() {
+  if (repCompraExclLoaded || !db || !fbMod) return;
+  try {
+    const snap = await fbMod.getDoc(fbMod.doc(db, 'config', 'compraExclusions'));
+    if (snap.exists()) {
+      const d = snap.data() || {};
+      repCompraExclusions = {
+        proveedores: Array.isArray(d.proveedores) ? d.proveedores : COMPRA_EXCL_DEFAULT.proveedores.slice(),
+        codigos:     Array.isArray(d.codigos)     ? d.codigos     : COMPRA_EXCL_DEFAULT.codigos.slice(),
+        keywords:    Array.isArray(d.keywords)    ? d.keywords    : COMPRA_EXCL_DEFAULT.keywords.slice(),
+      };
+    }
+    repCompraExclLoaded = true;
+  } catch (e) { console.warn('loadCompraExclusions:', e); }
+}
+async function saveCompraExclusions() {
+  await fbMod.setDoc(fbMod.doc(db, 'config', 'compraExclusions'), repCompraExclusions, { merge: true });
+}
+
+// Detecta formato del XLS de compra: 'reporte' (Reporte de Compras por Producto)
+// vs 'factura' (documento individual → parseCompraXLS).
+function detectCompraFormat(workbook) {
+  for (const sn of workbook.SheetNames) {
+    const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sn], { header: 1, defval: '' });
+    for (const row of rows.slice(0, 30)) {
+      const c = row.map(v => String(v == null ? '' : v).trim());
+      if (c.some(x => /Reporte de Compras por Producto/i.test(x))) return 'reporte';
+      if (c[4] === 'Proveedor' && c[5] === 'Cant.') return 'reporte';
+      if (c[1] === 'Unidades'  && c[3] === 'Código') return 'factura';
+    }
+  }
+  return 'factura';
+}
+
+// Parser del "Reporte de Compras por Producto".
+// Cabecera de producto: col[1]="CÓDIGO - NOMBRE" (sin cantidad).
+// Transacciones bajo ella: col[1]=fecha, col[4]=Proveedor, col[5]=Cant.
+// Cantidad a distribuir = suma de transacciones NO excluidas.
+// Exclusión: proveedor (por línea) · código/palabra clave (producto entero).
+function parseCompraReporteXLS(workbook) {
+  const products = new Map();
+  const excluded = [];
+  const isDate = s => /^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(s);
+  workbook.SheetNames.forEach(sheetName => {
+    const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: '' });
+    let cur = null;
+    for (const row of rows) {
+      const c1     = String(row[1] == null ? '' : row[1]).trim();
+      const prov   = String(row[4] == null ? '' : row[4]).trim();
+      const qtyRaw = String(row[5] == null ? '' : row[5]).trim();
+      // Cabecera de producto
+      if (c1.includes(' - ') && !isDate(c1) && !qtyRaw) {
+        const dash = c1.indexOf(' - ');
+        const code = c1.slice(0, dash).trim();
+        const name = c1.slice(dash + 3).trim();
+        if (/^[A-Za-z0-9]{3,}$/.test(code)) {
+          const ec = compraExclCode(code), en = compraExclName(name);
+          cur = { code, name, excluded: ec || en, reason: ec ? 'código' : (en ? 'palabra clave' : '') };
+        } else { cur = null; }
+        continue;
+      }
+      // Transacción
+      if (cur && isDate(c1) && prov) {
+        const qty = Math.round(parseFloat(qtyRaw) || 0);
+        if (qty <= 0) continue;
+        if (cur.excluded)             { excluded.push({ code: cur.code, name: cur.name, qty, reason: cur.reason }); continue; }
+        if (compraExclProvider(prov)) { excluded.push({ code: cur.code, name: cur.name, qty, reason: 'proveedor ' + prov }); continue; }
+        if (products.has(cur.code)) products.get(cur.code).qty += qty;
+        else products.set(cur.code, { code: cur.code, name: cur.name, qty });
+      }
+    }
+  });
+  return { products: Array.from(products.values()), excluded };
+}
+
 function parseCompraXLS(workbook) {
   const seen = new Map();
   workbook.SheetNames.forEach(sheetName => {
@@ -2897,6 +3033,11 @@ function renderCompraPanelFiles() {
   if (repCompraFiles.length) {
     uploadEl.style.display   = 'none';
     filelistEl.style.display = '';
+    const exclNote = repCompraExcludedLines.length
+      ? `<div class="box-warn" style="font-size:.56rem;margin-top:5px;padding:5px 7px;border-radius:5px">
+           ⊘ ${repCompraExcludedLines.length} línea(s) ignoradas (no inventariables):
+           ${escHtml([...new Set(repCompraExcludedLines.map(x => x.name + ' · ' + x.reason))].slice(0, 4).join('  |  '))}${repCompraExcludedLines.length > 4 ? ' …' : ''}
+         </div>` : '';
     filelistEl.innerHTML = repCompraFiles.map(f => `
       <div class="rep-file-item">
         <span class="rep-file-icon">✓</span>
@@ -2905,10 +3046,24 @@ function renderCompraPanelFiles() {
       </div>`).join('') +
       `<button class="btn btn-outline" style="font-size:.58rem;margin-left:4px"
         onclick="document.getElementById('rep-compra-input').click()">+ Agregar más</button>
-       <button id="btn-compra-post-mode" class="btn btn-outline" style="font-size:.58rem;${repCompraPostMode?'color:var(--done-tx);border-color:var(--done-bd);':''}}"
+       <button id="btn-compra-post-mode" class="btn btn-outline" style="font-size:.58rem;${repCompraPostMode ? 'color:var(--done-tx);border-color:var(--done-bd);' : ''}"
         onclick="toggleCompraPostMode()">📦 ${repCompraPostMode ? 'Usando stock Gerencial' : 'Usar stock Gerencial'}</button>
+       <button class="btn btn-outline" style="font-size:.58rem" title="Proveedores/códigos/palabras a ignorar"
+        onclick="toggleCompraExclPanel()">⚙️ Exclusiones</button>
        <button class="btn btn-outline" style="font-size:.58rem;color:var(--err-tx);border-color:var(--err-tx)"
-        onclick="clearCompraFiles()">⊘ Limpiar compras</button>`;
+        onclick="clearCompraFiles()">⊘ Limpiar compras</button>` +
+      exclNote +
+      `<div id="rep-compra-excl-panel" style="display:none;margin-top:6px;padding:8px;border:1px solid var(--border2);border-radius:6px;background:var(--surface2)">
+         <div style="font-size:.58rem;color:var(--muted);margin-bottom:5px">
+           Ignorar en el Reporte de Compras (separá por coma o salto de línea). Aplica al próximo archivo y a lo cargado por código/palabra.</div>
+         <label style="font-size:.56rem;color:var(--text2)">Proveedores</label>
+         <textarea id="excl-prov" rows="1" style="width:100%;font-size:.6rem;font-family:var(--mono)">${escHtml(repCompraExclusions.proveedores.join(', '))}</textarea>
+         <label style="font-size:.56rem;color:var(--text2)">Códigos</label>
+         <textarea id="excl-cod" rows="1" style="width:100%;font-size:.6rem;font-family:var(--mono)">${escHtml(repCompraExclusions.codigos.join(', '))}</textarea>
+         <label style="font-size:.56rem;color:var(--text2)">Palabras clave (nombre)</label>
+         <textarea id="excl-kw" rows="1" style="width:100%;font-size:.6rem;font-family:var(--mono)">${escHtml(repCompraExclusions.keywords.join(', '))}</textarea>
+         <button class="btn btn-outline" style="font-size:.58rem;margin-top:5px" onclick="saveCompraExclFromUI()">Guardar exclusiones</button>
+       </div>`;
   } else {
     uploadEl.style.display   = '';
     filelistEl.style.display = 'none';
@@ -2933,8 +3088,10 @@ function renderCompraTable() {
 
   const totalAvail = repCompraProducts.reduce((s,p) => s + getCompraPool(p), 0);
   const totalSend  = Object.values(send).reduce((s,v) => s+v, 0);
+  const nuevosCount = repCompraProducts.filter(p => !repProductMap.has(p.code)).length;
   $('rep-summary').innerHTML =
-    `${repCompraProducts.length} productos en compra · disponible a distribuir: <strong>${totalAvail}</strong> · asignado: <strong>${totalSend}</strong>`;
+    `${repCompraProducts.length} productos en compra · disponible a distribuir: <strong>${totalAvail}</strong> · asignado: <strong>${totalSend}</strong>` +
+    (nuevosCount ? ` · <span style="color:var(--warn-tx)">◆ ${nuevosCount} sin Gerencial</span>` : '');
 
   if (!filtered.length) {
     $('rep-table-wrap').innerHTML = `<div class="empty-state">
@@ -2954,12 +3111,13 @@ function renderCompraTable() {
     const min   = REP_MINIMUMS[sucId] || 0;
     const sug   = (sst < min && avail > 0) ? Math.min(min - sst, avail) : 0;
     const sm = repProductMap.get(p.code);
+    const nuevo = !sm;   // no existe en el Gerencial → posible producto nuevo
     const ceiling     = repCompraPostMode ? (sm ? repPoolCeiling(sm, 'B01B02') : 0) : p.qty;
     const assignedAll = REP_DESTS.reduce((s, sid) => s + (repCompraData[sid]?.[p.code] || 0), 0);
     const poolDisplay = Math.max(0, ceiling - assignedAll);
     return `<tr>
       <td class="td-code">${escHtml(p.code)}</td>
-      <td class="td-name">${escHtml(p.name)}</td>
+      <td class="td-name"${nuevo ? ' style="color:var(--warn-tx)" title="No está en el Gerencial — posible producto nuevo"' : ''}>${escHtml(p.name)}${nuevo ? ' <span style="font-size:.5rem;color:var(--warn-tx);font-weight:700">◆ NUEVO</span>' : ''}</td>
       <td class="td-stk ${stkCls(poolDisplay)}" data-cpool="${escAttr(p.code)}">${poolDisplay > 0 ? poolDisplay : '<span style="color:var(--border)">0</span>'}</td>
       <td class="td-stk ${stkCls(sst)}">${sst > 0 ? sst : '<span style="color:var(--border)">0</span>'}</td>
       <td class="td-sug">${sug > 0 ? `<span class="sug-badge">▲${sug}</span>` : '—'}</td>
@@ -2998,6 +3156,7 @@ window.clearCompraFiles = () => {
   repCompraData     = {};
   repCompraTouched  = {};
   repCompraPostMode = false;
+  repCompraExcludedLines = [];
   renderCompraPanelFiles();
   renderRepFull();
   saveRepSession();
@@ -3011,6 +3170,28 @@ window.toggleCompraPostMode = () => {
   computeComprasSuggestions();
   renderCompraPanelFiles();
   renderRepFull();
+};
+window.toggleCompraExclPanel = () => {
+  const p = document.getElementById('rep-compra-excl-panel');
+  if (p) p.style.display = p.style.display === 'none' ? '' : 'none';
+};
+window.saveCompraExclFromUI = async () => {
+  const parse = id => (document.getElementById(id).value || '')
+    .split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
+  repCompraExclusions = {
+    proveedores: parse('excl-prov'),
+    codigos:     parse('excl-cod'),
+    keywords:    parse('excl-kw'),
+  };
+  try { await saveCompraExclusions(); }
+  catch (e) { alert('No se pudo guardar: ' + e.message); return; }
+  // Re-filtrar lo ya cargado por código/palabra (el proveedor no se guarda por producto).
+  const before = repCompraProducts.length;
+  repCompraProducts = repCompraProducts.filter(p => !compraExclCode(p.code) && !compraExclName(p.name));
+  if (repCompraProducts.length !== before) { repCompraData = {}; repCompraTouched = {}; computeComprasSuggestions(); }
+  renderCompraPanelFiles();
+  renderRepFull();
+  alert('✓ Exclusiones guardadas. Aplican al próximo archivo y a lo ya cargado por código/palabra.');
 };
 
 // Helper: pool disponible por producto según modo activo
@@ -3287,6 +3468,7 @@ window.enterCompraMode = () => {
   const btnCompra = $('btn-compra-mode');
   if (btnCompra) btnCompra.style.display = 'none';
   renderCompraPanelFiles();
+  loadCompraExclusions().then(() => renderCompraPanelFiles());
   if (repCompraProducts.length) renderRepFull();
 };
 
@@ -3318,28 +3500,37 @@ window.handleCompraFile = async inputEl => {
   inputEl.value = '';
   if (!files.length) return;
   try {
+    await loadCompraExclusions();
+    repCompraExcludedLines = [];
     // Merge map: código → { name, qty } — conservar productos ya cargados
     const mergeMap = {};
     repCompraProducts.forEach(p => { mergeMap[p.code] = { name: p.name, qty: p.qty }; });
 
     const newFileEntries = [];
     for (const file of files) {
-      const buf      = await file.arrayBuffer();
-      const wb       = XLSX.read(buf, { type: 'array' });
-      const products = parseCompraXLS(wb);
+      const buf = await file.arrayBuffer();
+      const wb  = XLSX.read(buf, { type: 'array' });
+      const fmt = detectCompraFormat(wb);            // 'reporte' | 'factura'
+      let products;
+      if (fmt === 'reporte') {
+        const res = parseCompraReporteXLS(wb);
+        products  = res.products;
+        repCompraExcludedLines.push(...res.excluded);
+      } else {
+        products = parseCompraXLS(wb);
+      }
       if (!products.length) {
         alert(`"${file.name}" no tiene productos reconocibles. Se omitió.`);
         continue;
       }
       products.forEach(p => {
         if (mergeMap[p.code]) {
-          // Mismo código → sumar cantidad, conservar nombre existente
-          mergeMap[p.code].qty += (p.qty || 0);
+          mergeMap[p.code].qty += (p.qty || 0);      // mismo código → sumar
         } else {
           mergeMap[p.code] = { name: p.name, qty: p.qty || 0 };
         }
       });
-      newFileEntries.push({ name: file.name, added: new Date().toISOString() });
+      newFileEntries.push({ name: file.name, added: new Date().toISOString(), fmt });
     }
 
     if (!newFileEntries.length) return; // todos los archivos fallaron

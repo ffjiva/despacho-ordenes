@@ -161,6 +161,10 @@ events: []
 config/team
 ← DEPRECADO como fuente de usuarios.
 Solo persiste por FCM tokens legacy. No usar para nuevos desarrollos.
+config/compraExclusions
+proveedores: string[], codigos: string[], keywords: string[]
+← no inventariables a ignorar al parsear "Reporte de Compras por Producto"
+(reposicion.html, modo compra). Editable desde panel ⚙️ Exclusiones.
 
 ---
 
