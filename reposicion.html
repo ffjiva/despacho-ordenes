@@ -4035,22 +4035,41 @@ function parseInvXLS(workbook) {
 }
 
 // ── Modal: crear nuevo conteo ────────
+// Roles que pueden recibir un conteo: los que tienen la vista de conteo + super.
+// Lista blanca a prueba de roles futuros (recepcionista/operador no aparecerán).
+const INV_ASIGNABLE_ROLES = ['super', 'collaborator', 'motorista'];
+const INV_ROLE_LABEL = { super: 'Super', collaborator: 'Colaborador', motorista: 'Motorista' };
+
+// Construye las <option> de usuarios asignables (con etiqueta de rol), ordenadas
+// por nombre. selectedId (opcional) marca la opción actual al reasignar.
+// data-name queda como nombre limpio para no ensuciar asignadoANombre.
+function invAsignablesOptions(userDocs, selectedId = '') {
+  return userDocs
+    .map(d => ({ id: d.id, ...d.data() }))
+    .filter(u => INV_ASIGNABLE_ROLES.includes(u.apps?.despacho?.role ?? u.role))
+    .sort((a, b) => (a.name || a.email || '').localeCompare(b.name || b.email || ''))
+    .map(u => {
+      const nombre = u.name || u.email;
+      const rol    = INV_ROLE_LABEL[u.apps?.despacho?.role ?? u.role] || '';
+      const sel    = u.id === selectedId ? ' selected' : '';
+      return `<option value="${u.id}" data-name="${nombre}"${sel}>${nombre}${rol ? ' · ' + rol : ''}</option>`;
+    })
+    .join('');
+}
+
 window.openInvModal = async () => {
   $('inv-modal-preview').innerHTML = '';
   $('inv-modal-files').value = '';
   $('inv-modal-titulo').value = '';
   $('inv-modal-asignado').innerHTML = '<option value="">Cargando…</option>';
 
-  // Cargar todos los usuarios activos
+  // Cargar usuarios asignables (roles que cuentan + super)
   try {
     const snap = await fbMod.getDocs(
       fbMod.query(fbMod.collection(db, 'users'), fbMod.where('active', '==', true))
     );
-    const opts = snap.docs.map(d => {
-      const u = d.data();
-      return `<option value="${d.id}" data-name="${u.name || u.email}">${u.name || u.email}</option>`;
-    });
-    $('inv-modal-asignado').innerHTML = '<option value="">Sin asignar</option>' + opts.join('');
+    $('inv-modal-asignado').innerHTML =
+      '<option value="">Sin asignar</option>' + invAsignablesOptions(snap.docs);
   } catch { $('inv-modal-asignado').innerHTML = '<option value="">Error cargando usuarios</option>'; }
 
   $('inv-modal').style.display = 'flex';
@@ -4359,11 +4378,7 @@ window.openReasignarModal = async () => {
       fbMod.getDocs(fbMod.query(fbMod.collection(db, 'users'), fbMod.where('active', '==', true)))
     ]);
     const asignadoActual = invSnap.exists() ? (invSnap.data().asignadoA || '') : '';
-    const opts = usersSnap.docs.map(d => {
-      const u = d.data();
-      return `<option value="${d.id}" data-name="${u.name || u.email}" ${d.id === asignadoActual ? 'selected' : ''}>${u.name || u.email}</option>`;
-    });
-    sel.innerHTML = '<option value="">Sin asignar</option>' + opts.join('');
+    sel.innerHTML = '<option value="">Sin asignar</option>' + invAsignablesOptions(usersSnap.docs, asignadoActual);
     sel.value = asignadoActual;
   } catch(e) {
     sel.innerHTML = '<option value="">Error cargando usuarios</option>';
