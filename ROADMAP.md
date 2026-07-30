@@ -207,9 +207,9 @@ proveedores: string[], codigos: string[], keywords: string[]
 
 ## 🎯 Frente activo
 
-*Vista de colaborador para conteos asignados — Fase 1 de 3 implementada (29 Jul 2026),
-código commiteado y pendiente de deploy + smoke test manual (ver Pendientes 🟢). Fase 2
-(entrada en index.html) y Fase 3 (filtro de asignables) siguen sin código.*
+*Vista de colaborador para conteos asignados — Fase 1 (desplegada) y Fase 2 (implementada y
+verificada, pendiente de deploy) de 3, al 29 Jul 2026. Solo queda Fase 3 (filtro de
+asignables) — ver Pendientes 🟢.*
 
 ---
 
@@ -234,10 +234,21 @@ y las rules bloquean tanto la escritura sobre un conteo ajeno como la auto-reasi
 viendo todo sin cambios. Infraestructura de testing reusable para futuras fases: `firebase.json`
 (bloque `emulators`), `reposicion.html` conecta a los emulators solo en `localhost`, y
 `scripts/emulator/seed.js` siembra usuarios/conteos de prueba.
+**Fase 2 ✅ implementada y verificada (29 Jul 2026), pendiente de deploy.** `index.html` agrega
+un botón **📋 Conteos** en la topbar del home (`btn-conteos` + `startConteosListener`, query
+por `asignadoA` sin índice compuesto), con badge del número de conteos no completados; oculto
+para `super`. `functions/index.js`: `onInventarioAsignado` arma el deep-link
+`reposicion.html#inv=<id>` (pasando `event.data.after.ref.id` a `buildMessage`), sin afectar a
+los otros 3 triggers de `notifyOnAssignment` (`buildMessage(after)` sigue funcionando igual, el
+segundo argumento es opcional). Verificado con navegador headless real contra el Emulator Suite:
+botón + badge correctos para colaborador, botón ausente para super, resto del home de super
+intacto (Equipo/Ops/FAB/filtros). El deep-link se verificó a nivel de lógica (`buildMessage`
+genera el link correcto); el envío real de push a un dispositivo físico queda pendiente de
+confirmación manual. De paso, se extendió a `index.html` el mismo hook de conexión al Emulator
+Suite ya presente en `reposicion.html` (activo solo en `localhost`).
 **Pendiente para dar por cerrado el ciclo completo:**
-- **Fase 2 — entrada en `index.html`:** botón para el colaborador con deep-link directo a
-  `reposicion.html#inv=<id>` (saltándose el home), más el deep-link en la notificación push
-  de asignación.
+- **Deploy de Fase 2:** `firebase deploy --only hosting` (index.html) y
+  `firebase deploy --only functions` (Cloud Function) — recordar commitear antes.
 - **Fase 3 — filtro de asignables:** al crear/reasignar un conteo, limitar el selector de
   usuario a colaboradores relevantes (hoy lista todos).
 - Revisar a fondo el apartado de asignación/reasignación (creación en `crearConteoInv`, botón

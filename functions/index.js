@@ -147,7 +147,7 @@ async function notifyOnAssignment(event, { field, notifiedField, buildMessage })
   if (after[notifiedField] === assignedAfter) return null;
 
   try {
-    const sent = await pushToUser(assignedAfter, buildMessage(after));
+    const sent = await pushToUser(assignedAfter, buildMessage(after, event.data.after.ref.id));
     if (sent) await event.data.after.ref.update({ [notifiedField]: assignedAfter });
   } catch(e) {
     console.error('Error enviando notificación:', e.message);
@@ -218,13 +218,13 @@ exports.onInventarioAsignado = onDocumentWritten('inventarios/{invId}', (event) 
   notifyOnAssignment(event, {
     field: 'asignadoA',
     notifiedField: 'lastNotifiedAsignadoA',
-    buildMessage: (after) => {
+    buildMessage: (after, invId) => {
       const suc    = after.sucursalNombre || after.sucursal || '';
       const titulo = after.titulo || 'Conteo';
       return {
         title: '📋 Conteo de inventario asignado',
         body:  `${suc} — ${titulo}`,
-        link:  'https://despacho-ordenes.web.app/ops.html'
+        link:  'https://despacho-ordenes.web.app/reposicion.html#inv=' + invId
       };
     }
   })

@@ -641,6 +641,7 @@ body:not(.dark) input[type="time"] {
     <div class="topbar-actions">
       <button id="btn-equipo" class="btn btn-ghost" style="font-size:.65rem" onclick="showUsersModal()">👥 Equipo</button>
       <button id="btn-ops" class="btn btn-ghost" style="font-size:.65rem" onclick="window.open('ops.html','_blank')">⚙️ Ops</button>
+      <button id="btn-conteos" class="btn btn-ghost" style="font-size:.65rem;display:none;position:relative" onclick="window.location.href='reposicion.html'" title="Mis conteos de inventario">📋 Conteos<span id="btn-conteos-badge" style="display:none;position:absolute;top:-6px;right:-6px;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:var(--err-bd);color:#fff;font-size:.55rem;font-weight:700;line-height:16px;text-align:center;font-family:var(--mono)"></span></button>
       <button id="theme-btn" class="btn btn-ghost" style="font-size:.75rem;padding:5px 8px" onclick="toggleTheme()" title="Cambiar tema">☀️</button>
       <button class="btn btn-ghost" style="font-size:.65rem" onclick="logout()">Salir</button>
     </div>
@@ -873,7 +874,7 @@ const UBICACIONES = [
 let db = null, fbMod = null, fbApp = null, storageMod = null, storage = null, authMod = null, auth = null;
 let isLocal = false;
 let curId = null, curData = null;
-let unsub = null, homeUnsub = null;
+let unsub = null, homeUnsub = null, conteosUnsub = null;
 let parsedProducts = [];
 let pendingOriginalFile = null;
 let pickFilter = 'all';
@@ -1034,6 +1035,13 @@ async function initFirebase(cfg) {
     }
     storage = storageMod.getStorage(fbApp);
     auth = authMod.getAuth(fbApp);
+
+    // Solo en desarrollo local (nunca en producción): apunta al Firebase Emulator Suite.
+    if (['localhost', '127.0.0.1'].includes(location.hostname) && !existing) {
+      fbMod.connectFirestoreEmulator(db, 'localhost', 8080);
+      authMod.connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true });
+      console.warn('[idx] conectado al Firebase Emulator Suite (localhost)');
+    }
     return true;
   } catch(e) {
     console.error('Firebase init error:', e);
@@ -1355,7 +1363,32 @@ window.goHome = async () => {
   updateNotifUI();
 
   startHomeListener();
+  startConteosListener();
 };
+
+// Botón/badge de conteos de inventario asignados al colaborador.
+// Muestra el botón si tiene ≥1 conteo asignado; el badge cuenta los no completados.
+// Query solo por asignadoA (sin índice compuesto); el status se filtra en cliente.
+function startConteosListener() {
+  if (conteosUnsub) { conteosUnsub(); conteosUnsub = null; }
+  const btn   = $('btn-conteos');
+  const badge = $('btn-conteos-badge');
+  if (!btn) return;
+  if (isLocal || !db || !fbMod || currentUser?.role === 'super') { btn.style.display = 'none'; return; }
+  try {
+    const q = fbMod.query(
+      fbMod.collection(db, 'inventarios'),
+      fbMod.where('asignadoA', '==', currentUser?.uid ?? '')
+    );
+    conteosUnsub = fbMod.onSnapshot(q, snap => {
+      if (snap.empty) { btn.style.display = 'none'; return; }
+      const pend = snap.docs.filter(d => (d.data().status || 'pendiente') !== 'completado').length;
+      btn.style.display = '';
+      if (pend > 0) { badge.style.display = ''; badge.textContent = String(pend); }
+      else          { badge.style.display = 'none'; }
+    }, () => { btn.style.display = 'none'; });
+  } catch (e) { btn.style.display = 'none'; }
+}
 
 function startHomeListener() {
   const el = $('dash-content');
@@ -3131,6 +3164,7 @@ window.doEmailLogin = async () => {
 
 window.logout = async () => {
   if (homeUnsub) { homeUnsub(); homeUnsub = null; }
+  if (conteosUnsub) { conteosUnsub(); conteosUnsub = null; }
   if (unsub) { unsub(); unsub = null; }
   currentUser = null;
   currentRole  = '';
