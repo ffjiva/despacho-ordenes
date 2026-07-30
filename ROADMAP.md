@@ -209,8 +209,9 @@ proveedores: string[], codigos: string[], keywords: string[]
 
 *Vista de colaborador para conteos asignados — Fases 1, 1.1 (motoristas) y 2 implementadas,
 verificadas y desplegadas (30 Jul 2026). Ciclo cerrado para super/colaborador/motorista;
-la Fase 3 (filtro de asignables) fue descartada. Falta commit + deploy del parche 1.1 — ver
-Pendientes 🟢.*
+la Fase 3 (filtro de asignables) fue descartada. Parqueado (no en curso): unificar el nombre
+de instancia de Firebase App entre las 4 apps, prerrequisito de un intento de login gate
+que se pausó (ver Pendientes 🟢).*
 
 ---
 
@@ -247,8 +248,8 @@ intacto (Equipo/Ops/FAB/filtros). El deep-link se verificó a nivel de lógica (
 genera el link correcto); el envío real de push a un dispositivo físico queda pendiente de
 confirmación manual. De paso, se extendió a `index.html` el mismo hook de conexión al Emulator
 Suite ya presente en `reposicion.html` (activo solo en `localhost`).
-**Parche Fase 1.1 — incluir motoristas ✅ implementado y verificado (30 Jul 2026), pendiente
-de deploy.** `reposicion.html`: el gate de `ALLOWED` suma `'motorista'`, y los 5 chequeos que
+**Parche Fase 1.1 — incluir motoristas ✅ implementado, verificado y desplegado (30 Jul 2026).**
+`reposicion.html`: el gate de `ALLOWED` suma `'motorista'`, y los 5 chequeos que
 antes eran `role === 'collaborator'` (gate, `handleInvHash`, `initInvScreen`, `goBackFromInventario`,
 `openInvDetalle`) se generalizaron a "no-super" (`role !== 'super'`), así que el motorista recibe
 la misma vista reducida (solo sus conteos, sin crear/reasignar/historial) y puede abrir/contar/
@@ -263,10 +264,23 @@ funciona, super y colaborador sin regresiones (super sigue viendo las 3 cuentas 
 y el botón 📋 Conteos de `index.html` aparece también para el motorista (badge vacío tras
 finalizar su único conteo).
 **Pendiente:**
-- Deploy del parche: `firebase deploy --only hosting` (solo `reposicion.html`).
 - Revisar a fondo el apartado de asignación/reasignación (creación en `crearConteoInv`, botón
   "🔄 Reasignar") en conjunto con el flujo ya implementado — no dar por buena la UI actual de
   super sin repasarla junto a esto.
+
+**Login solo-super en `reposicion.html` — PAUSADO (30 Jul 2026), no aplicado.** Se intentó un
+segundo bloque (`Reposicion_login_solo_super.md`, 3 edits: bandera `loginViaForm` + bloqueo de
+no-super que ingresan por el formulario) para que colaboradores/motoristas solo entren con
+sesión ya iniciada desde `index.html`, nunca tecleando credenciales en `reposicion.html`. Se
+revirtió antes de commitear: **`index.html` y `reposicion.html` NO comparten sesión de Firebase
+Auth** — cada uno inicializa su app con un nombre distinto (`despacho-main` vs `rep-main`), y
+Firebase Auth persiste la sesión con clave `firebase:authUser:<apiKey>:<appName>`, distinta por
+app. Confirmado empíricamente con navegador headless: colaborador logueado en `index.html` →
+navega a `reposicion.html` en la misma sesión de browser → cae en login, sin sesión. Con el
+bloqueo puesto, un colaborador/motorista real quedaría sin forma de entrar (no tiene sesión
+previa y ya no puede teclear credenciales). **Prerrequisito antes de reintentar este parche:**
+unificar el nombre de instancia de Firebase App entre las apps (al menos `index.html` y
+`reposicion.html`; evaluar también `ops.html`/`moto.html`) para que la sesión se comparta.
 
 **Conectar el Ensamblador-ZD** — pausado, a retomar con los archivos del Ensamblador actualizados.
 Con la identidad lista, la conexión se reduce a: (1) apuntar el `firebaseConfig`
