@@ -291,6 +291,41 @@ Preguntas de diseño abiertas (resolver antes de código):
 
 ## 🔭 Futuro (diseñado, sin fecha)
 
+**Unificar sesión / Single Sign-On entre las 4 apps** *(index.html · ops.html · moto.html ·
+reposicion.html)*
+Hoy cada app inicializa Firebase con un nombre de app distinto (`despacho-main`, `ops-main`,
+`moto-main`, `rep-main`). Firebase Auth persiste la sesión con una clave que incluye ese
+nombre (`firebase:authUser:<apiKey>:<appName>`), así que la sesión NO se comparte entre apps:
+al saltar de una a otra (ej. index→reposición, ops→reposición) hay que volver a loguearse,
+aunque sea el mismo usuario. Las credenciales sí son las mismas — es una sola identidad de
+Firebase Auth por usuario; lo que no se comparte es la sesión persistida.
+
+Objetivo: usar el MISMO nombre de app en las 4 (mismo origen `despacho-ordenes.web.app`) para
+que la sesión persistida se comparta → login único en toda la suite. Los permisos NO cambian:
+cada app conserva su gate por rol como barrera —
+- `index.html`: super / collaborator / motorista (los dos últimos, solo sus órdenes asignadas)
+- `ops.html`: super
+- `moto.html`: super / motorista
+- `reposicion.html`: super (total) / collaborator + motorista (solo sus conteos asignados)
+
+El SSO solo evita re-teclear credenciales; el gate sigue decidiendo quién ve/entra a qué.
+
+Consideraciones / costo:
+- Cambiar el nombre de app cambia la clave de persistencia → cierre de sesión forzado una vez
+  para todos (re-login la primera vez tras el deploy). Avisar al equipo.
+- Verificar que nada dependa del nombre de app: los `getApps().find(a => a.name === '…')` de
+  las 4, e init de FCM/`getMessaging` (los tokens viven en `fcmTokens` y se re-registran al
+  próximo login, así que no se pierden).
+- Sin colisión por nombre repetido: cada app es su propia página/contexto (el error
+  "duplicate app" solo ocurre dentro de un mismo contexto).
+- Desbloquea el "login de reposición solo-super": con sesión compartida, los no-super
+  llegarían ya autenticados desde `index.html` y el formulario de reposición podría cerrarse
+  a solo super (la idea que se pausó en jul 2026 justo por no compartir sesión — ver Pendientes
+  🟢, "Login solo-super en reposicion.html").
+
+Sin prerrequisitos. Sub-proyecto acotado; probar el login y la navegación cruzada en las 4
+apps (y el re-registro de FCM) antes de dar por bueno.
+
 **Brief matutino — ausencias del equipo** *(ops.html)*
 Cuando un colaborador tiene `estadoTipo` (vacaciones/incapacidad/permiso) vigente hoy
 (según `estadoDesde`/`estadoHasta` en `colaboradores/{id}`), mostrarlo en el brief
