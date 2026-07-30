@@ -217,19 +217,24 @@ código commiteado y pendiente de deploy + smoke test manual (ver Pendientes �
 
 ### 🟢 Habilitan operación / delegación
 
-**Vista de colaborador para conteos asignados — Fase 1 de 3 ✅ implementada (29 Jul 2026, sin desplegar).**
-`reposicion.html` ya ramifica el gate: `ALLOWED = ['super', 'collaborator']`, con vista reducida
-(`body.inv-collab` oculta FAB＋/Historial/Reasignar), lista filtrada por `asignadoA == uid`,
-ruteo `#inv=<id>` con guarda de acceso en `openInvDetalle`, y `firestore.rules` de `inventarios`
-permite que el colaborador asignado guarde su propio avance (`productos`/`resumen`/`status`/
-`iniciadoAt`/`completadoAt`) sin poder reasignarse ni crear/borrar. El colaborador cuenta y
-finaliza su conteo; el super mantiene acceso total. Detalle completo en
-`Conteos_Fase1_ClaudeCode.md` (raíz del repo).
-**Pendiente antes de dar por cerrado el ciclo:**
-- Deploy: `firebase deploy --only firestore:rules,hosting` (commit ya hecho, falta desplegar).
-- Smoke test manual en navegador con un colaborador real con conteo asignado (los 6 pasos
-  del documento) — no se pudo automatizar en esta sesión por falta de navegador headless
-  funcional en el entorno de Claude Code.
+**Vista de colaborador para conteos asignados — Fase 1 de 3 ✅ implementada, desplegada y
+verificada (29 Jul 2026).** `reposicion.html` ramifica el gate: `ALLOWED = ['super', 'collaborator']`,
+con vista reducida (`body.inv-collab` oculta FAB＋/Historial/Reasignar), lista filtrada por
+`asignadoA == uid`, ruteo `#inv=<id>` con guarda de acceso en `openInvDetalle`, y `firestore.rules`
+de `inventarios` permite que el colaborador asignado guarde su propio avance (`productos`/`resumen`/
+`status`/`iniciadoAt`/`completadoAt`) sin poder reasignarse ni crear/borrar. El colaborador cuenta
+y finaliza su conteo; el super mantiene acceso total. Detalle completo en
+`Conteos_Fase1_ClaudeCode.md` (raíz del repo). Desplegado a producción (`firestore:rules,hosting`).
+**Smoke test verificado (29 Jul 2026)** con Firebase Emulator Suite (Firestore + Auth) + navegador
+headless real, no solo estático: login colaborador cae en su lista filtrada (FAB/Historial/Reasignar
+ocultos en las 3 pantallas), `#inv=<id>` propio abre directo, contar + Finalizar persiste
+`status: completado` con recálculo de `resumen`, intento de abrir conteo ajeno rebota a la lista,
+y las rules bloquean tanto la escritura sobre un conteo ajeno como la auto-reasignación
+(`permission-denied` confirmado), mientras permiten el avance en campos propios. Super sigue
+viendo todo sin cambios. Infraestructura de testing reusable para futuras fases: `firebase.json`
+(bloque `emulators`), `reposicion.html` conecta a los emulators solo en `localhost`, y
+`scripts/emulator/seed.js` siembra usuarios/conteos de prueba.
+**Pendiente para dar por cerrado el ciclo completo:**
 - **Fase 2 — entrada en `index.html`:** botón para el colaborador con deep-link directo a
   `reposicion.html#inv=<id>` (saltándose el home), más el deep-link en la notificación push
   de asignación.
