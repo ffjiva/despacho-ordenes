@@ -84,6 +84,29 @@ async function waitInvListLoaded(page) {
   );
 }
 
+// Variante para apps con gate por rol donde el login puede terminar en éxito (#s-home)
+// o en rebote con mensaje de error (ops.html/moto.html bloquean roles no permitidos).
+async function attemptLogin(page, { emailSel, pwSel, btnSel, email, password, homeSel, errSel }) {
+  await page.fill(emailSel, email);
+  await page.fill(pwSel, password);
+  await page.click(btnSel);
+  await page.waitForFunction(
+    ([h, e]) => {
+      const home = document.querySelector(h);
+      const err  = document.querySelector(e);
+      return (home && home.classList.contains('on')) || (err && err.style.display !== 'none' && err.textContent.trim().length > 0);
+    },
+    [homeSel, errSel],
+    { timeout: 15000 }
+  );
+  return page.evaluate(([h, e]) => {
+    const home = document.querySelector(h);
+    const err  = document.querySelector(e);
+    const blocked = !!(err && err.style.display !== 'none' && err.textContent.trim().length > 0);
+    return { granted: !!(home && home.classList.contains('on')), blocked, errText: blocked ? err.textContent.trim() : null };
+  }, [homeSel, errSel]);
+}
+
 async function main() {
   console.log('🚀 Levantando Firebase Emulator Suite (firestore + auth)...');
   const emu = spawn('firebase', ['emulators:start', '--only', 'firestore,auth'], { cwd: ROOT, stdio: 'ignore', detached: true });
@@ -165,6 +188,40 @@ async function main() {
     await gotoAndWaitReady(page, `http://localhost:${PORT}/index.html`);
     await login(page, { emailSel: '#login-email', pwSel: '#login-pw', btnSel: '#btn-login', email: 'super@test.local', password: 'test1234' });
     check('botón 📋 Conteos ausente para super', !(await page.isVisible('#btn-conteos')));
+
+    // ── 5. ops.html: gate solo-super ──
+    console.log('\n▶ ops.html — gate solo-super');
+    page = await newPage();
+    await gotoAndWaitReady(page, `http://localhost:${PORT}/ops.html`);
+    let r = await attemptLogin(page, { emailSel: '#login-email', pwSel: '#login-pw', btnSel: '#btn-login', email: 'super@test.local', password: 'test1234', homeSel: '#s-home', errSel: '#login-err' });
+    check('super entra a ops.html', r.granted);
+
+    page = await newPage();
+    await gotoAndWaitReady(page, `http://localhost:${PORT}/ops.html`);
+    r = await attemptLogin(page, { emailSel: '#login-email', pwSel: '#login-pw', btnSel: '#btn-login', email: 'colaborador@test.local', password: 'test1234', homeSel: '#s-home', errSel: '#login-err' });
+    check(`colaborador bloqueado en ops.html (msg: "${r.errText}")`, r.blocked && !r.granted);
+
+    page = await newPage();
+    await gotoAndWaitReady(page, `http://localhost:${PORT}/ops.html`);
+    r = await attemptLogin(page, { emailSel: '#login-email', pwSel: '#login-pw', btnSel: '#btn-login', email: 'motorista@test.local', password: 'test1234', homeSel: '#s-home', errSel: '#login-err' });
+    check(`motorista bloqueado en ops.html (msg: "${r.errText}")`, r.blocked && !r.granted);
+
+    // ── 6. moto.html: gate motorista + super, bloqueo colaborador ──
+    console.log('\n▶ moto.html — gate motorista/super');
+    page = await newPage();
+    await gotoAndWaitReady(page, `http://localhost:${PORT}/moto.html`);
+    r = await attemptLogin(page, { emailSel: '#moto-email', pwSel: '#moto-pw', btnSel: '#btn-moto-login', email: 'motorista@test.local', password: 'test1234', homeSel: '#s-home', errSel: '#moto-login-err' });
+    check('motorista entra a moto.html', r.granted);
+
+    page = await newPage();
+    await gotoAndWaitReady(page, `http://localhost:${PORT}/moto.html`);
+    r = await attemptLogin(page, { emailSel: '#moto-email', pwSel: '#moto-pw', btnSel: '#btn-moto-login', email: 'super@test.local', password: 'test1234', homeSel: '#s-home', errSel: '#moto-login-err' });
+    check('super también entra a moto.html', r.granted);
+
+    page = await newPage();
+    await gotoAndWaitReady(page, `http://localhost:${PORT}/moto.html`);
+    r = await attemptLogin(page, { emailSel: '#moto-email', pwSel: '#moto-pw', btnSel: '#btn-moto-login', email: 'colaborador@test.local', password: 'test1234', homeSel: '#s-home', errSel: '#moto-login-err' });
+    check(`colaborador bloqueado en moto.html (msg: "${r.errText}")`, r.blocked && !r.granted);
 
   } finally {
     for (const ctx of contexts) await ctx.close().catch(() => {});

@@ -1159,6 +1159,13 @@ async function init() {
     db      = fbMod.getFirestore(app);
     auth    = authMod.getAuth(app);
     storage = storageMod.getStorage(app);
+
+    // Solo en desarrollo local (nunca en producción): apunta al Firebase Emulator Suite.
+    if (['localhost', '127.0.0.1'].includes(location.hostname) && !existing) {
+      fbMod.connectFirestoreEmulator(db, 'localhost', 8080);
+      authMod.connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true });
+      console.warn('[ops] conectado al Firebase Emulator Suite (localhost)');
+    }
   } catch(e) {
     console.error('Firebase init error:', e);
     showScreen('s-login');
