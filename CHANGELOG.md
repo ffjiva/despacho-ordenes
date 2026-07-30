@@ -13,6 +13,30 @@
 
 ## Sesiones y módulos
 
+### Sesión Testing headless E2E — Playwright persistente en las 4 apps — 30 Jul 2026 *(package.json + scripts/emulator/smoke.mjs + ops.html + moto.html)*
+
+**test(emulator): Playwright como devDependency + smoke test e2e persistente** *(commit 4a048db)*
+Cierra la infraestructura de testing headless que había quedado a medias en una sesión anterior
+(Chromium + libs de sistema + Java vía `sudo apt-get install default-jre-headless`, ya instalados
+pero sin persistir en el proyecto). `playwright@1.62.0` pasa a ser `devDependency` real (antes se
+usaba al vuelo por `npx --yes` desde un script en un directorio scratchpad que se perdía entre
+sesiones). Nuevo `scripts/emulator/smoke.mjs` (`npm run test:e2e`): levanta los emulators, siembra
+datos con `seed.js`, sirve el repo estático en `localhost:8791` y corre en Chromium headless los
+checks de gate por rol de "Conteos asignables al colaborador" (colaborador/motorista/super) en
+`reposicion.html` + el botón 📋 Conteos de `index.html`. De paso se encontró y corrigió un bug de
+timing propio del harness (no del entorno): el test hacía click en "Ingresar" antes de que la app
+terminara los imports dinámicos de Firebase, y reusar la misma pestaña entre logins arrastraba la
+sesión persistida de Firebase Auth (IndexedDB) de un usuario al siguiente — se resolvió con un
+contexto de browser aislado por escenario y esperando la señal real de "conectado al emulator" en
+vez de `networkidle` (poco fiable con los listeners realtime de Firestore). 12/12 checks en verde.
+
+**test(ops,moto): hook de emulator + checks e2e del gate por rol en las 4 apps** *(commit 3e025e6)*
+`ops.html` y `moto.html` no tenían el `connectFirestoreEmulator`/`connectAuthEmulator` que ya usan
+`index.html`/`reposicion.html` (activo solo en `localhost`, nunca en producción) — se agrega el
+mismo patrón exacto. `smoke.mjs` suma los checks que faltaban: `ops.html` (gate solo-super, bloquea
+colaborador y motorista) y `moto.html` (motorista + super, bloquea colaborador). El entorno de
+testing headless queda cubriendo las 4 apps del proyecto. 18/18 checks en verde.
+
 ### Sesión Conteos asignables al colaborador — fases 1, 1.1 y 2 — 30 Jul 2026 *(reposicion.html + index.html + functions/index.js + firestore.rules + firebase.json + scripts/emulator/seed.js)*
 
 **feat(reposicion,firestore): vista de colaborador para conteos asignados — fase 1** *(commit d7f4130)*

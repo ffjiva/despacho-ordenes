@@ -386,6 +386,7 @@ hacia el CHANGELOG.
 
 ---
 
-*Última actualización: 30 Julio 2026 — Ciclo "Conteos asignables al colaborador" (fases 1,
-1.1, 2) cerrado, desplegado y movido al CHANGELOG. Frente activo despejado; próximo candidato:
-revisar asignación/reasignación de conteos (ver Pendientes 🟢).*
+*Última actualización: 30 Julio 2026 — Entorno de testing headless (Playwright + Firebase
+Emulator Suite) persistido como devDependency y extendido a las 4 apps (`ops.html`/`moto.html`
+sumados a `index.html`/`reposicion.html`, vía `npm run test:e2e`). Frente activo despejado;
+próximo candidato: revisar asignación/reasignación de conteos (ver Pendientes 🟢).*
