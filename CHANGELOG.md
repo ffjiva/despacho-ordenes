@@ -13,6 +13,57 @@
 
 ## Sesiones y módulos
 
+### Sesión Conteos asignables al colaborador — fases 1, 1.1 y 2 — 30 Jul 2026 *(reposicion.html + index.html + functions/index.js + firestore.rules + firebase.json + scripts/emulator/seed.js)*
+
+**feat(reposicion,firestore): vista de colaborador para conteos asignados — fase 1** *(commit d7f4130)*
+`reposicion.html` ramifica el gate: `ALLOWED = ['super', 'collaborator']`, con vista reducida
+(`body.inv-collab` oculta FAB＋/Historial/Reasignar), lista filtrada por `asignadoA == uid`,
+ruteo `#inv=<id>` con guarda de acceso en `openInvDetalle`, y `firestore.rules` de `inventarios`
+permite que el colaborador asignado guarde su propio avance (`productos`/`resumen`/`status`/
+`iniciadoAt`/`completadoAt`) sin poder reasignarse ni crear/borrar. El colaborador cuenta y
+finaliza su conteo; el super mantiene acceso total. Desplegado a producción
+(`firestore:rules,hosting`).
+
+**test(reposicion): Firebase Emulator Suite piloto + verificación del flujo de colaborador** *(commit 7f3e316)*
+Smoke test con Firestore + Auth emulados y navegador headless real (no solo estático): login
+colaborador cae en su lista filtrada (FAB/Historial/Reasignar ocultos en las 3 pantallas),
+`#inv=<id>` propio abre directo, contar + Finalizar persiste `status: completado` con recálculo
+de `resumen`, intento de abrir conteo ajeno rebota a la lista, y las rules bloquean tanto la
+escritura sobre un conteo ajeno como la auto-reasignación (`permission-denied` confirmado),
+mientras permiten el avance en campos propios. Super sigue viendo todo sin cambios.
+Infraestructura de testing reusable para futuras fases: `firebase.json` (bloque `emulators`),
+`reposicion.html` conecta a los emulators solo en `localhost`, y `scripts/emulator/seed.js`
+siembra usuarios/conteos de prueba.
+
+**feat(index,functions): conteos asignables al colaborador — fase 2** *(commit d710fc1)*
+`index.html` agrega un botón **📋 Conteos** en la topbar del home (`btn-conteos` +
+`startConteosListener`, query por `asignadoA` sin índice compuesto), con badge del número de
+conteos no completados; oculto para `super`. `functions/index.js`: `onInventarioAsignado` arma
+el deep-link `reposicion.html#inv=<id>` (pasando `event.data.after.ref.id` a `buildMessage`),
+sin afectar a los otros 2 triggers de `notifyOnAssignment` (segundo argumento opcional).
+Verificado con navegador headless real contra el Emulator Suite: botón + badge correctos para
+colaborador, botón ausente para super, resto del home de super intacto (Equipo/Ops/FAB/filtros).
+El deep-link se verificó a nivel de lógica (`buildMessage` genera el link correcto); el envío
+real de push a un dispositivo físico queda pendiente de confirmación manual. De paso se extendió
+a `index.html` el mismo hook de conexión al Emulator Suite ya presente en `reposicion.html`.
+
+**feat(reposicion): conteos también para motoristas — fase 1.1** *(commit 56c6a1c)*
+El gate de `ALLOWED` suma `'motorista'`, y los 5 chequeos que antes eran `role === 'collaborator'`
+(gate, `handleInvHash`, `initInvScreen`, `goBackFromInventario`, `openInvDetalle`) se generalizaron
+a "no-super" (`role !== 'super'`), así que el motorista recibe la misma vista reducida y puede
+abrir/contar/finalizar. Sin cambios en `firestore.rules` (la regla de update ya era agnóstica de
+rol, por `asignadoA == uid`) ni en fase 2 (el botón ya aparece para cualquier no-super). Verificado
+con navegador headless real contra el Emulator Suite (seed ampliado con un motorista de prueba):
+motorista cae en vista reducida, cuenta y finaliza (`status: completado` persistido), `#inv=<id>`
+propio abre directo, rebote de conteo ajeno funciona, super y colaborador sin regresiones, y el
+botón 📋 Conteos de `index.html` aparece también para el motorista.
+
+**Fase 3 (filtro de asignables) descartada:** los desplegables de crear/reasignar ya listan a
+todos los usuarios activos, comportamiento deseado ahora que cualquier rol con cuenta puede
+contar — no hacía falta filtro adicional.
+
+Ciclo cerrado para super/colaborador/motorista.
+
 ### Sesión modo compra — correo de proyección + Reporte de Compras por Producto — 28 Jul 2026 *(reposicion.html)*
 
 **feat(reposicion): correo de proyección en modo compra + parser de Reporte de Compras por Producto con exclusiones configurables**

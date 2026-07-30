@@ -207,11 +207,11 @@ proveedores: string[], codigos: string[], keywords: string[]
 
 ## 🎯 Frente activo
 
-*Vista de colaborador para conteos asignados — Fases 1, 1.1 (motoristas) y 2 implementadas,
-verificadas y desplegadas (30 Jul 2026). Ciclo cerrado para super/colaborador/motorista;
-la Fase 3 (filtro de asignables) fue descartada. Parqueado (no en curso): unificar el nombre
-de instancia de Firebase App entre las 4 apps, prerrequisito de un intento de login gate
-que se pausó (ver Pendientes 🟢).*
+*Sin frente activo en curso. Ciclo "Conteos asignables al colaborador" (fases 1, 1.1, 2)
+cerrado, desplegado y movido al CHANGELOG (30 Jul 2026). Candidato más próximo: revisar
+asignación/reasignación de conteos (ver Pendientes 🟢). Parqueado (no en curso): unificar
+el nombre de instancia de Firebase App entre las 4 apps, prerrequisito de un intento de
+login gate que se pausó (ver Pendientes 🟢).*
 
 ---
 
@@ -219,54 +219,10 @@ que se pausó (ver Pendientes 🟢).*
 
 ### 🟢 Habilitan operación / delegación
 
-**Vista de colaborador para conteos asignados — Fase 1 de 3 ✅ implementada, desplegada y
-verificada (29 Jul 2026).** `reposicion.html` ramifica el gate: `ALLOWED = ['super', 'collaborator']`,
-con vista reducida (`body.inv-collab` oculta FAB＋/Historial/Reasignar), lista filtrada por
-`asignadoA == uid`, ruteo `#inv=<id>` con guarda de acceso en `openInvDetalle`, y `firestore.rules`
-de `inventarios` permite que el colaborador asignado guarde su propio avance (`productos`/`resumen`/
-`status`/`iniciadoAt`/`completadoAt`) sin poder reasignarse ni crear/borrar. El colaborador cuenta
-y finaliza su conteo; el super mantiene acceso total. Detalle completo en
-`Conteos_Fase1_ClaudeCode.md` (raíz del repo). Desplegado a producción (`firestore:rules,hosting`).
-**Smoke test verificado (29 Jul 2026)** con Firebase Emulator Suite (Firestore + Auth) + navegador
-headless real, no solo estático: login colaborador cae en su lista filtrada (FAB/Historial/Reasignar
-ocultos en las 3 pantallas), `#inv=<id>` propio abre directo, contar + Finalizar persiste
-`status: completado` con recálculo de `resumen`, intento de abrir conteo ajeno rebota a la lista,
-y las rules bloquean tanto la escritura sobre un conteo ajeno como la auto-reasignación
-(`permission-denied` confirmado), mientras permiten el avance en campos propios. Super sigue
-viendo todo sin cambios. Infraestructura de testing reusable para futuras fases: `firebase.json`
-(bloque `emulators`), `reposicion.html` conecta a los emulators solo en `localhost`, y
-`scripts/emulator/seed.js` siembra usuarios/conteos de prueba.
-**Fase 2 ✅ implementada, verificada y desplegada (29 Jul 2026).** `index.html` agrega
-un botón **📋 Conteos** en la topbar del home (`btn-conteos` + `startConteosListener`, query
-por `asignadoA` sin índice compuesto), con badge del número de conteos no completados; oculto
-para `super`. `functions/index.js`: `onInventarioAsignado` arma el deep-link
-`reposicion.html#inv=<id>` (pasando `event.data.after.ref.id` a `buildMessage`), sin afectar a
-los otros 3 triggers de `notifyOnAssignment` (`buildMessage(after)` sigue funcionando igual, el
-segundo argumento es opcional). Verificado con navegador headless real contra el Emulator Suite:
-botón + badge correctos para colaborador, botón ausente para super, resto del home de super
-intacto (Equipo/Ops/FAB/filtros). El deep-link se verificó a nivel de lógica (`buildMessage`
-genera el link correcto); el envío real de push a un dispositivo físico queda pendiente de
-confirmación manual. De paso, se extendió a `index.html` el mismo hook de conexión al Emulator
-Suite ya presente en `reposicion.html` (activo solo en `localhost`).
-**Parche Fase 1.1 — incluir motoristas ✅ implementado, verificado y desplegado (30 Jul 2026).**
-`reposicion.html`: el gate de `ALLOWED` suma `'motorista'`, y los 5 chequeos que
-antes eran `role === 'collaborator'` (gate, `handleInvHash`, `initInvScreen`, `goBackFromInventario`,
-`openInvDetalle`) se generalizaron a "no-super" (`role !== 'super'`), así que el motorista recibe
-la misma vista reducida (solo sus conteos, sin crear/reasignar/historial) y puede abrir/contar/
-finalizar. Sin cambios en `firestore.rules` (la regla de update ya era agnóstica de rol, por
-`asignadoA == uid`) ni en Fase 2 (el botón de `index.html` ya aparece para cualquier no-super).
-**La Fase 3 (filtro de asignables) queda descartada**: los desplegables de crear/reasignar ya
-listan a todos los usuarios activos, que es el comportamiento deseado ahora que cualquier rol
-con cuenta puede contar. Verificado con navegador headless real contra el Emulator Suite
-(seed ampliado con un motorista de prueba): motorista cae en vista reducida, cuenta y finaliza
-(`status: completado` persistido), `#inv=<id>` propio abre directo, rebote de conteo ajeno
-funciona, super y colaborador sin regresiones (super sigue viendo las 3 cuentas + FAB/Historial),
-y el botón 📋 Conteos de `index.html` aparece también para el motorista (badge vacío tras
-finalizar su único conteo).
-**Pendiente:**
-- Revisar a fondo el apartado de asignación/reasignación (creación en `crearConteoInv`, botón
-  "🔄 Reasignar") en conjunto con el flujo ya implementado — no dar por buena la UI actual de
-  super sin repasarla junto a esto.
+**Revisar asignación/reasignación de conteos** *(reposicion.html)* — repasar `crearConteoInv`
+y el botón "🔄 Reasignar" (hoy solo lado super) en conjunto con el flujo colaborador/motorista
+ya implementado y desplegado (ver CHANGELOG 30 Jul 2026) — no dar por buena la UI actual de
+super sin revisarla junto a esto.
 
 **Login solo-super en `reposicion.html` — PAUSADO (30 Jul 2026), no aplicado.** Se intentó un
 segundo bloque (`Reposicion_login_solo_super.md`, 3 edits: bandera `loginViaForm` + bloqueo de
@@ -430,8 +386,6 @@ hacia el CHANGELOG.
 
 ---
 
-*Última actualización: 29 Julio 2026 — Fase 1 de "Conteos asignables al colaborador"
-implementada en `reposicion.html` + `firestore.rules` (gate por rol, vista reducida, ruteo
-`#inv=<id>`, rules de avance del colaborador). Commiteado; falta deploy y smoke test manual
-en navegador (no automatizable en este entorno). Fase 2 (entrada en index.html) y Fase 3
-(filtro de asignables) siguen pendientes.*
+*Última actualización: 30 Julio 2026 — Ciclo "Conteos asignables al colaborador" (fases 1,
+1.1, 2) cerrado, desplegado y movido al CHANGELOG. Frente activo despejado; próximo candidato:
+revisar asignación/reasignación de conteos (ver Pendientes 🟢).*
