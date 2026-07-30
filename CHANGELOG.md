@@ -13,6 +13,26 @@
 
 ## Sesiones y módulos
 
+### Sesión Filtro de asignables en conteos — 30 Jul 2026 *(reposicion.html)*
+
+**feat(reposicion): filtro de asignables por rol + etiqueta en conteos** *(commit 50486af)*
+Cierra el pendiente "revisar asignación/reasignación de conteos". Helper compartido
+`invAsignablesOptions` usado por los dos selectores (crear conteo y "🔄 Reasignar"): filtra
+a `super`/`collaborator`/`motorista` (lista blanca a prueba de roles futuros) y muestra el
+rol junto al nombre (`Nombre · Rol`), ordenado alfabéticamente. `data-name` queda como
+nombre limpio, así que `asignadoANombre` no cambia de formato. Reasignación conserva el
+avance del conteo (sin cambios de lógica, solo el poblado del `<select>`). Validado en
+Firebase Emulator Suite + Chromium headless (ad hoc, no sumado a `smoke.mjs`): etiquetas de
+rol correctas, usuario de rol fuera de la lista blanca (`recepcionista`, simulado) excluido
+de ambos selectores, preselección del asignado actual al reasignar, orden alfabético y
+`data-name` sin la etiqueta de rol.
+
+**Nota:** reemplaza la decisión "Fase 3 (filtro de asignables) descartada" de la sesión
+anterior (30 Jul 2026, ciclo "Conteos asignables al colaborador") — en ese momento no hacía
+falta filtrar porque solo existían los 3 roles con cuenta. Con `recepcionista`/`operador` ya
+diseñados como próximos roles del ROADMAP (ver "Recepción en sucursal destino" y "Rol
+`operador`" en Pendientes/Futuro), el filtro deja de ser prematuro.
+
 ### Sesión Testing headless E2E — Playwright persistente en las 4 apps — 30 Jul 2026 *(package.json + scripts/emulator/smoke.mjs + ops.html + moto.html)*
 
 **test(emulator): Playwright como devDependency + smoke test e2e persistente** *(commit 4a048db)*

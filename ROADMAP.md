@@ -208,21 +208,17 @@ proveedores: string[], codigos: string[], keywords: string[]
 ## 🎯 Frente activo
 
 *Sin frente activo en curso. Ciclo "Conteos asignables al colaborador" (fases 1, 1.1, 2)
-cerrado, desplegado y movido al CHANGELOG (30 Jul 2026). Candidato más próximo: revisar
-asignación/reasignación de conteos (ver Pendientes 🟢). Parqueado (no en curso): unificar
-el nombre de instancia de Firebase App entre las 4 apps, prerrequisito de un intento de
-login gate que se pausó (ver Pendientes 🟢).*
+cerrado, desplegado y movido al CHANGELOG (30 Jul 2026); filtro de asignables por rol
++ etiqueta también cerrado y movido al CHANGELOG (30 Jul 2026). Parqueado (no en curso):
+unificar el nombre de instancia de Firebase App entre las 4 apps, prerrequisito de un
+intento de login gate que se pausó (ver Pendientes 🟢) y de la nueva entrada SSO (ver
+Futuro 🔭).*
 
 ---
 
 ## 🔲 Pendientes (por impacto operativo)
 
 ### 🟢 Habilitan operación / delegación
-
-**Revisar asignación/reasignación de conteos** *(reposicion.html)* — repasar `crearConteoInv`
-y el botón "🔄 Reasignar" (hoy solo lado super) en conjunto con el flujo colaborador/motorista
-ya implementado y desplegado (ver CHANGELOG 30 Jul 2026) — no dar por buena la UI actual de
-super sin revisarla junto a esto.
 
 **Login solo-super en `reposicion.html` — PAUSADO (30 Jul 2026), no aplicado.** Se intentó un
 segundo bloque (`Reposicion_login_solo_super.md`, 3 edits: bandera `loginViaForm` + bloqueo de
@@ -421,7 +417,7 @@ hacia el CHANGELOG.
 
 ---
 
-*Última actualización: 30 Julio 2026 — Entorno de testing headless (Playwright + Firebase
-Emulator Suite) persistido como devDependency y extendido a las 4 apps (`ops.html`/`moto.html`
-sumados a `index.html`/`reposicion.html`, vía `npm run test:e2e`). Frente activo despejado;
-próximo candidato: revisar asignación/reasignación de conteos (ver Pendientes 🟢).*
+*Última actualización: 30 Julio 2026 — Filtro de asignables por rol + etiqueta en conteos
+(`reposicion.html`), cierra el pendiente "revisar asignación/reasignación de conteos".
+Frente activo despejado; también se agregó entrada de diseño para Single Sign-On entre
+las 4 apps (ver Futuro 🔭).*
