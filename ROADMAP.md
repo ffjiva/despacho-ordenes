@@ -207,9 +207,8 @@ proveedores: string[], codigos: string[], keywords: string[]
 
 ## 🎯 Frente activo
 
-*Vista de colaborador para conteos asignados — Fase 1 (desplegada) y Fase 2 (implementada y
-verificada, pendiente de deploy) de 3, al 29 Jul 2026. Solo queda Fase 3 (filtro de
-asignables) — ver Pendientes 🟢.*
+*Vista de colaborador para conteos asignados — Fase 1 y Fase 2 de 3 implementadas, desplegadas
+y verificadas (29 Jul 2026). Solo queda Fase 3 (filtro de asignables) — ver Pendientes 🟢.*
 
 ---
 
@@ -234,7 +233,7 @@ y las rules bloquean tanto la escritura sobre un conteo ajeno como la auto-reasi
 viendo todo sin cambios. Infraestructura de testing reusable para futuras fases: `firebase.json`
 (bloque `emulators`), `reposicion.html` conecta a los emulators solo en `localhost`, y
 `scripts/emulator/seed.js` siembra usuarios/conteos de prueba.
-**Fase 2 ✅ implementada y verificada (29 Jul 2026), pendiente de deploy.** `index.html` agrega
+**Fase 2 ✅ implementada, verificada y desplegada (29 Jul 2026).** `index.html` agrega
 un botón **📋 Conteos** en la topbar del home (`btn-conteos` + `startConteosListener`, query
 por `asignadoA` sin índice compuesto), con badge del número de conteos no completados; oculto
 para `super`. `functions/index.js`: `onInventarioAsignado` arma el deep-link
@@ -247,8 +246,6 @@ genera el link correcto); el envío real de push a un dispositivo físico queda 
 confirmación manual. De paso, se extendió a `index.html` el mismo hook de conexión al Emulator
 Suite ya presente en `reposicion.html` (activo solo en `localhost`).
 **Pendiente para dar por cerrado el ciclo completo:**
-- **Deploy de Fase 2:** `firebase deploy --only hosting` (index.html) y
-  `firebase deploy --only functions` (Cloud Function) — recordar commitear antes.
 - **Fase 3 — filtro de asignables:** al crear/reasignar un conteo, limitar el selector de
   usuario a colaboradores relevantes (hoy lista todos).
 - Revisar a fondo el apartado de asignación/reasignación (creación en `crearConteoInv`, botón
