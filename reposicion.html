@@ -1104,7 +1104,7 @@ async function init() {
       //   al habilitarlo, agregar 'collaborator' a ALLOWED y ramificar la vista
       //   (super = acceso total; collaborator = solo su inventario asignado).
       //   El andamiaje queda listo para ramificar sin reescritura. Ver ROADMAP.
-      const ALLOWED = ['super', 'collaborator'];
+      const ALLOWED = ['super', 'collaborator', 'motorista'];
       if (!ALLOWED.includes(role)) {
         await authMod.signOut(auth);
         showScreen('s-login');
@@ -1114,11 +1114,11 @@ async function init() {
       // ──────────────────────────────────────────────────────────────────────
 
       currentUser = { uid: fbUser.uid, email: fbUser.email, name: profile.name || fbUser.email, role };
-      if (role === 'collaborator') {
-        document.body.classList.add('inv-collab');   // oculta controles solo-super
-        routeCollabInv();                             // colaborador: solo sus conteos
+      if (role === 'super') {
+        goHome();                                     // super: módulo completo
       } else {
-        goHome();
+        document.body.classList.add('inv-collab');    // oculta controles solo-super
+        routeCollabInv();                             // colaborador/motorista: solo sus conteos
       }
     } catch (e) {
       console.error('Auth check error:', e);
@@ -1157,7 +1157,7 @@ function routeCollabInv() { handleInvHash(); }
 
 // #inv=<id> → abre ese conteo; sin hash → lista de mis conteos.
 function handleInvHash() {
-  if (currentUser?.role !== 'collaborator') return;
+  if (currentUser?.role === 'super') return;
   const m = (location.hash || '').match(/inv=([^&]+)/);
   if (m && m[1]) {
     openInvDetalle(decodeURIComponent(m[1]));
@@ -3885,7 +3885,7 @@ window.goInventario = () => {
 
 window.goBackFromInventario = () => {
   if (invUnsub) { invUnsub(); invUnsub = null; }
-  if (currentUser?.role === 'collaborator') { location.href = 'index.html'; return; }
+  if (currentUser?.role !== 'super') { location.href = 'index.html'; return; }
   showScreen('s-home');
 };
 
@@ -3914,7 +3914,7 @@ async function initInvScreen() {
   const list = $('inv-list');
   list.innerHTML = '<p style="padding:.75rem 1rem;color:var(--muted);font-size:.8rem">Cargando…</p>';
 
-  const isCollab = currentUser?.role === 'collaborator';
+  const isCollab = currentUser?.role !== 'super';   // colaborador o motorista → vista reducida
   // Colaborador: solo sus conteos (sin orderBy para no exigir índice compuesto; se
   // ordena en cliente). Super: todos, como hasta ahora.
   const q = isCollab
@@ -4392,7 +4392,7 @@ window.guardarReasignar = async () => {
 
 async function openInvDetalle(invId) {
   // Guarda para colaborador: solo su conteo asignado (las rules también lo imponen).
-  if (currentUser?.role === 'collaborator') {
+  if (currentUser?.role !== 'super') {
     try {
       const snap = await fbMod.getDoc(fbMod.doc(db, 'inventarios', invId));
       if (!snap.exists() || snap.data().asignadoA !== currentUser.uid) {

@@ -82,10 +82,30 @@ async function seed() {
     creadoAt: Date.now(), iniciadoAt: null, completadoAt: null,
   });
 
+  // Motorista — Fase 1.1: los motoristas también hacen conteos (gate "no-super").
+  const motoUid = await upsertUser({
+    email: 'motorista@test.local', password: 'test1234',
+    name: 'Motorista Piloto', role: 'motorista', colaboradorId: 'colab-moto',
+  });
+  await db.doc('colaboradores/colab-moto').set({
+    nombre: 'Motorista Piloto', cargo: 'Motorista', uid: motoUid, activo: true,
+  });
+
+  const invMotoRef = await db.collection('inventarios').add({
+    sucursal: 'B03', sucursalNombre: 'B03 Oriente', titulo: 'Conteo piloto motorista',
+    fecha: new Date().toISOString().slice(0, 10),
+    asignadoA: motoUid, asignadoANombre: 'Motorista Piloto',
+    creadoPor: superUid, creadoPorNombre: 'Fernando (test)',
+    status: 'pendiente', productos: productos.map(p => ({ ...p })),
+    resumen: { total: productos.length, contados: 0, discrepancias: 0, pendientes: productos.length },
+    creadoAt: Date.now(), iniciadoAt: null, completadoAt: null,
+  });
+
   console.log('\n✅ Seed listo en el emulator:');
   console.log('  super:       super@test.local / test1234');
   console.log('  colaborador: colaborador@test.local / test1234  →  conteo asignado:', invRef.id);
   console.log('  otro:        otro@test.local / test1234        →  conteo asignado:', invOtroRef.id);
+  console.log('  motorista:   motorista@test.local / test1234    →  conteo asignado:', invMotoRef.id);
   console.log('\nProbá (logueado como colaborador@test.local):');
   console.log('  reposicion.html#inv=' + invRef.id + '        (abre directo — es suyo)');
   console.log('  reposicion.html#inv=' + invOtroRef.id + '        (debe rebotar — no es suyo)');

@@ -207,8 +207,10 @@ proveedores: string[], codigos: string[], keywords: string[]
 
 ## 🎯 Frente activo
 
-*Vista de colaborador para conteos asignados — Fase 1 y Fase 2 de 3 implementadas, desplegadas
-y verificadas (29 Jul 2026). Solo queda Fase 3 (filtro de asignables) — ver Pendientes 🟢.*
+*Vista de colaborador para conteos asignados — Fases 1, 1.1 (motoristas) y 2 implementadas,
+verificadas y desplegadas (30 Jul 2026). Ciclo cerrado para super/colaborador/motorista;
+la Fase 3 (filtro de asignables) fue descartada. Falta commit + deploy del parche 1.1 — ver
+Pendientes 🟢.*
 
 ---
 
@@ -245,12 +247,26 @@ intacto (Equipo/Ops/FAB/filtros). El deep-link se verificó a nivel de lógica (
 genera el link correcto); el envío real de push a un dispositivo físico queda pendiente de
 confirmación manual. De paso, se extendió a `index.html` el mismo hook de conexión al Emulator
 Suite ya presente en `reposicion.html` (activo solo en `localhost`).
-**Pendiente para dar por cerrado el ciclo completo:**
-- **Fase 3 — filtro de asignables:** al crear/reasignar un conteo, limitar el selector de
-  usuario a colaboradores relevantes (hoy lista todos).
+**Parche Fase 1.1 — incluir motoristas ✅ implementado y verificado (30 Jul 2026), pendiente
+de deploy.** `reposicion.html`: el gate de `ALLOWED` suma `'motorista'`, y los 5 chequeos que
+antes eran `role === 'collaborator'` (gate, `handleInvHash`, `initInvScreen`, `goBackFromInventario`,
+`openInvDetalle`) se generalizaron a "no-super" (`role !== 'super'`), así que el motorista recibe
+la misma vista reducida (solo sus conteos, sin crear/reasignar/historial) y puede abrir/contar/
+finalizar. Sin cambios en `firestore.rules` (la regla de update ya era agnóstica de rol, por
+`asignadoA == uid`) ni en Fase 2 (el botón de `index.html` ya aparece para cualquier no-super).
+**La Fase 3 (filtro de asignables) queda descartada**: los desplegables de crear/reasignar ya
+listan a todos los usuarios activos, que es el comportamiento deseado ahora que cualquier rol
+con cuenta puede contar. Verificado con navegador headless real contra el Emulator Suite
+(seed ampliado con un motorista de prueba): motorista cae en vista reducida, cuenta y finaliza
+(`status: completado` persistido), `#inv=<id>` propio abre directo, rebote de conteo ajeno
+funciona, super y colaborador sin regresiones (super sigue viendo las 3 cuentas + FAB/Historial),
+y el botón 📋 Conteos de `index.html` aparece también para el motorista (badge vacío tras
+finalizar su único conteo).
+**Pendiente:**
+- Deploy del parche: `firebase deploy --only hosting` (solo `reposicion.html`).
 - Revisar a fondo el apartado de asignación/reasignación (creación en `crearConteoInv`, botón
-  "🔄 Reasignar") en conjunto con el flujo de colaborador ya implementado — no dar por buena
-  la UI actual de super sin repasarla junto a esto.
+  "🔄 Reasignar") en conjunto con el flujo ya implementado — no dar por buena la UI actual de
+  super sin repasarla junto a esto.
 
 **Conectar el Ensamblador-ZD** — pausado, a retomar con los archivos del Ensamblador actualizados.
 Con la identidad lista, la conexión se reduce a: (1) apuntar el `firebaseConfig`
