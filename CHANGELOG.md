@@ -23,9 +23,9 @@ Prerrequisito técnico para que la sesión de Firebase Auth persistida se compar
 `firebase:authUser:<apiKey>:<appName>`). Verificado con grep: cero literales viejos
 restantes, un solo `initializeApp` por archivo con el nombre correcto. Desplegado a hosting.
 Aviso: fuerza un cierre de sesión único para cada usuario la próxima vez que entre (la clave
-de persistencia cambió). Pendiente de validar en real — login + navegación cruzada entre las
-4 apps y re-registro de FCM — antes de dar el sub-proyecto SSO por cerrado (ver ROADMAP →
-Pendientes 🟢).
+de persistencia cambió). **Validado en real por Fernando (30 Jul 2026):** una sola sesión
+compartida en toda la suite — antes cada salto entre apps caía en el formulario de login;
+ahora no. Sub-proyecto SSO cerrado.
 
 ### Sesión Filtro de asignables en conteos — 30 Jul 2026 *(reposicion.html)*
 

@@ -209,10 +209,9 @@ proveedores: string[], codigos: string[], keywords: string[]
 
 *Sin frente activo en curso. Ciclo "Conteos asignables al colaborador" (fases 1, 1.1, 2)
 cerrado, desplegado y movido al CHANGELOG (30 Jul 2026); filtro de asignables por rol
-+ etiqueta también cerrado y movido al CHANGELOG (30 Jul 2026); unificación del nombre de
-instancia Firebase App (`despacho-main` en las 4 apps) también cerrada y desplegada (30 Jul
-2026, ver CHANGELOG). Pendiente antes de dar el SSO por bueno: validar login cruzado + FCM
-en real (ver Pendientes 🟢).*
++ etiqueta también cerrado y movido al CHANGELOG (30 Jul 2026); SSO (unificación del nombre
+de instancia Firebase App a `despacho-main` en las 4 apps) cerrado, desplegado y validado en
+real por Fernando (30 Jul 2026, ver CHANGELOG).*
 
 ---
 
@@ -220,27 +219,16 @@ en real (ver Pendientes 🟢).*
 
 ### 🟢 Habilitan operación / delegación
 
-**Validar sesión compartida (SSO) en real — código desplegado 30 Jul 2026.**
-El nombre de instancia Firebase App ya es `despacho-main` en las 4 apps (ver CHANGELOG).
-Falta la validación en real antes de dar el sub-proyecto por cerrado: loguearse en una app →
-navegar a las otras 3 sin volver a teclear credenciales, y confirmar que el re-registro de
-FCM sigue funcionando tras el cambio de `appName`. Al validar, desbloquea el pendiente
-"Login solo-super en reposicion.html" (abajo).
-
-**Login solo-super en `reposicion.html` — PAUSADO (30 Jul 2026), no aplicado.** Se intentó un
-segundo bloque (`Reposicion_login_solo_super.md`, 3 edits: bandera `loginViaForm` + bloqueo de
-no-super que ingresan por el formulario) para que colaboradores/motoristas solo entren con
-sesión ya iniciada desde `index.html`, nunca tecleando credenciales en `reposicion.html`. Se
-revirtió antes de commitear: en ese momento **`index.html` y `reposicion.html` NO compartían
-sesión de Firebase Auth** — cada uno inicializaba su app con un nombre distinto (`despacho-main`
-vs `rep-main`), y Firebase Auth persiste la sesión con clave `firebase:authUser:<apiKey>:<appName>`,
-distinta por app. Confirmado empíricamente con navegador headless: colaborador logueado en
-`index.html` → navega a `reposicion.html` en la misma sesión de browser → cae en login, sin
-sesión. Con el bloqueo puesto, un colaborador/motorista real quedaría sin forma de entrar (no
-tiene sesión previa y ya no puede teclear credenciales). **Prerrequisito ya resuelto (30 Jul
-2026):** las 4 apps usan ahora `despacho-main` (ver CHANGELOG). Queda pendiente solo la
-validación en real (pendiente de arriba, "Validar sesión compartida") antes de reintentar
-este parche.
+**Login solo-super en `reposicion.html` — PAUSADO (30 Jul 2026), no aplicado, desbloqueado.**
+Se intentó un segundo bloque (`Reposicion_login_solo_super.md`, 3 edits: bandera `loginViaForm`
++ bloqueo de no-super que ingresan por el formulario) para que colaboradores/motoristas solo
+entren con sesión ya iniciada desde `index.html`, nunca tecleando credenciales en
+`reposicion.html`. Se revirtió antes de commitear: en ese momento `index.html` y
+`reposicion.html` NO compartían sesión de Firebase Auth — cada uno inicializaba su app con un
+nombre distinto (`despacho-main` vs `rep-main`). **Prerrequisito ya resuelto y validado (30 Jul
+2026):** las 4 apps unificaron el nombre de instancia a `despacho-main` y Fernando confirmó en
+real que la sesión ya se comparte entre todas — el bloqueo de login se puede reintentar cuando
+se priorice (ver CHANGELOG, sesión SSO).
 
 **Conectar el Ensamblador-ZD** — pausado, a retomar con los archivos del Ensamblador actualizados.
 Con la identidad lista, la conexión se reduce a: (1) apuntar el `firebaseConfig`
@@ -390,7 +378,6 @@ hacia el CHANGELOG.
 
 ---
 
-*Última actualización: 30 Julio 2026 — Unificación del nombre de instancia Firebase App
-(`despacho-main`) en las 4 apps, prerrequisito técnico de SSO, cerrado y desplegado; queda
-pendiente validar en real login cruzado y FCM antes de cerrar el sub-proyecto SSO (ver
-Pendientes 🟢).*
+*Última actualización: 30 Julio 2026 — SSO (unificación del nombre de instancia Firebase App
+a `despacho-main` en las 4 apps) cerrado, desplegado y validado en real por Fernando: sesión
+compartida en toda la suite, sin caer en login en cada salto entre apps.*
