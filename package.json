@@ -2,7 +2,8 @@
   "scripts": {
     "emulators": "firebase emulators:start --only firestore,auth",
     "seed:emulator": "node scripts/emulator/seed.js",
-    "test:e2e": "node scripts/emulator/smoke.mjs"
+    "test:e2e": "node scripts/emulator/smoke.mjs",
+    "test:functions": "node scripts/emulator/functions-smoke.mjs"
   },
   "dependencies": {
     "firebase-admin": "^14.1.0",
