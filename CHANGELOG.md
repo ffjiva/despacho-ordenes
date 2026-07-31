@@ -13,6 +13,20 @@
 
 ## Sesiones y módulos
 
+### Sesión SSO — unificar nombre de instancia Firebase App — 30 Jul 2026 *(ops.html, moto.html, reposicion.html)*
+
+**feat(auth): unificar nombre de instancia Firebase App a 'despacho-main' en las 4 apps** *(commit 59993f5)*
+Reemplaza los nombres de instancia distintos (`ops-main`, `moto-main`, `rep-main`) por
+`despacho-main` en las 3 apps que no lo usaban — `index.html` ya lo usaba, no se tocó.
+Prerrequisito técnico para que la sesión de Firebase Auth persistida se comparta entre las
+4 apps (la clave de storage de Auth incluye el nombre de instancia:
+`firebase:authUser:<apiKey>:<appName>`). Verificado con grep: cero literales viejos
+restantes, un solo `initializeApp` por archivo con el nombre correcto. Desplegado a hosting.
+Aviso: fuerza un cierre de sesión único para cada usuario la próxima vez que entre (la clave
+de persistencia cambió). Pendiente de validar en real — login + navegación cruzada entre las
+4 apps y re-registro de FCM — antes de dar el sub-proyecto SSO por cerrado (ver ROADMAP →
+Pendientes 🟢).
+
 ### Sesión Filtro de asignables en conteos — 30 Jul 2026 *(reposicion.html)*
 
 **feat(reposicion): filtro de asignables por rol + etiqueta en conteos** *(commit 50486af)*
