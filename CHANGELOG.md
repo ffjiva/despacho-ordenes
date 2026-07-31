@@ -37,10 +37,10 @@ pero la cuenta de Auth ya estaba creada — quedaba huérfana (sin `users/{uid}`
 bloqueando reintentos con el mismo correo por `auth/email-already-exists`). Fix: valida que
 `colaboradores/{colaboradorId}` exista antes de tocar Auth. 18/18 checks en verde.
 
-⚠️ **Pendiente de deploy:** `firebase deploy --only functions` falló por un problema de red —
-`cloudresourcemanager.googleapis.com` resetea la conexión en el TLS handshake (confirmado
-también con `gcloud`), mientras el resto de Google Cloud APIs responde normal. El bug de
-cuentas huérfanas sigue vivo en producción hasta que se pueda desplegar.
+**Deploy a producción** — 31 Jul 2026. El `firebase deploy --only functions` que había fallado
+por un problema de red hacia `cloudresourcemanager.googleapis.com` (TLS handshake reseteado)
+corrió sin problemas al reintentar; las 10 funciones (incluyendo `createUser` con el fix)
+quedaron actualizadas en producción.
 
 ### Sesión Login solo-super en reposicion.html — 30 Jul 2026 *(reposicion.html, scripts/emulator/smoke.mjs)*
 
