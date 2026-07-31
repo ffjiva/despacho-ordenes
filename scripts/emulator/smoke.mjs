@@ -107,6 +107,27 @@ async function attemptLogin(page, { emailSel, pwSel, btnSel, email, password, ho
   }, [homeSel, errSel]);
 }
 
+// Login solo-super en reposicion.html: los no-super ya no pueden entrar tecleando en su
+// propio formulario, solo con sesión ya iniciada en index.html. La sesión de Firebase Auth
+// persiste en IndexedDB por origen (no por página), así que logueando en index.html y abriendo
+// reposicion.html en el MISMO contexto de browser, debe reconocerla sin pasar por su formulario.
+async function openReposicionViaSSO(browser, contexts, { email, password }) {
+  const ctx = await browser.newContext();
+  contexts.push(ctx);
+  const indexPage = await ctx.newPage();
+  indexPage.on('dialog', d => d.accept());
+  await gotoAndWaitReady(indexPage, `http://localhost:${PORT}/index.html`);
+  await login(indexPage, { emailSel: '#login-email', pwSel: '#login-pw', btnSel: '#btn-login', email, password });
+
+  const repPage = await ctx.newPage();
+  repPage.on('dialog', d => d.accept());
+  await gotoAndWaitReady(repPage, `http://localhost:${PORT}/reposicion.html`);
+  // Esperar a que onAuthStateChanged resuelva el perfil (fetch async a Firestore) antes de
+  // devolver la página — si no, los checks corren mientras todavía muestra s-login por defecto.
+  await repPage.waitForFunction(() => !document.getElementById('s-login')?.classList.contains('on'), null, { timeout: 15000 });
+  return repPage;
+}
+
 async function main() {
   console.log('🚀 Levantando Firebase Emulator Suite (firestore + auth)...');
   const emu = spawn('firebase', ['emulators:start', '--only', 'firestore,auth'], { cwd: ROOT, stdio: 'ignore', detached: true });
@@ -140,11 +161,12 @@ async function main() {
   }
 
   try {
-    // ── 1. Colaborador en reposicion.html: vista reducida, solo su conteo ──
-    console.log('\n▶ reposicion.html — colaborador');
-    let page = await newPage();
-    await gotoAndWaitReady(page, `http://localhost:${PORT}/reposicion.html`);
-    await login(page, { emailSel: '#rep-email', pwSel: '#rep-pw', btnSel: '#btn-rep-login', email: 'colaborador@test.local', password: 'test1234' });
+    // ── 1. Colaborador en reposicion.html: vista reducida, solo su conteo (vía SSO) ──
+    // Login solo-super bloquea el form de reposicion.html a no-super, así que colaborador
+    // entra logueándose primero en index.html y abriendo reposicion.html en el mismo contexto.
+    console.log('\n▶ reposicion.html — colaborador (vía SSO desde index.html)');
+    let page = await openReposicionViaSSO(browser, contexts, { email: 'colaborador@test.local', password: 'test1234' });
+    check('colaborador con sesión SSO no cae en el formulario de login', !(await page.isVisible('#s-login')));
     await waitInvListLoaded(page);
     check('body.inv-collab presente', await page.evaluate(() => document.body.classList.contains('inv-collab')));
     check('FAB nuevo conteo oculto', !(await page.isVisible('#inv-fab-new')));
@@ -160,16 +182,15 @@ async function main() {
     check(`detalle propio abre (título: "${invTitle}")`, invTitle.length > 0);
     check('Reasignar oculto en detalle', !(await page.isVisible('#inv-btn-reasignar')));
 
-    // ── 2. Motorista en reposicion.html: misma vista reducida ──
-    console.log('\n▶ reposicion.html — motorista');
-    page = await newPage();
-    await gotoAndWaitReady(page, `http://localhost:${PORT}/reposicion.html`);
-    await login(page, { emailSel: '#rep-email', pwSel: '#rep-pw', btnSel: '#btn-rep-login', email: 'motorista@test.local', password: 'test1234' });
+    // ── 2. Motorista en reposicion.html: misma vista reducida (vía SSO) ──
+    console.log('\n▶ reposicion.html — motorista (vía SSO desde index.html)');
+    page = await openReposicionViaSSO(browser, contexts, { email: 'motorista@test.local', password: 'test1234' });
+    check('motorista con sesión SSO no cae en el formulario de login', !(await page.isVisible('#s-login')));
     await waitInvListLoaded(page);
     check('body.inv-collab también para motorista', await page.evaluate(() => document.body.classList.contains('inv-collab')));
     check('motorista ve solo su conteo', await page.locator('.inv-card').count() === 1);
 
-    // ── 3. Super: acceso total ──
+    // ── 3. Super: acceso total, sigue entrando por el formulario propio ──
     console.log('\n▶ reposicion.html — super');
     page = await newPage();
     await gotoAndWaitReady(page, `http://localhost:${PORT}/reposicion.html`);
@@ -222,6 +243,23 @@ async function main() {
     await gotoAndWaitReady(page, `http://localhost:${PORT}/moto.html`);
     r = await attemptLogin(page, { emailSel: '#moto-email', pwSel: '#moto-pw', btnSel: '#btn-moto-login', email: 'colaborador@test.local', password: 'test1234', homeSel: '#s-home', errSel: '#moto-login-err' });
     check(`colaborador bloqueado en moto.html (msg: "${r.errText}")`, r.blocked && !r.granted);
+
+    // ── 7. reposicion.html: login solo-super — bloqueo por formulario ──
+    console.log('\n▶ reposicion.html — login solo-super (formulario)');
+    page = await newPage();
+    await gotoAndWaitReady(page, `http://localhost:${PORT}/reposicion.html`);
+    r = await attemptLogin(page, { emailSel: '#rep-email', pwSel: '#rep-pw', btnSel: '#btn-rep-login', email: 'colaborador@test.local', password: 'test1234', homeSel: '#s-home', errSel: '#rep-login-err' });
+    check(`colaborador bloqueado por formulario en reposicion.html (msg: "${r.errText}")`, r.blocked && !r.granted);
+
+    page = await newPage();
+    await gotoAndWaitReady(page, `http://localhost:${PORT}/reposicion.html`);
+    r = await attemptLogin(page, { emailSel: '#rep-email', pwSel: '#rep-pw', btnSel: '#btn-rep-login', email: 'motorista@test.local', password: 'test1234', homeSel: '#s-home', errSel: '#rep-login-err' });
+    check(`motorista bloqueado por formulario en reposicion.html (msg: "${r.errText}")`, r.blocked && !r.granted);
+
+    page = await newPage();
+    await gotoAndWaitReady(page, `http://localhost:${PORT}/reposicion.html`);
+    r = await attemptLogin(page, { emailSel: '#rep-email', pwSel: '#rep-pw', btnSel: '#btn-rep-login', email: 'super@test.local', password: 'test1234', homeSel: '#s-home', errSel: '#rep-login-err' });
+    check('super sigue entrando por formulario en reposicion.html', r.granted && !r.blocked);
 
   } finally {
     for (const ctx of contexts) await ctx.close().catch(() => {});

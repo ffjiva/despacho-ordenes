@@ -1109,6 +1109,8 @@ async function init() {
         await authMod.signOut(auth);
         showScreen('s-login');
         showLoginErr('Los colaboradores ingresan desde la app principal (index.html). Inicia sesión ahí y vuelve a abrir Reposición.');
+        const btnBlocked = $('btn-rep-login');
+        if (btnBlocked) { btnBlocked.disabled = false; btnBlocked.textContent = 'Ingresar →'; }
         return;
       }
 
