@@ -213,7 +213,11 @@ cerrado, desplegado y movido al CHANGELOG (30 Jul 2026); filtro de asignables po
 de instancia Firebase App a `despacho-main` en las 4 apps) cerrado, desplegado y validado en
 real por Fernando (30 Jul 2026); login solo-super en reposicion.html (bloquea a no-super por
 formulario, entran vía SSO) también cerrado, desplegado y cubierto por test e2e (30 Jul 2026,
-ver CHANGELOG).*
+ver CHANGELOG); ciclo de testing de Cloud Functions vía emulator (cobertura e2e happy-path +
+smoke test de Functions + fix de cuentas huérfanas en `createUser`) cerrado y movido al
+CHANGELOG (31 Jul 2026) — **⚠️ pendiente: el fix de `createUser` quedó sin desplegar, bloqueado
+por un problema de red hacia `cloudresourcemanager.googleapis.com`; reintentar
+`firebase deploy --only functions` en cuanto la red lo permita.***
 
 ---
 
@@ -369,6 +373,6 @@ hacia el CHANGELOG.
 
 ---
 
-*Última actualización: 30 Julio 2026 — Login solo-super en reposicion.html implementado,
-desplegado y cubierto por test e2e (22/22 checks); cierra el pendiente que había quedado
-desbloqueado por el SSO (ver CHANGELOG).*
+*Última actualización: 31 Julio 2026 — Testing de Cloud Functions vía emulator (e2e
+happy-path + smoke test de Functions) cerrado; fix de `createUser` (cuentas huérfanas)
+commiteado pero pendiente de deploy por problema de red (ver CHANGELOG).*

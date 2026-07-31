@@ -13,6 +13,35 @@
 
 ## Sesiones y módulos
 
+### Sesión Testing de Cloud Functions vía emulator — 31 Jul 2026 *(functions/index.js, firebase.json, package.json, scripts/emulator/functions-smoke.mjs, scripts/emulator/seed.js, scripts/emulator/smoke.mjs)*
+
+**test(e2e): cobertura happy-path de picking, vueltas, pendientes y colaboradores** *(commit 2d829c2)*
+Extiende el smoke test e2e más allá de los gates por rol: agrega picking completo en index.html
+(2 productos, modal de celebración, 100%), lista de colaboradores en ops.html, resolución de un
+pendiente, cierre de una vuelta desde ops.html, y el flujo completo pendiente→en camino→completada
+en moto.html. `seed.js` suma los datos de prueba necesarios usando la misma fórmula de fecha con
+zona horaria America/El_Salvador que el front, para no desalinear con el filtro del date-picker.
+37/37 checks en verde — sin bugs encontrados en estos flujos.
+
+**test(functions): smoke test de Cloud Functions vía Functions emulator** *(commit db71046)*
+Habilita el emulator de "functions" (puerto 5001) y agrega `scripts/emulator/functions-smoke.mjs`
+(`npm run test:functions`) cubriendo `createUser`, los triggers de Firestore
+(`onDespachoAssigned`, `onVueltaAssigned`, `onInventarioAsignado`) y `parseXLS`, sin costo ni
+efectos externos reales. 17/18 checks en verde — el que falla expone un bug real en `createUser`
+(ver siguiente entrada).
+
+**fix(functions): createUser ya no deja cuentas huérfanas en Auth** *(commit ce7a809)*
+Bug encontrado por el smoke test: `admin.auth().createUser()` corría antes del batch de
+Firestore; si `colaboradorId` apuntaba a un colaborador borrado/inexistente, el batch fallaba
+pero la cuenta de Auth ya estaba creada — quedaba huérfana (sin `users/{uid}`, inutilizable, y
+bloqueando reintentos con el mismo correo por `auth/email-already-exists`). Fix: valida que
+`colaboradores/{colaboradorId}` exista antes de tocar Auth. 18/18 checks en verde.
+
+⚠️ **Pendiente de deploy:** `firebase deploy --only functions` falló por un problema de red —
+`cloudresourcemanager.googleapis.com` resetea la conexión en el TLS handshake (confirmado
+también con `gcloud`), mientras el resto de Google Cloud APIs responde normal. El bug de
+cuentas huérfanas sigue vivo en producción hasta que se pueda desplegar.
+
 ### Sesión Login solo-super en reposicion.html — 30 Jul 2026 *(reposicion.html, scripts/emulator/smoke.mjs)*
 
 **feat(reposicion): login solo-super en el formulario, no-super entran vía SSO** *(commit 2177b23)*
