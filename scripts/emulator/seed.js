@@ -101,11 +101,62 @@ async function seed() {
     creadoAt: Date.now(), iniciadoAt: null, completadoAt: null,
   });
 
+  // Despacho — happy path de picking en index.html (asignado al colaborador).
+  const despRef = await db.collection('despachos').add({
+    name: 'Despacho piloto emulator',
+    origin: 'B01', destination: 'M01',
+    assignedTo: collabUid, assignedToName: 'Colaborador Piloto',
+    createdBy: superUid, createdByName: 'Fernando (test)',
+    photos: [],
+    products: [
+      { id: 'p1', name: 'Mouse Inalámbrico', code: 'P001', qty: 2, family: 'Accesorios' },
+      { id: 'p2', name: 'Teclado Mecánico',  code: 'P002', qty: 1, family: 'Accesorios' },
+    ],
+    checked: {},
+    status: 'pending',
+    lockedBy: null, lockedAt: null, archived: false, originalUrl: '',
+    startedAt: null, completedAt: null, dispatchedAt: null, createdAt: Date.now(),
+    activeMs: 0,
+  });
+
+  // Vueltas — happy path de cambio de estado. Dos vueltas separadas: una se completa desde
+  // ops.html (supervisor) y la otra desde moto.html (motorista), para no pisarse entre checks.
+  // Misma fórmula que getTodaySV() en ops.html/moto.html — el date-picker filtra por este
+  // formato exacto (día en El Salvador, no el UTC del proceso que corre el seed).
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/El_Salvador' });
+  const vueltaOpsRef = await db.collection('vueltas').add({
+    date: today, order: 1,
+    destination: 'S02 SAN SALVADOR', description: 'Vuelta piloto — completar desde ops.html',
+    assignedTo: motoUid, assignedToName: 'Motorista Piloto',
+    urgency: 'normal', linkedOrderIds: [], status: 'pending', paradero: '',
+    createdBy: superUid, createdByName: 'Fernando (test)',
+    createdAt: Date.now(), completedAt: null, photos: [],
+  });
+  const vueltaMotoRef = await db.collection('vueltas').add({
+    date: today, order: 2,
+    destination: 'M01 MERLIOT', description: 'Vuelta piloto — completar desde moto.html',
+    assignedTo: motoUid, assignedToName: 'Motorista Piloto',
+    urgency: 'normal', linkedOrderIds: [], status: 'pending', paradero: '',
+    createdBy: superUid, createdByName: 'Fernando (test)',
+    createdAt: Date.now(), completedAt: null, photos: [],
+  });
+
+  // Pendiente — happy path del módulo Pendientes en ops.html (s-home).
+  const pendRef = await db.collection('ops_pendientes').add({
+    type: 'dist', subtype: null, urgency: 'normal',
+    title: 'Pendiente piloto emulator', detail: '',
+    done: false, doneAt: null, doneBy: null,
+    createdBy: superUid, createdByName: 'Fernando (test)', createdAt: Date.now(),
+  });
+
   console.log('\n✅ Seed listo en el emulator:');
   console.log('  super:       super@test.local / test1234');
   console.log('  colaborador: colaborador@test.local / test1234  →  conteo asignado:', invRef.id);
   console.log('  otro:        otro@test.local / test1234        →  conteo asignado:', invOtroRef.id);
   console.log('  motorista:   motorista@test.local / test1234    →  conteo asignado:', invMotoRef.id);
+  console.log('  despacho piloto (colaborador):', despRef.id);
+  console.log('  vuelta piloto ops.html:', vueltaOpsRef.id, '/ moto.html:', vueltaMotoRef.id);
+  console.log('  pendiente piloto ops.html:', pendRef.id);
   console.log('\nProbá (logueado como colaborador@test.local):');
   console.log('  reposicion.html#inv=' + invRef.id + '        (abre directo — es suyo)');
   console.log('  reposicion.html#inv=' + invOtroRef.id + '        (debe rebotar — no es suyo)');

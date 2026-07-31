@@ -261,6 +261,84 @@ async function main() {
     r = await attemptLogin(page, { emailSel: '#rep-email', pwSel: '#rep-pw', btnSel: '#btn-rep-login', email: 'super@test.local', password: 'test1234', homeSel: '#s-home', errSel: '#rep-login-err' });
     check('super sigue entrando por formulario en reposicion.html', r.granted && !r.blocked);
 
+    // ── 9. index.html: picking happy path (colaborador) ──
+    console.log('\n▶ index.html — picking (colaborador)');
+    page = await newPage();
+    await gotoAndWaitReady(page, `http://localhost:${PORT}/index.html`);
+    await login(page, { emailSel: '#login-email', pwSel: '#login-pw', btnSel: '#btn-login', email: 'colaborador@test.local', password: 'test1234' });
+    await page.waitForSelector('.dcard', { timeout: 10000 });
+    check('despacho piloto visible en el home del colaborador', await page.locator('.dcard').count() === 1);
+    await page.click('.dcard');
+    await page.waitForSelector('#s-pick.on', { timeout: 10000 });
+    await page.waitForSelector('.ic-main', { timeout: 8000 });
+    const itemCount = await page.locator('.ic-main').count();
+    check(`orden abre con los 2 productos sembrados (encontrados: ${itemCount})`, itemCount === 2);
+    for (let i = 0; i < itemCount; i++) {
+      await page.locator('.ic-main').nth(i).click();
+      await page.waitForTimeout(150);
+    }
+    await page.waitForFunction(() => document.getElementById('celebr-overlay')?.classList.contains('on'), null, { timeout: 8000 });
+    check('modal de celebración aparece al completar la orden', await page.evaluate(() => document.getElementById('celebr-overlay').classList.contains('on')));
+    check('progreso llega a 100%', (await page.textContent('#prog-pct')).trim() === '100%');
+
+    // ── 10. ops.html: colaboradores — la lista renderiza lo sembrado ──
+    console.log('\n▶ ops.html — colaboradores');
+    page = await newPage();
+    await gotoAndWaitReady(page, `http://localhost:${PORT}/ops.html`);
+    await login(page, { emailSel: '#login-email', pwSel: '#login-pw', btnSel: '#btn-login', email: 'super@test.local', password: 'test1234' });
+    await page.click('#btn-colaboradores');
+    await page.waitForSelector('#s-colaboradores.on', { timeout: 8000 });
+    await page.waitForSelector('.colab-card', { timeout: 8000 });
+    const colabCount = await page.locator('.colab-card').count();
+    check(`lista de colaboradores muestra los 3 sembrados (encontrados: ${colabCount})`, colabCount === 3);
+    check('contador de colaboradores coincide', (await page.textContent('#colab-count')).trim() === '3 colaboradores');
+
+    // ── 11. ops.html: pendientes — marcar resuelto ──
+    console.log('\n▶ ops.html — pendientes (marcar resuelto)');
+    page = await newPage();
+    await gotoAndWaitReady(page, `http://localhost:${PORT}/ops.html`);
+    await login(page, { emailSel: '#login-email', pwSel: '#login-pw', btnSel: '#btn-login', email: 'super@test.local', password: 'test1234' });
+    await page.waitForSelector('.pcard', { timeout: 10000 });
+    const pendCard = page.locator('.pcard', { hasText: 'Pendiente piloto emulator' });
+    check('pendiente sembrado aparece en la lista activa', await pendCard.count() === 1);
+    await pendCard.locator('.pcard-main').click();
+    await page.click('button:has-text("Ver resueltos")');
+    await page.waitForFunction(
+      () => document.getElementById('pend-list')?.textContent.includes('Pendiente piloto emulator'),
+      null, { timeout: 8000 }
+    );
+    check('pendiente marcado resuelto aparece en "Ver resueltos"', await page.locator('.pcard.done', { hasText: 'Pendiente piloto emulator' }).count() === 1);
+
+    // ── 12. ops.html: vueltas — marcar lista (completada) ──
+    console.log('\n▶ ops.html — vueltas (marcar lista)');
+    page = await newPage();
+    await gotoAndWaitReady(page, `http://localhost:${PORT}/ops.html`);
+    await login(page, { emailSel: '#login-email', pwSel: '#login-pw', btnSel: '#btn-login', email: 'super@test.local', password: 'test1234' });
+    await page.click('#btn-vueltas');
+    await page.waitForSelector('#s-vueltas.on', { timeout: 8000 });
+    await page.waitForSelector('.vcard', { timeout: 10000 });
+    const vCardOps = page.locator('.vcard', { hasText: 'S02 SAN SALVADOR' });
+    check('vuelta piloto (ops) aparece en "Todas"', await vCardOps.count() === 1);
+    await vCardOps.locator('.vcard-header').click();
+    await vCardOps.locator('button:has-text("Marcar lista")').click();
+    await vCardOps.locator('.vstatus-done').waitFor({ timeout: 8000 });
+    check('vuelta marcada como completada desde ops.html', await vCardOps.locator('.vstatus-done').count() === 1);
+
+    // ── 13. moto.html: vueltas — flujo completo en camino → completada ──
+    console.log('\n▶ moto.html — vuelta (en camino → completada)');
+    page = await newPage();
+    await gotoAndWaitReady(page, `http://localhost:${PORT}/moto.html`);
+    await login(page, { emailSel: '#moto-email', pwSel: '#moto-pw', btnSel: '#btn-moto-login', email: 'motorista@test.local', password: 'test1234' });
+    await page.waitForSelector('.mcard', { timeout: 10000 });
+    const mCardMoto = page.locator('.mcard', { hasText: 'M01 MERLIOT' });
+    check('vuelta piloto (moto) aparece en el portal del motorista', await mCardMoto.count() === 1);
+    await mCardMoto.locator('button:has-text("En camino")').click();
+    await mCardMoto.locator('.mcard-yendo').waitFor({ timeout: 8000 });
+    check('vuelta pasa a "en camino"', await mCardMoto.locator('.mcard-yendo').count() === 1);
+    await mCardMoto.locator('button:has-text("ACABÉ")').click();
+    await mCardMoto.locator('.mcard-done-time').waitFor({ timeout: 8000 });
+    check('vuelta marcada como completada desde moto.html', await mCardMoto.locator('.mcard-done-time').count() === 1);
+
   } finally {
     for (const ctx of contexts) await ctx.close().catch(() => {});
     await browser.close();
