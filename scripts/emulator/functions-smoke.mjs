@@ -162,28 +162,21 @@ async function main() {
       check('colaboradores/{id}.uid queda vinculado (batch atómico)', colabSnap.exists && colabSnap.data().uid === happyJson.uid);
     }
 
-    // ── 4. createUser — colaboradorId inexistente: ¿usuario huérfano en Auth? ──
-    // batch.update() sobre un doc que no existe tira "No document to update" y falla el
-    // batch completo, pero admin.auth().createUser() ya corrió ANTES del batch (no es
-    // atómico entre Auth y Firestore) — sospecha de bug: cuenta creada en Auth sin doc
-    // en users/, sin forma de recuperarla desde la UI.
+    // ── 4. createUser — colaboradorId inexistente: NO debe crear cuenta huérfana ──
+    // Regresión del bug encontrado en la sesión anterior: admin.auth().createUser() corría
+    // ANTES del batch de Firestore (no atómico entre Auth y Firestore), así que si
+    // batch.update() fallaba por colaboradorId inexistente, quedaba una cuenta huérfana en
+    // Auth sin users/{uid}. Fix: valida que el colaborador exista antes de tocar Auth.
     console.log('\n▶ createUser — colaboradorId inexistente (caso borde, no happy path)');
     resp = await fetch(`${FN_BASE}/createUser`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${superToken}` },
       body: JSON.stringify({ name: 'Huerfano CF', email: 'cf-huerfano@test.local', password: 'test1234', role: 'collaborator', colaboradorId: 'cf-colab-no-existe' }),
     });
-    const orphanJson = await resp.json().catch(() => ({}));
     check('responde con error (no 200) cuando colaboradorId no existe', resp.status !== 200);
     let orphanAuthUser = null;
     try { orphanAuthUser = await auth.getUserByEmail('cf-huerfano@test.local'); } catch {}
-    if (orphanAuthUser) {
-      const orphanUserDoc = await db.doc(`users/${orphanAuthUser.uid}`).get();
-      console.log(`  ⚠ BUG CONFIRMADO: createUser deja una cuenta huérfana en Firebase Auth (uid=${orphanAuthUser.uid}, email=cf-huerfano@test.local) sin users/{uid} cuando colaboradorId no existe (respuesta: ${JSON.stringify(orphanJson)}). users/{uid} existe: ${orphanUserDoc.exists}`);
-      check('NO debería quedar un usuario huérfano en Auth sin users/{uid} — ver bug arriba', orphanUserDoc.exists);
-    } else {
-      check('no se crea usuario huérfano en Auth cuando colaboradorId no existe', true);
-    }
+    check('no queda cuenta huérfana en Auth cuando colaboradorId no existe', !orphanAuthUser);
 
     // ── 5. Trigger onDespachoAssigned ──
     console.log('\n▶ Firestore trigger — onDespachoAssigned');

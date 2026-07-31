@@ -614,6 +614,18 @@ exports.createUser = onRequest(
       return;
     }
 
+    // Validar colaboradorId ANTES de crear la cuenta en Auth: el batch de abajo hace
+    // batch.update() sobre ese doc (requiere que ya exista) y no es atómico con
+    // admin.auth().createUser() — si se crea la cuenta primero y el batch falla después,
+    // queda una cuenta huérfana en Auth sin users/{uid}.
+    if (colaboradorId) {
+      const colabSnap = await admin.firestore().doc(`colaboradores/${colaboradorId}`).get();
+      if (!colabSnap.exists) {
+        res.status(400).json({ error: 'El colaborador vinculado ya no existe.' });
+        return;
+      }
+    }
+
     try {
       const userRecord = await admin.auth().createUser({ email, password, displayName: name });
       const now = Date.now();
