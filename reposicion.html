@@ -1001,6 +1001,7 @@ const THEME_KEY = 'rep_theme_v1';
 
 let db = null, fbMod = null, authMod = null, auth = null;
 let currentUser = null; // { uid, email, name, role }
+let loginViaForm = false; // true solo cuando se ingresa tecleando credenciales en el form de reposicion.html
 
 /* ── Estado Inventario (migrado F3) ── */
 let invUnsub = null;
@@ -1097,6 +1098,19 @@ async function init() {
       }
       const profile = snap.data();
       const role = profile.apps?.despacho?.role ?? profile.role;
+
+      // Consumir la bandera: ¿esta sesión se abrió tecleando en el form de reposicion.html?
+      const viaForm = loginViaForm;
+      loginViaForm = false;
+
+      // Login solo-super: los no-super NUNCA entran tecleando credenciales aquí.
+      // Sí entran con sesión ya iniciada desde index.html (SSO); en ese caso viaForm es false.
+      if (role !== 'super' && viaForm) {
+        await authMod.signOut(auth);
+        showScreen('s-login');
+        showLoginErr('Los colaboradores ingresan desde la app principal (index.html). Inicia sesión ahí y vuelve a abrir Reposición.');
+        return;
+      }
 
       // ── GATE RAMIFICABLE POR ROL (F0: solo super) ─────────────────────────
       // Hoy: solo 'super' entra (paridad exacta con ops.html).
@@ -1206,9 +1220,11 @@ window.doRepLogin = async () => {
     'auth/too-many-requests':  'Demasiados intentos. Espera unos minutos',
   };
   try {
+    loginViaForm = true;
     await authMod.signInWithEmailAndPassword(auth, email, pw);
     // onAuthStateChanged maneja la navegación
   } catch (e) {
+    loginViaForm = false;
     showLoginErr(AUTH_ERRORS[e.code] || 'Error al ingresar.');
     btn.disabled = false;
     btn.textContent = 'Ingresar →';
