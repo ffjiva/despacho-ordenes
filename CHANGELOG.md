@@ -13,6 +13,27 @@
 
 ## Sesiones y módulos
 
+### Sesión Login solo-super en reposicion.html — 30 Jul 2026 *(reposicion.html, scripts/emulator/smoke.mjs)*
+
+**feat(reposicion): login solo-super en el formulario, no-super entran vía SSO** *(commit 2177b23)*
+Cierra el pendiente "Login solo-super en reposicion.html", pausado en una sesión anterior por
+falta de sesión compartida. Con el SSO ya desplegado y validado, se agrega la bandera
+`loginViaForm` (true solo al enviar el formulario propio) y un gate en `onAuthStateChanged`:
+si `role !== 'super'` y la sesión se abrió tecleando en el form, se hace `signOut` + mensaje
+de error indicando entrar desde `index.html`. Una sesión ya iniciada en `index.html` (SSO)
+sigue entrando normal, con el gate por rol de siempre (solo sus conteos asignados).
+
+**fix(reposicion): reiniciar botón de login tras bloqueo solo-super + test e2e del gate**
+*(commit feebd68)*
+Bug encontrado al construir el check headless: al bloquear a un no-super, el botón "Ingresar"
+quedaba pegado en disabled/"Ingresando..." (el signIn resolvía con éxito; el bloqueo ocurre
+después, en `onAuthStateChanged`, así que nunca pasaba por el `catch` que lo reinicia). Se
+reinicia también en la rama de bloqueo. `smoke.mjs` suma cobertura: colaborador/motorista
+bloqueados por formulario (mensaje correcto), super sigue entrando por formulario,
+colaborador/motorista entran normal vía SSO desde `index.html` (mismo contexto de browser,
+sin caer en el form). Los checks de vista reducida que antes entraban por formulario directo
+pasan a entrar vía SSO, ya que ese camino quedó bloqueado por diseño. 22/22 checks en verde.
+
 ### Sesión SSO — unificar nombre de instancia Firebase App — 30 Jul 2026 *(ops.html, moto.html, reposicion.html)*
 
 **feat(auth): unificar nombre de instancia Firebase App a 'despacho-main' en las 4 apps** *(commit 59993f5)*

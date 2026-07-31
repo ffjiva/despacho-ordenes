@@ -211,24 +211,15 @@ proveedores: string[], codigos: string[], keywords: string[]
 cerrado, desplegado y movido al CHANGELOG (30 Jul 2026); filtro de asignables por rol
 + etiqueta también cerrado y movido al CHANGELOG (30 Jul 2026); SSO (unificación del nombre
 de instancia Firebase App a `despacho-main` en las 4 apps) cerrado, desplegado y validado en
-real por Fernando (30 Jul 2026, ver CHANGELOG).*
+real por Fernando (30 Jul 2026); login solo-super en reposicion.html (bloquea a no-super por
+formulario, entran vía SSO) también cerrado, desplegado y cubierto por test e2e (30 Jul 2026,
+ver CHANGELOG).*
 
 ---
 
 ## 🔲 Pendientes (por impacto operativo)
 
 ### 🟢 Habilitan operación / delegación
-
-**Login solo-super en `reposicion.html` — PAUSADO (30 Jul 2026), no aplicado, desbloqueado.**
-Se intentó un segundo bloque (`Reposicion_login_solo_super.md`, 3 edits: bandera `loginViaForm`
-+ bloqueo de no-super que ingresan por el formulario) para que colaboradores/motoristas solo
-entren con sesión ya iniciada desde `index.html`, nunca tecleando credenciales en
-`reposicion.html`. Se revirtió antes de commitear: en ese momento `index.html` y
-`reposicion.html` NO compartían sesión de Firebase Auth — cada uno inicializaba su app con un
-nombre distinto (`despacho-main` vs `rep-main`). **Prerrequisito ya resuelto y validado (30 Jul
-2026):** las 4 apps unificaron el nombre de instancia a `despacho-main` y Fernando confirmó en
-real que la sesión ya se comparte entre todas — el bloqueo de login se puede reintentar cuando
-se priorice (ver CHANGELOG, sesión SSO).
 
 **Conectar el Ensamblador-ZD** — pausado, a retomar con los archivos del Ensamblador actualizados.
 Con la identidad lista, la conexión se reduce a: (1) apuntar el `firebaseConfig`
@@ -378,6 +369,6 @@ hacia el CHANGELOG.
 
 ---
 
-*Última actualización: 30 Julio 2026 — SSO (unificación del nombre de instancia Firebase App
-a `despacho-main` en las 4 apps) cerrado, desplegado y validado en real por Fernando: sesión
-compartida en toda la suite, sin caer en login en cada salto entre apps.*
+*Última actualización: 30 Julio 2026 — Login solo-super en reposicion.html implementado,
+desplegado y cubierto por test e2e (22/22 checks); cierra el pendiente que había quedado
+desbloqueado por el SSO (ver CHANGELOG).*
