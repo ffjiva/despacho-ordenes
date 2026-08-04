@@ -3945,6 +3945,7 @@ window.openColabModal = id => {
   $('cf-dui').value           = c?.dui || '';
   $('cf-cumple').value        = dateToInput(c?.cumpleanos);
   $('cf-tel').value          = c?.telefono || '';
+  $('cf-tel2').value         = c?.telefono2 || '';
   $('cf-correo').value       = c?.correo || '';
   $('cf-correo-trabajo').value = c?.correoTrabajo || '';
   $('cf-sucursal').value      = c?.sucursal || 'M01';
@@ -4205,6 +4206,7 @@ window.saveColab = async () => {
       dui:                 $('cf-dui').value.trim() || null,
       cumpleanos:          inputToDate($('cf-cumple').value),
       telefono:            $('cf-tel').value.trim() || null,
+      telefono2:           $('cf-tel2').value.trim() || null,
       correo:              $('cf-correo').value.trim().toLowerCase() || null,
       correoTrabajo:       $('cf-correo-trabajo').value.trim().toLowerCase() || null,
       sucursal:            $('cf-sucursal').value,
@@ -4385,7 +4387,10 @@ document.addEventListener('DOMContentLoaded', init);
     <div class="fld"><label>Nombre completo</label><input id="cf-nombre" type="text" autocomplete="off"/></div>
     <div style="display:flex;gap:8px">
       <div class="fld" style="flex:1"><label>Preferencia de nombre</label><input id="cf-pref" type="text" autocomplete="off"/></div>
-      <div class="fld" style="flex:1"><label>Teléfono</label><input id="cf-tel" type="tel" autocomplete="off"/></div>
+      <div class="fld" style="flex:1"><label>Tel. principal (WhatsApp)</label><input id="cf-tel" type="tel" autocomplete="off"/></div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <div class="fld" style="flex:1"><label>Tel. secundario (opcional)</label><input id="cf-tel2" type="tel" autocomplete="off"/></div>
     </div>
     <div style="display:flex;gap:8px">
       <div class="fld" style="flex:1"><label>DUI</label><input id="cf-dui" type="text" autocomplete="off"/></div>
