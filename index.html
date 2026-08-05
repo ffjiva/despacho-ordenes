@@ -2236,6 +2236,7 @@ window.saveDespacho = async () => {
     parsedProducts = [];
     window._lastHeader = {};
     await goHome();
+    if (assignedToUid) await notifyAssigneeWA(assignedToUid, id, assignedToName);
   } catch(e) {
     clearTimeout(slowTimer);
     btn.disabled = false;
@@ -2904,6 +2905,64 @@ window.duplicateDespacho = async id => {
   if (isLocal) startHomeListener();
 };
 
+// ── Aviso de asignación por WhatsApp (wa.me, sale desde el número del super) ──
+// Resuelve el teléfono del asignado (users/{uid}.colaboradorId → colaboradores/{id}.telefono)
+// y ofrece abrir WhatsApp con el mensaje ya escrito. El super toca "enviar". Aditivo al FCM.
+window._openWAPending = () => {
+  closeModal();
+  if (window._waPending) window.open(window._waPending, '_blank');
+};
+async function notifyAssigneeWA(uid, orderId, nameHint) {
+  try {
+    if (!uid || isLocal || !db) return;
+    // Datos de la orden (abierta / lista viva / Firestore)
+    let order = (curData && curData.id === orderId) ? curData
+              : (lastDashList || []).find(x => x.id === orderId);
+    if (!order) {
+      const oSnap = await fbMod.getDoc(fbMod.doc(db, 'despachos', orderId));
+      order = oSnap.exists() ? { id: oSnap.id, ...oSnap.data() } : {};
+    }
+    // Teléfono + nombre del asignado
+    let tel = '', nombre = nameHint || order.assignedToName || 'colaborador';
+    const uSnap = await fbMod.getDoc(fbMod.doc(db, 'users', uid));
+    if (uSnap.exists()) {
+      nombre = nameHint || uSnap.data().name || nombre;
+      const colabId = uSnap.data().colaboradorId;
+      if (colabId) {
+        const cSnap = await fbMod.getDoc(fbMod.doc(db, 'colaboradores', colabId));
+        if (cSnap.exists()) tel = cSnap.data().telefono || cSnap.data().telefono2 || '';
+      }
+    }
+    if (!tel) {
+      openModal('📱 Avisar por WhatsApp',
+        `${nombre} no tiene teléfono registrado. Agrégalo en su ficha de colaborador (Ops) para avisarle por WhatsApp.`,
+        '', [{ label: 'Cerrar', cls: 'btn-outline', fn: 'closeModal(event)' }]);
+      return;
+    }
+    // Normalizar a formato internacional SV: 503 + 8 dígitos, sin + ni espacios
+    let phone = String(tel).replace(/\D/g, '');
+    if (phone.length === 8) phone = '503' + phone;
+    // Mensaje
+    const label = order.orderNumber ? `Orden ${order.orderNumber}` : (order.name || 'Nueva orden');
+    const ruta  = [order.origin, order.destination].filter(Boolean).join(' → ');
+    const prods = Array.isArray(order.products) ? order.products : [];
+    const nUnid = prods.reduce((s, p) => s + (Number(p.qty) || 0), 0);
+    const msg =
+      `Oooooy ${nombre} ayudame\n` +
+      `Te acabo de poner la *${label}*.\n` +
+      (ruta ? `📍 ${ruta}\n` : '') +
+      (prods.length ? `📦 ${prods.length} productos · ${nUnid} unidades\n` : '') +
+      `Revísala aquí: https://despacho-ordenes.web.app`;
+    window._waPending = `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
+    openModal('📱 Avisar por WhatsApp',
+      `Avisar de la ${label} a ${nombre} por WhatsApp (sale desde tu número).`,
+      '',
+      [
+        { label: 'Ahora no', cls: 'btn-outline', fn: 'closeModal(event)' },
+        { label: '📱 Abrir WhatsApp', cls: 'btn-dark', fn: 'window._openWAPending()' }
+      ]);
+  } catch (e) { console.warn('notifyAssigneeWA:', e.message); }
+}
 window.assignDespacho = async (id, currentAssignUid) => {
   const members = await loadUsers();
   if (!members.length) {
@@ -2934,6 +2993,7 @@ window.assignDespacho = async (id, currentAssignUid) => {
     closeModal();
     await dbUpdate(oid, { assignedTo: uid, assignedToName: name });
     if (isLocal) startHomeListener();
+    if (uid) await notifyAssigneeWA(uid, oid, name);
   };
 };
 
