@@ -66,6 +66,8 @@ fcmTokens:    string[]
 
 colaboradores/{id}  (campos de vinculación)
 uid:          string | null     ← FK → users/{uid} — presente solo cuando tiene cuenta
+telefono:     string | null     ← principal, destino de WhatsApp (aviso de asignación en index.html)
+telefono2:    string | null     ← secundario, opcional
 
 | Rol | index.html | ops.html | moto.html | reposicion.html |
 |---|---|---|---|---|
@@ -216,7 +218,9 @@ formulario, entran vía SSO) también cerrado, desplegado y cubierto por test e2
 ver CHANGELOG); ciclo de testing de Cloud Functions vía emulator (cobertura e2e happy-path +
 smoke test de Functions + fix de cuentas huérfanas en `createUser`) cerrado y movido al
 CHANGELOG (31 Jul 2026), incluyendo el deploy de `createUser` a producción (31 Jul 2026,
-ver CHANGELOG).*
+ver CHANGELOG); teléfono secundario en ficha de colaborador y aviso semi-automático por
+WhatsApp al asignar orden (ítems ad-hoc, no listados previamente en pendientes) cerrados y
+movidos al CHANGELOG (07 Ago 2026).*
 
 ---
 
@@ -372,6 +376,6 @@ hacia el CHANGELOG.
 
 ---
 
-*Última actualización: 31 Julio 2026 — Testing de Cloud Functions vía emulator (e2e
-happy-path + smoke test de Functions) cerrado; fix de `createUser` (cuentas huérfanas)
-desplegado a producción (ver CHANGELOG).*
+*Última actualización: 07 Agosto 2026 — Teléfono secundario en ficha de colaborador
+(ops.html) y aviso semi-automático por WhatsApp al asignar orden (index.html) cerrados
+(ver CHANGELOG).*

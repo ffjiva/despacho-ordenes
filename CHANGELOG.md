@@ -13,6 +13,21 @@
 
 ## Sesiones y módulos
 
+### Sesión Teléfono secundario + aviso WhatsApp al asignar — 07 Ago 2026 *(ops.html, index.html)*
+
+**feat(ops): agrega teléfono secundario a ficha de colaborador** *(commit d2ccfad)*
+Nuevo campo opcional `telefono2` en la ficha de colaborador (ops.html), junto al `telefono`
+principal que sigue siendo el destino de WhatsApp. Sin cambios en la validación de
+"colaborador incompleto" (sigue exigiendo solo el teléfono principal).
+
+**feat(index): aviso semi-automático por WhatsApp al asignar una orden** *(commit 2d8aeee)*
+Nueva función `notifyAssigneeWA` en index.html: al asignar/reasignar una orden (o crearla ya
+asignada), resuelve el teléfono del colaborador vía `users/{uid}.colaboradorId →
+colaboradores/{id}.telefono` (con fallback a `telefono2`), arma un mensaje con los datos de la
+orden y abre `wa.me` con el texto pre-escrito para que el super confirme el envío desde su
+propio número. Puramente frontend, aditivo al push FCM existente (`onDespachoAssigned` no se
+tocó) — no requiere Cloud Functions ni número de WhatsApp Business dedicado.
+
 ### Sesión Testing de Cloud Functions vía emulator — 31 Jul 2026 *(functions/index.js, firebase.json, package.json, scripts/emulator/functions-smoke.mjs, scripts/emulator/seed.js, scripts/emulator/smoke.mjs)*
 
 **test(e2e): cobertura happy-path de picking, vueltas, pendientes y colaboradores** *(commit 2d829c2)*
