@@ -767,6 +767,9 @@ body.inv-collab #inv-btn-reasignar { display: none !important; }
       <div class="rep-summary" id="rep-summary"></div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;
                   margin-left:auto;flex-shrink:0">
+        <button class="btn btn-ghost" style="font-size:.6rem;color:var(--err-tx)"
+          title="Pone en 0 todas las sugerencias de la sucursal activa (ya despachada). Las unidades vuelven al pool; el resto no se toca."
+          onclick="clearActiveSucSuggestions()">⊘ Sucursal a 0</button>
         <button class="btn btn-outline" style="font-size:.6rem" id="btn-ai-rep"
           onclick="analyzeWithAI()">✨ IA</button>
         <button class="btn btn-outline" style="font-size:.6rem"
@@ -1849,6 +1852,25 @@ window.resetRepConfig = () => {
     $(`cfg-max-${sid}`).value = REP_MAXIMUMS_DEFAULT[sid];
   });
   applyRepConfig();
+};
+
+// Pone en 0 (limpia) TODAS las sugerencias de la sucursal activa.
+// Caso de uso: la sucursal ya se despachó en facturación y se retoma la
+// distribución con un Gerencial fresco; las unidades liberadas vuelven al
+// pool disponible y las demás sucursales no se tocan. No recalcula.
+window.clearActiveSucSuggestions = () => {
+  if (repMode !== 'stock') { alert('Disponible solo en reposición normal.'); return; }
+  const sid    = repActiveTab;
+  const map    = repSendData[sid] || {};
+  const lineas = Object.values(map).filter(v => v > 0).length;
+  if (!lineas) { alert(`${REP_LBLS[sid] || sid} ya no tiene sugerencias.`); return; }
+  if (!confirm(`¿Poner en 0 las ${lineas} líneas de ${REP_LBLS[sid] || sid}?\n`
+             + `Las unidades vuelven al pool disponible; las demás sucursales no se tocan.`)) return;
+  repSendData[sid] = {};
+  renderRepTabs();
+  renderRepTable();
+  renderRepGlobalTotals();
+  saveRepSession();
 };
 
 function getTotalesGlobales() {
