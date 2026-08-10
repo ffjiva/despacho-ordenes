@@ -1538,8 +1538,12 @@ window.goReposicion = () => {
 
 window.goBackFromReposicion = () => { showScreen('s-home'); };
 
-window.clearRepSession = () => {
-  if (repLoadedFiles.length && !confirm('¿Limpiar todo y empezar de nuevo?')) return;
+window.clearRepSession = async () => {
+  if (repLoadedFiles.length && !(await confirmModal({
+    title: 'Limpiar todo',
+    msg:   'Se borra el Gerencial cargado y todas las asignaciones. ¿Continuar?',
+    okText: 'Limpiar todo'
+  }))) return;
   sessionStorage.removeItem(REP_STORAGE_KEY);
   repProductMap.clear();
   repLoadedAt       = null;
@@ -2479,7 +2483,7 @@ function repPreflightCheck() {
 
 // Gate único. Devuelve true si se debe generar (limpio+fresco, o el usuario
 // confirma "generar igual"). false aborta.
-function repPreflightGate() {
+async function repPreflightGate() {
   const lines = [];
 
   // Pieza 1 — frescura
@@ -2510,24 +2514,29 @@ function repPreflightGate() {
 
   if (!lines.length) return true;   // limpio y fresco → genera directo, sin clicks extra
 
-  const msg = '⚠ Revisión antes de generar:\n\n' + lines.join('\n') +
-    '\n\n¿Generar de todas formas?\n(Aceptar = generar igual · Cancelar = volver y recargar/ajustar)';
-  return confirm(msg);
+  return confirmModal({
+    title:  'Revisión antes de generar',
+    msg:    lines.join('<br>')
+          + '<br><br>¿Generar de todas formas?<br>'
+          + '<span style="color:var(--muted)">Aceptar = generar igual · Cancelar = volver y recargar/ajustar</span>',
+    okText: 'Generar igual',
+    danger: false
+  });
 }
 
-window.generateActiveRepXLS = () => {
+window.generateActiveRepXLS = async () => {
   if (repMode === 'compra') {
     generateCompraRepXLS(repActiveTab);
     setTimeout(() => maybeSendProjectionCompra(repActiveTab), 300);   // confirm + envío (compra)
     return;
   }
   if (repMode === 'redist') { generateRedistXLS(repRedistActiveOrig); return; }
-  if (!repPreflightGate()) return;   // gate solo en flujo stock
+  if (!(await repPreflightGate())) return;   // gate solo en flujo stock
   generateRepXLS(repActiveTab);
   setTimeout(() => maybeSendProjection(repActiveTab), 300);   // confirm + envío (solo stock)
 };
 
-window.generateAllRepXLS = () => {
+window.generateAllRepXLS = async () => {
   if (repMode === 'compra') {
     const activos = REP_DESTS.filter(id =>
       Object.values(repCompraData[id] || {}).some(v => v > 0)
@@ -2537,7 +2546,7 @@ window.generateAllRepXLS = () => {
     activos.forEach(sucId => { setTimeout(() => generateCompraRepXLS(sucId), delay); delay += 450; });
     return;
   }
-  if (repMode === 'stock' && !repPreflightGate()) return;   // gate solo en flujo stock
+  if (repMode === 'stock' && !(await repPreflightGate())) return;   // gate solo en flujo stock
   const activos = repTargets().filter(id =>
     Object.values(repSendData[id] || {}).some(v => v > 0)
   );
@@ -2561,7 +2570,7 @@ window.generateAllRepXLS = () => {
 // (cat/marca/búsqueda) PARA LA PESTAÑA/DESTINO ACTIVO. Acción separada — no
 // reemplaza "XLS activo" (destino activo, todo) ni "Todos" (todos los destinos).
 // Registra en trazabilidad con marca { parcial: true }. Solo flujo stock.
-window.generateFilteredRepXLS = () => {
+window.generateFilteredRepXLS = async () => {
   if (repMode !== 'stock') {
     alert('El export por filtro solo aplica a reposición normal (stock).');
     return;
@@ -2578,7 +2587,7 @@ window.generateFilteredRepXLS = () => {
     alert(`El filtro activo no tiene cantidades asignadas en ${REP_LBLS[sucId]}.`);
     return;
   }
-  if (!repPreflightGate()) return;
+  if (!(await repPreflightGate())) return;
   generateRepXLS(sucId, codeSet);
 };
 
@@ -2840,7 +2849,7 @@ async function sendProjectionFor(sucId, items, opts = {}) {
   const destNombre = REP_FACT_NAMES[sucId] || sucId;
   const confirmMsg = opts.confirmMsg ||
     `¿Enviar la proyección de envío al encargado de ${REP_LBLS[sucId] || sucId}?`;
-  if (!confirm(confirmMsg)) return;
+  if (!(await confirmModal({ title: 'Enviar proyección', msg: confirmMsg, okText: 'Enviar', danger: false }))) return;
 
   let encargado;
   try { encargado = await findEncargado(sucId); }
@@ -3733,11 +3742,14 @@ window.analyzeWithAI = async () => {
   if (filtered.length > BATCH_GUARD) {
     const lotes = Math.ceil(filtered.length / 60);
     const mins  = Math.max(1, Math.round(lotes * 4 / 60));
-    if (!confirm(
-      `Vas a analizar ${filtered.length} productos en ${lotes} lotes ` +
-      `(~${mins} min y consumo de API alto).\n\n` +
-      `Normalmente conviene filtrar por marca o categoría primero.\n\n¿Continuar igual?`
-    )) return;
+    if (!(await confirmModal({
+      title:  'Análisis con IA',
+      msg:    `Vas a analizar <strong>${filtered.length} productos</strong> en ${lotes} lotes `
+            + `(~${mins} min y consumo de API alto).<br><br>`
+            + `Normalmente conviene filtrar por marca o categoría primero.<br><br>¿Continuar igual?`,
+      okText: 'Continuar',
+      danger: false
+    }))) return;
   }
 
   const served = repTargets().filter(repOriginServes);
@@ -4659,10 +4671,10 @@ window.finalizarConteo = async () => {
   const discs = d.resumen?.discrepancias || 0;
 
   const msg = discs > 0
-    ? `⚠ Hay ${discs} discrepancia${discs !== 1 ? 's' : ''}.\n¿Confirmar finalización de todas formas?`
+    ? `⚠ Hay <strong>${discs} discrepancia${discs !== 1 ? 's' : ''}</strong>.<br>¿Confirmar finalización de todas formas?`
     : '¿Confirmar finalización del conteo?';
 
-  if (!confirm(msg)) return;
+  if (!(await confirmModal({ title: 'Finalizar conteo', msg, okText: 'Finalizar', danger: discs > 0 }))) return;
 
   await fbMod.updateDoc(ref, {
     status: 'completado',
