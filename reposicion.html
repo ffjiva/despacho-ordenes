@@ -530,6 +530,29 @@ html, body {
   font-size: .85rem; font-weight: 600;
   border: none; cursor: pointer;
 }
+/* ── MODAL DE CONFIRMACIÓN GENÉRICO ── */
+.cm-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,.72); z-index: 400;
+  align-items: center; justify-content: center; padding: 1rem;
+}
+.cm-overlay.on { display: flex; }
+.cm-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r2); padding: 1.5rem 1.4rem 1.25rem;
+  width: 100%; max-width: 380px; box-shadow: 0 12px 40px rgba(0,0,0,.5);
+  animation: inv-modal-in .2s ease both;
+}
+.cm-head { display: flex; align-items: center; gap: 9px; margin-bottom: .85rem; }
+.cm-icon {
+  width: 30px; height: 30px; border-radius: 50%;
+  background: var(--err-bg); border: 1px solid var(--err-bd); color: var(--err-tx);
+  display: flex; align-items: center; justify-content: center; font-size: 1rem; flex-shrink: 0;
+}
+.cm-title { font-size: .82rem; font-weight: 700; color: var(--text); }
+.cm-msg { font-size: .72rem; line-height: 1.6; color: var(--text2); margin-bottom: 1.15rem; }
+.cm-msg strong { color: var(--text); }
+.cm-actions { display: flex; gap: 8px; justify-content: flex-end; }
 .inv-confetti-piece {
   position: absolute;
   border-radius: 1px;
@@ -1854,18 +1877,50 @@ window.resetRepConfig = () => {
   applyRepConfig();
 };
 
+// Modal de confirmación centrado. Reemplaza a confirm().
+// confirmModal('mensaje') o confirmModal({ title, msg, okText, danger }) → Promise<boolean>
+function confirmModal(opts) {
+  if (typeof opts === 'string') opts = { msg: opts };
+  const { title = 'Confirmar', msg = '', okText = 'Aceptar', danger = true } = opts;
+  return new Promise(resolve => {
+    const ov = $('cm-overlay');
+    $('cm-title').textContent = title;
+    $('cm-msg').innerHTML     = msg;
+    const ok = $('cm-ok'), cancel = $('cm-cancel');
+    ok.textContent = okText;
+    ok.className = 'btn ' + (danger ? 'btn-danger' : 'btn-dark');
+    const close = (val) => {
+      ov.classList.remove('on');
+      ok.onclick = cancel.onclick = ov.onclick = null;
+      document.removeEventListener('keydown', onKey);
+      resolve(val);
+    };
+    const onKey = (e) => { if (e.key === 'Escape') close(false); if (e.key === 'Enter') close(true); };
+    ok.onclick     = () => close(true);
+    cancel.onclick = () => close(false);
+    ov.onclick     = (e) => { if (e.target === ov) close(false); };
+    document.addEventListener('keydown', onKey);
+    ov.classList.add('on');
+  });
+}
+
 // Pone en 0 (limpia) TODAS las sugerencias de la sucursal activa.
 // Caso de uso: la sucursal ya se despachó en facturación y se retoma la
 // distribución con un Gerencial fresco; las unidades liberadas vuelven al
 // pool disponible y las demás sucursales no se tocan. No recalcula.
-window.clearActiveSucSuggestions = () => {
+window.clearActiveSucSuggestions = async () => {
   if (repMode !== 'stock') { alert('Disponible solo en reposición normal.'); return; }
   const sid    = repActiveTab;
   const map    = repSendData[sid] || {};
   const lineas = Object.values(map).filter(v => v > 0).length;
   if (!lineas) { alert(`${REP_LBLS[sid] || sid} ya no tiene sugerencias.`); return; }
-  if (!confirm(`¿Poner en 0 las ${lineas} líneas de ${REP_LBLS[sid] || sid}?\n`
-             + `Las unidades vuelven al pool disponible; las demás sucursales no se tocan.`)) return;
+  const ok = await confirmModal({
+    title: 'Poner sucursal en 0',
+    msg:   `¿Poner en 0 las <strong>${lineas} líneas</strong> de <strong>${REP_LBLS[sid] || sid}</strong>?<br>`
+         + `Las unidades vuelven al pool disponible; las demás sucursales no se tocan.`,
+    okText: 'Poner en 0'
+  });
+  if (!ok) return;
   repSendData[sid] = {};
   renderRepTabs();
   renderRepTable();
@@ -4868,5 +4923,18 @@ window.exportInvXLS = async (invId) => {
 
 init();
 </script>
+<div class="cm-overlay" id="cm-overlay">
+  <div class="cm-card">
+    <div class="cm-head">
+      <div class="cm-icon" id="cm-icon">⚠</div>
+      <div class="cm-title" id="cm-title">Confirmar</div>
+    </div>
+    <div class="cm-msg" id="cm-msg"></div>
+    <div class="cm-actions">
+      <button class="btn btn-ghost" style="font-size:.68rem" id="cm-cancel">Cancelar</button>
+      <button class="btn btn-danger" style="font-size:.68rem" id="cm-ok">Aceptar</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
