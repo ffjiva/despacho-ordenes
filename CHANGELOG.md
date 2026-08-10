@@ -13,6 +13,21 @@
 
 ## Sesiones y módulos
 
+### Sesión Reposición — botón "Sucursal a 0" + modal de confirmación genérico — 10 Ago 2026 *(reposicion.html)*
+
+**feat(reposicion): botón "Sucursal a 0" para limpiar sugerencias de la sucursal activa** *(commit 1033480)*
+Nuevo botón ⊘ en la barra de acciones de reposición, junto a "✨ IA". Pone en 0 todas las
+sugerencias (líneas > 0) de la sucursal activa cuando ya fue despachada en facturación y se
+retoma la distribución con un Gerencial fresco; las unidades liberadas vuelven al pool
+disponible y las demás sucursales no se tocan. Solo disponible en modo reposición normal
+(`repMode === 'stock'`).
+
+**feat(reposicion): modal de confirmación genérico (confirmModal) reemplaza confirm() nativo** *(commit ab4763a)*
+Nuevo componente `.cm-*` (overlay + card) y función reutilizable `confirmModal(opts)` →
+`Promise<boolean>`, con soporte de teclado (Esc cancela, Enter confirma) y cierre por click
+fuera. `clearActiveSucSuggestions` pasa a `async` y usa `confirmModal` en vez de `confirm()`
+nativo.
+
 ### Sesión Teléfono secundario + aviso WhatsApp al asignar — 07 Ago 2026 *(ops.html, index.html)*
 
 **feat(ops): agrega teléfono secundario a ficha de colaborador** *(commit d2ccfad)*

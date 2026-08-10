@@ -220,7 +220,9 @@ smoke test de Functions + fix de cuentas huérfanas en `createUser`) cerrado y m
 CHANGELOG (31 Jul 2026), incluyendo el deploy de `createUser` a producción (31 Jul 2026,
 ver CHANGELOG); teléfono secundario en ficha de colaborador y aviso semi-automático por
 WhatsApp al asignar orden (ítems ad-hoc, no listados previamente en pendientes) cerrados y
-movidos al CHANGELOG (07 Ago 2026).*
+movidos al CHANGELOG (07 Ago 2026); botón "Sucursal a 0" y modal de confirmación genérico
+(`confirmModal`) en reposicion.html (ítems ad-hoc, no listados previamente en pendientes)
+cerrados y movidos al CHANGELOG (10 Ago 2026).*
 
 ---
 
@@ -376,6 +378,5 @@ hacia el CHANGELOG.
 
 ---
 
-*Última actualización: 07 Agosto 2026 — Teléfono secundario en ficha de colaborador
-(ops.html) y aviso semi-automático por WhatsApp al asignar orden (index.html) cerrados
-(ver CHANGELOG).*
+*Última actualización: 10 Agosto 2026 — Botón "Sucursal a 0" y modal de confirmación
+genérico (`confirmModal`) en reposicion.html cerrados (ver CHANGELOG).*
