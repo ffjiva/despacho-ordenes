@@ -13,6 +13,19 @@
 
 ## Sesiones y módulos
 
+### Sesión Reposición — alert() nativos migrados a alertModal — 10 Ago 2026 *(reposicion.html)*
+
+**feat(reposicion): migra los alert() nativos restantes a alertModal** *(commit 6c8aad1)*
+Nuevo componente `alertModal(opts)` — reutiliza el overlay `.cm-*` de `confirmModal` con un
+solo botón "Aceptar" (oculta Cancelar), título "Aviso"/"Error" según `danger`. Migra las 33
+llamadas a `alert()` que quedaban en reposicion.html: 29 dentro de funciones `async` (con
+`await`), 4 en funciones síncronas donde nada dependía del cierre del modal (fire-and-forget,
+mismo comportamiento que `alert()` tenía ahí). Ya no queda ningún `alert()`/`confirm()` nativo
+en el archivo. Detectado por Fernando al probar "⬇ XLS activo" en real tras el cierre anterior
+(la migración previa solo había cubierto `confirm()`, no `alert()`). Validado con smoke test
+Playwright contra el flujo real "XLS activo" → confirmModal "Enviar proyección" → alertModal
+"No hay encargado con correo".
+
 ### Sesión Reposición — redistribución del pool al poner sucursal en 0 — 10 Ago 2026 *(reposicion.html)*
 
 **feat(reposicion): redistribuye el pool liberado al poner sucursal en 0** *(commit 75e5e4c)*
