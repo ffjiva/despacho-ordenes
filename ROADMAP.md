@@ -222,7 +222,9 @@ ver CHANGELOG); teléfono secundario en ficha de colaborador y aviso semi-autom�
 WhatsApp al asignar orden (ítems ad-hoc, no listados previamente en pendientes) cerrados y
 movidos al CHANGELOG (07 Ago 2026); botón "Sucursal a 0" y modal de confirmación genérico
 (`confirmModal`) en reposicion.html (ítems ad-hoc, no listados previamente en pendientes)
-cerrados y movidos al CHANGELOG (10 Ago 2026).*
+cerrados y movidos al CHANGELOG (10 Ago 2026); migración del resto de `confirm()` nativos a
+`confirmModal` en reposicion.html (ítem ad-hoc, continuación de la sesión anterior) cerrada y
+movida al CHANGELOG (10 Ago 2026).*
 
 ---
 
@@ -378,5 +380,6 @@ hacia el CHANGELOG.
 
 ---
 
-*Última actualización: 10 Agosto 2026 — Botón "Sucursal a 0" y modal de confirmación
-genérico (`confirmModal`) en reposicion.html cerrados (ver CHANGELOG).*
+*Última actualización: 10 Agosto 2026 — Botón "Sucursal a 0", modal de confirmación
+genérico (`confirmModal`) y su migración al resto de `confirm()` nativos en reposicion.html
+cerrados (ver CHANGELOG).*

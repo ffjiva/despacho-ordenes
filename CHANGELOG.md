@@ -13,6 +13,16 @@
 
 ## Sesiones y módulos
 
+### Sesión Reposición — confirmModal en flujos restantes — 10 Ago 2026 *(reposicion.html)*
+
+**feat(reposicion): migra confirm() nativo a confirmModal en flujos restantes** *(commit 0cfd8ff)*
+Extiende el modal genérico introducido en la sesión anterior a los `confirm()` nativos que
+quedaban: `clearRepSession`, `sendProjectionFor`, `analyzeWithAI` y `finalizarConteo` (este
+último de inventario, incluido por consistencia de estilo). `repPreflightGate` —el gate
+compartido por `generateActiveRepXLS`, `generateAllRepXLS` y `generateFilteredRepXLS`— pasa a
+`async`; los 3 llamadores ahora hacen `await` del gate. Ya no queda ningún `confirm()` nativo
+en reposicion.html.
+
 ### Sesión Reposición — botón "Sucursal a 0" + modal de confirmación genérico — 10 Ago 2026 *(reposicion.html)*
 
 **feat(reposicion): botón "Sucursal a 0" para limpiar sugerencias de la sucursal activa** *(commit 1033480)*
