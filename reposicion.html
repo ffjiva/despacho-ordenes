@@ -1038,6 +1038,7 @@ let currentInvId = null;
 let repProductMap  = new Map();
 let repProducts    = [];
 let repSendData    = {};
+let repZeroedSucs  = new Set();   // sucursales puestas en 0: excluidas de sugerencias/redistribución
 let repLoadedFiles = [];
 let repLoadedAt    = null;   // sello de frescura del snapshot de stock del Gerencial
 let repActiveTab   = 'M01';
@@ -1448,6 +1449,7 @@ function saveRepSession() {
       compraData:     repCompraData,
       compraFiles:    repCompraFiles,
       redistData:     repRedistData,
+      zeroedSucs:     [...repZeroedSucs],
     }));
   } catch(e) { console.warn('saveRepSession:', e); }
 }
@@ -1466,6 +1468,7 @@ function loadRepSession() {
     repLoadedAt    = d.loadedAt    || null;
     repProducts    = d.products    || [];
     repSendData    = d.sendData    || {};
+    repZeroedSucs  = new Set(d.zeroedSucs || []);
     repLoadedFiles = d.loadedFiles || [];
     repActiveTab   = d.activeTab   || 'M01';
     repActiveCat   = d.activeCat   || '';
@@ -1549,6 +1552,7 @@ window.clearRepSession = async () => {
   repLoadedAt       = null;
   repProducts       = [];
   repSendData       = {};
+  repZeroedSucs     = new Set();
   repLoadedFiles    = [];
   repActiveCat      = '';
   repActiveBrand    = '';
@@ -1773,7 +1777,7 @@ function detectBrandFromName(name) {
 function computeRepSuggestions(minimumsOnly = false) {
   repTargets().forEach(sid => { if (!repSendData[sid]) repSendData[sid] = {}; });
   // Solo destinos que el origen activo abastece (B03 → S03/S07).
-  const dests = repTargets().filter(repOriginServes);
+  const dests = repTargets().filter(repOriginServes).filter(sid => !repZeroedSucs.has(sid));
 
   repProducts.forEach(p => {
     const touched = repTargets().some(sid => (repSendData[sid][p.code] || 0) > 0);
@@ -1842,6 +1846,7 @@ function computeRepSuggestions(minimumsOnly = false) {
 }
 
 window.applyRepConfig = () => {
+  repZeroedSucs.clear();
   REP_FILL_TO_MAX = $('cfg-fill-to-max').checked;
   REP_B01_RESERVE = parseInt($('cfg-b01-reserve').value) || 2;
   REP_DIST_PCT    = parseInt($('cfg-dist-pct').value)    || 85;
@@ -1921,16 +1926,50 @@ window.clearActiveSucSuggestions = async () => {
   const ok = await confirmModal({
     title: 'Poner sucursal en 0',
     msg:   `¿Poner en 0 las <strong>${lineas} líneas</strong> de <strong>${REP_LBLS[sid] || sid}</strong>?<br>`
-         + `Las unidades vuelven al pool disponible; las demás sucursales no se tocan.`,
-    okText: 'Poner en 0'
+         + `Las unidades liberadas se redistribuyen a las sucursales pendientes.`,
+    okText: 'Poner en 0 y redistribuir'
   });
   if (!ok) return;
+  repZeroedSucs.add(sid);
   repSendData[sid] = {};
+  redistributeFreedPool();
   renderRepTabs();
   renderRepTable();
   renderRepGlobalTotals();
   saveRepSession();
 };
+
+// Reasigna el disponible liberado (al poner sucursales en 0) cubriendo los
+// MÍNIMOS de las sucursales pendientes, misma lógica que la carga
+// (computeRepSuggestions(true)); el excedente queda para IA/Recalcular.
+// No toca las sucursales en repZeroedSucs.
+function redistributeFreedPool() {
+  const dests = repTargets().filter(repOriginServes).filter(sid => !repZeroedSucs.has(sid));
+  if (!dests.length) return;
+
+  repProducts.forEach(p => {
+    const totalB    = repPoolCeiling(p, repOrigin);
+    const available = Math.min(repAvailable(p, repOrigin), Math.floor(totalB * REP_DIST_PCT / 100));
+    if (available <= 0) return;
+
+    let used = 0;
+    dests.forEach(sid => { used += (repSendData[sid] && repSendData[sid][p.code]) || 0; });
+    let remaining = available - used;
+    if (remaining <= 0) return;
+
+    for (const sid of dests) {
+      if (remaining <= 0) break;
+      const cur  = (p.stock[sid] || 0) + ((repSendData[sid] && repSendData[sid][p.code]) || 0);
+      const need = Math.max(0, repMinFor(p, sid) - cur);
+      if (need > 0) {
+        const send = Math.min(need, remaining);
+        if (!repSendData[sid]) repSendData[sid] = {};
+        repSendData[sid][p.code] = ((repSendData[sid][p.code]) || 0) + send;
+        remaining -= send;
+      }
+    }
+  });
+}
 
 function getTotalesGlobales() {
   return repTargets().map(sid => {
@@ -2053,6 +2092,7 @@ window.setRepOrigin = (o) => {
   ['M01','S02','S04','B03','S03','S07','S06'].forEach(sid => {
     if (repSendData[sid]) Object.keys(repSendData[sid]).forEach(c => delete repSendData[sid][c]);
   });
+  repZeroedSucs.clear();
   computeRepSuggestions(true);   // cambio de origen = re-llenar solo mínimos
   renderRepOrigin();
   renderRepTabs();
