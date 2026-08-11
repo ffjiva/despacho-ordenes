@@ -13,6 +13,18 @@
 
 ## Sesiones y módulos
 
+### Sesión Reposición — redistribución del pool al poner sucursal en 0 — 10 Ago 2026 *(reposicion.html)*
+
+**feat(reposicion): redistribuye el pool liberado al poner sucursal en 0** *(commit 75e5e4c)*
+"Sucursal a 0" ya no solo limpia las sugerencias de la sucursal activa: las unidades liberadas
+se reasignan cubriendo los mínimos de las sucursales pendientes (misma lógica que la carga
+inicial del Gerencial), y la sucursal queda excluida de sugerencias futuras vía el nuevo set
+`repZeroedSucs` — persistido en sesión (`sessionStorage`), incluso al recargar el Gerencial.
+"Recalcular" (`applyRepConfig`) y "Limpiar todo" (`clearRepSession`) reincluyen todas las
+sucursales. Nueva función `redistributeFreedPool()`. Validado con smoke test Playwright
+ad-hoc contra el Firebase Emulator Suite (20/20 checks, no persistido como suite — la
+cobertura persistente de `npm run test:e2e` sigue en gates por rol).
+
 ### Sesión Reposición — confirmModal en flujos restantes — 10 Ago 2026 *(reposicion.html)*
 
 **feat(reposicion): migra confirm() nativo a confirmModal en flujos restantes** *(commit 0cfd8ff)*

@@ -224,7 +224,10 @@ movidos al CHANGELOG (07 Ago 2026); botón "Sucursal a 0" y modal de confirmaci�
 (`confirmModal`) en reposicion.html (ítems ad-hoc, no listados previamente en pendientes)
 cerrados y movidos al CHANGELOG (10 Ago 2026); migración del resto de `confirm()` nativos a
 `confirmModal` en reposicion.html (ítem ad-hoc, continuación de la sesión anterior) cerrada y
-movida al CHANGELOG (10 Ago 2026).*
+movida al CHANGELOG (10 Ago 2026); redistribución del pool liberado al poner una sucursal en 0
++ exclusión persistente de sugerencias futuras (`repZeroedSucs`) en reposicion.html (ítem
+ad-hoc, continuación de la misma sesión) cerrada, validada con smoke test Playwright y movida
+al CHANGELOG (10 Ago 2026).*
 
 ---
 
@@ -381,5 +384,6 @@ hacia el CHANGELOG.
 ---
 
 *Última actualización: 10 Agosto 2026 — Botón "Sucursal a 0", modal de confirmación
-genérico (`confirmModal`) y su migración al resto de `confirm()` nativos en reposicion.html
-cerrados (ver CHANGELOG).*
+genérico (`confirmModal`), su migración al resto de `confirm()` nativos, y la redistribución
+del pool liberado con exclusión persistente de sugerencias en reposicion.html cerrados
+(ver CHANGELOG).*
