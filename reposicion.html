@@ -1591,7 +1591,7 @@ function showRepState(state) {
 
 window.handleRepFiles = async inputEl => {
   if (typeof XLSX === 'undefined') {
-    alert('SheetJS no cargado. Recargá la página.');
+    await alertModal({ msg: 'SheetJS no cargado. Recargá la página.', danger: true });
     return;
   }
   const files = Array.from(inputEl.files);
@@ -1913,16 +1913,44 @@ function confirmModal(opts) {
   });
 }
 
+// Modal de aviso centrado. Reemplaza a alert() (un solo botón, sin Cancelar).
+// alertModal('mensaje') o alertModal({ title, msg, okText, danger }) → Promise<void>
+function alertModal(opts) {
+  if (typeof opts === 'string') opts = { msg: opts };
+  const { title, msg = '', okText = 'Aceptar', danger = false } = opts;
+  return new Promise(resolve => {
+    const ov = $('cm-overlay');
+    $('cm-title').textContent = title || (danger ? 'Error' : 'Aviso');
+    $('cm-msg').innerHTML     = msg;
+    const ok = $('cm-ok'), cancel = $('cm-cancel');
+    ok.textContent = okText;
+    ok.className = 'btn ' + (danger ? 'btn-danger' : 'btn-dark');
+    cancel.style.display = 'none';
+    const close = () => {
+      ov.classList.remove('on');
+      cancel.style.display = '';
+      ok.onclick = ov.onclick = null;
+      document.removeEventListener('keydown', onKey);
+      resolve();
+    };
+    const onKey = (e) => { if (e.key === 'Escape' || e.key === 'Enter') close(); };
+    ok.onclick = () => close();
+    ov.onclick = (e) => { if (e.target === ov) close(); };
+    document.addEventListener('keydown', onKey);
+    ov.classList.add('on');
+  });
+}
+
 // Pone en 0 (limpia) TODAS las sugerencias de la sucursal activa.
 // Caso de uso: la sucursal ya se despachó en facturación y se retoma la
 // distribución con un Gerencial fresco; las unidades liberadas vuelven al
 // pool disponible y las demás sucursales no se tocan. No recalcula.
 window.clearActiveSucSuggestions = async () => {
-  if (repMode !== 'stock') { alert('Disponible solo en reposición normal.'); return; }
+  if (repMode !== 'stock') { await alertModal('Disponible solo en reposición normal.'); return; }
   const sid    = repActiveTab;
   const map    = repSendData[sid] || {};
   const lineas = Object.values(map).filter(v => v > 0).length;
-  if (!lineas) { alert(`${REP_LBLS[sid] || sid} ya no tiene sugerencias.`); return; }
+  if (!lineas) { await alertModal(`${REP_LBLS[sid] || sid} ya no tiene sugerencias.`); return; }
   const ok = await confirmModal({
     title: 'Poner sucursal en 0',
     msg:   `¿Poner en 0 las <strong>${lineas} líneas</strong> de <strong>${REP_LBLS[sid] || sid}</strong>?<br>`
@@ -2581,7 +2609,7 @@ window.generateAllRepXLS = async () => {
     const activos = REP_DESTS.filter(id =>
       Object.values(repCompraData[id] || {}).some(v => v > 0)
     );
-    if (!activos.length) { alert('Sin cantidades asignadas en ninguna sucursal.'); return; }
+    if (!activos.length) { await alertModal('Sin cantidades asignadas en ninguna sucursal.'); return; }
     let delay = 0;
     activos.forEach(sucId => { setTimeout(() => generateCompraRepXLS(sucId), delay); delay += 450; });
     return;
@@ -2591,7 +2619,7 @@ window.generateAllRepXLS = async () => {
     Object.values(repSendData[id] || {}).some(v => v > 0)
   );
   if (!activos.length) {
-    alert('Sin cantidades asignadas en ninguna sucursal.');
+    await alertModal('Sin cantidades asignadas en ninguna sucursal.');
     return;
   }
   let delay = 0;
@@ -2612,11 +2640,11 @@ window.generateAllRepXLS = async () => {
 // Registra en trazabilidad con marca { parcial: true }. Solo flujo stock.
 window.generateFilteredRepXLS = async () => {
   if (repMode !== 'stock') {
-    alert('El export por filtro solo aplica a reposición normal (stock).');
+    await alertModal('El export por filtro solo aplica a reposición normal (stock).');
     return;
   }
   if (!(repActiveCat || repActiveBrand || repSearch)) {
-    alert('No hay filtro activo. Para el export completo usá "XLS activo" o "Todos".');
+    await alertModal('No hay filtro activo. Para el export completo usá "XLS activo" o "Todos".');
     return;
   }
   const sucId   = repActiveTab;
@@ -2624,7 +2652,7 @@ window.generateFilteredRepXLS = async () => {
   const hay = Object.entries(repSendData[sucId] || {})
     .some(([code, v]) => v > 0 && codeSet.has(code));
   if (!hay) {
-    alert(`El filtro activo no tiene cantidades asignadas en ${REP_LBLS[sucId]}.`);
+    await alertModal(`El filtro activo no tiene cantidades asignadas en ${REP_LBLS[sucId]}.`);
     return;
   }
   if (!(await repPreflightGate())) return;
@@ -2815,7 +2843,7 @@ function buildProjectionDoc(sucId, ordenNo = 1, itemsOverride = null) {
 // Preview/descarga manual (botón "🧾 Proyección"), sin enviar.
 function generateProjectionPDF(sucId, ordenNo = 1) {
   const doc = buildProjectionDoc(sucId, ordenNo);
-  if (!doc) { alert(`Sin cantidades para ${REP_LBLS[sucId] || sucId} (o jsPDF no cargó).`); return; }
+  if (!doc) { alertModal(`Sin cantidades para ${REP_LBLS[sucId] || sucId} (o jsPDF no cargó).`); return; }
   doc.save(`Proyeccion_${REP_FACT_NAMES[sucId] || sucId}_${fmtDateDMY().replace(/\//g, '-')}.pdf`);
 }
 
@@ -2893,18 +2921,18 @@ async function sendProjectionFor(sucId, items, opts = {}) {
 
   let encargado;
   try { encargado = await findEncargado(sucId); }
-  catch (e) { alert('No se pudo consultar el encargado: ' + e.message); return; }
+  catch (e) { await alertModal({ msg: 'No se pudo consultar el encargado: ' + e.message, danger: true }); return; }
   if (!encargado || !encargado.correos.length) {
-    alert(`No hay encargado con correo para ${REP_LBLS[sucId] || sucId}.\nRevisá en Colaboradores: cargo "Encargado" + correo (personal o de trabajo).`);
+    await alertModal(`No hay encargado con correo para ${REP_LBLS[sucId] || sucId}.<br>Revisá en Colaboradores: cargo "Encargado" + correo (personal o de trabajo).`);
     return;
   }
 
   let ordenNo;
   try { ordenNo = await nextProyeccionNo(sucId); }
-  catch (e) { alert('No se pudo generar el número de proyección: ' + e.message); return; }
+  catch (e) { await alertModal({ msg: 'No se pudo generar el número de proyección: ' + e.message, danger: true }); return; }
 
   const doc = buildProjectionDoc(sucId, ordenNo, items);
-  if (!doc) { alert('No se pudo generar el PDF.'); return; }
+  if (!doc) { await alertModal({ msg: 'No se pudo generar el PDF.', danger: true }); return; }
   const pdfBase64 = doc.output('datauristring').split(',')[1];
   const fecha = fmtDateDMY();
   const filename = `Proyeccion_${destNombre}_${fecha.replace(/\//g, '-')}.pdf`;
@@ -2935,12 +2963,12 @@ async function sendProjectionFor(sucId, items, opts = {}) {
     if (!ok) errMsg = data.error || ('HTTP ' + resp.status);
   } catch (e) { errMsg = e.message; }
 
-  if (!ok) { alert(`No se pudo enviar la proyección: ${errMsg}`); return; }
+  if (!ok) { await alertModal({ msg: `No se pudo enviar la proyección: ${errMsg}`, danger: true }); return; }
 
   try { await saveProyeccionRecord(sucId, destNombre, ordenNo, encargado, items); }
   catch (e) { console.warn('saveProyeccionRecord:', e); }
 
-  alert(`✓ Proyección "Provisional ${ordenNo}" enviada a ${encargado.correos.join(', ')}.`);
+  await alertModal(`✓ Proyección "Provisional ${ordenNo}" enviada a ${encargado.correos.join(', ')}.`);
 }
 
 // Flujo STOCK: arma items desde repSendData (assignOrigins) y envía.
@@ -3012,7 +3040,7 @@ function generateRepXLS(sucId, codeSet) {
     });
   });
 
-  if (!generated) alert(`Sin cantidades para ${REP_LBLS[sucId]}.`);
+  if (!generated) alertModal(`Sin cantidades para ${REP_LBLS[sucId]}.`);
 }
 
 // Reparto balanceado en bloques de máx `max` ítems: N = ceil(total/max),
@@ -3360,14 +3388,14 @@ window.saveCompraExclFromUI = async () => {
     keywords:    parse('excl-kw'),
   };
   try { await saveCompraExclusions(); }
-  catch (e) { alert('No se pudo guardar: ' + e.message); return; }
+  catch (e) { await alertModal({ msg: 'No se pudo guardar: ' + e.message, danger: true }); return; }
   // Re-filtrar lo ya cargado por código/palabra (el proveedor no se guarda por producto).
   const before = repCompraProducts.length;
   repCompraProducts = repCompraProducts.filter(p => !compraExclCode(p.code) && !compraExclName(p.name));
   if (repCompraProducts.length !== before) { repCompraData = {}; repCompraTouched = {}; computeComprasSuggestions(); }
   renderCompraPanelFiles();
   renderRepFull();
-  alert('✓ Exclusiones guardadas. Aplican al próximo archivo y a lo ya cargado por código/palabra.');
+  await alertModal('✓ Exclusiones guardadas. Aplican al próximo archivo y a lo ya cargado por código/palabra.');
 };
 
 // Helper: pool disponible por producto según modo activo
@@ -3614,7 +3642,7 @@ function generateRedistXLS(orig) {
     const key = `${orig}->${dest}`;
     return repRedistData[key] && Object.values(repRedistData[key]).some(v => v > 0);
   });
-  if (!destinos.length) { alert(`Sin cantidades para redistribuir desde ${REP_LBLS[orig]}.`); return; }
+  if (!destinos.length) { alertModal(`Sin cantidades para redistribuir desde ${REP_LBLS[orig]}.`); return; }
   let delay = 0;
   destinos.forEach(dest => {
     setTimeout(() => {
@@ -3671,7 +3699,7 @@ window.compraDrop = e => {
 };
 
 window.handleCompraFile = async inputEl => {
-  if (typeof XLSX === 'undefined') { alert('SheetJS no cargado. Recargá la página.'); return; }
+  if (typeof XLSX === 'undefined') { await alertModal({ msg: 'SheetJS no cargado. Recargá la página.', danger: true }); return; }
   const files = Array.from(inputEl.files);
   inputEl.value = '';
   if (!files.length) return;
@@ -3696,7 +3724,7 @@ window.handleCompraFile = async inputEl => {
         products = parseCompraXLS(wb);
       }
       if (!products.length) {
-        alert(`"${file.name}" no tiene productos reconocibles. Se omitió.`);
+        await alertModal(`"${file.name}" no tiene productos reconocibles. Se omitió.`);
         continue;
       }
       products.forEach(p => {
@@ -3720,7 +3748,7 @@ window.handleCompraFile = async inputEl => {
     renderRepFull();
     saveRepSession();
   } catch(e) {
-    alert('Error al procesar archivo: ' + e.message);
+    await alertModal({ msg: 'Error al procesar archivo: ' + e.message, danger: true });
     console.error('handleCompraFile:', e);
   }
 };
@@ -3729,7 +3757,7 @@ function generateCompraRepXLS(sucId) {
   if (typeof XLSX === 'undefined') return;
   const send = repCompraData[sucId] || {};
   const entries = Object.entries(send).filter(([,v]) => v > 0);
-  if (!entries.length) { alert(`Sin cantidades para ${REP_LBLS[sucId]}.`); return; }
+  if (!entries.length) { alertModal(`Sin cantidades para ${REP_LBLS[sucId]}.`); return; }
   const fecha = getTodaySV();
 
   saveReposicionRecord('B01', sucId, send, fecha);   // trazabilidad: un registro
@@ -3754,7 +3782,7 @@ function generateCompraRepXLS(sucId) {
 
 window.analyzeWithAI = async () => {
   if (repMode !== 'stock') {
-    alert('La sugerencia con IA solo está disponible en reposición normal.');
+    await alertModal('La sugerencia con IA solo está disponible en reposición normal.');
     return;
   }
 
@@ -3773,7 +3801,7 @@ window.analyzeWithAI = async () => {
     return true;
   });
   if (!filtered.length) {
-    alert('Aplicá un filtro de categoría o marca antes de usar la IA.');
+    await alertModal('Aplicá un filtro de categoría o marca antes de usar la IA.');
     return;
   }
 
@@ -3793,7 +3821,7 @@ window.analyzeWithAI = async () => {
   }
 
   const served = repTargets().filter(repOriginServes);
-  if (!served.length) { alert('El origen seleccionado no surte ningún destino.'); return; }
+  if (!served.length) { await alertModal('El origen seleccionado no surte ningún destino.'); return; }
 
   const btn = $('btn-ai-rep');
   btn.disabled = true;
@@ -3850,7 +3878,7 @@ window.analyzeWithAI = async () => {
         `<span style="color:var(--warn-tx);font-weight:600">⚠ IA aplicada · ${trimmed} código(s) ajustado(s) al pool del origen</span>`;
     }
   } catch(e) {
-    alert('Error al analizar con IA: ' + e.message);
+    await alertModal({ msg: 'Error al analizar con IA: ' + e.message, danger: true });
   } finally {
     btn.disabled = false;
     btn.innerHTML = '✨ IA';
@@ -4366,8 +4394,8 @@ window.crearConteoInv = async () => {
   const asigUid  = selOpt.value;
   const asigNom  = asigUid ? (selOpt.options[selOpt.selectedIndex]?.dataset.name || '') : '';
 
-  if (!sucursal) { alert('Seleccioná una sucursal.'); return; }
-  if (!window._invParsedProducts?.length) { alert('Subí al menos un archivo XLS válido.'); return; }
+  if (!sucursal) { await alertModal('Seleccioná una sucursal.'); return; }
+  if (!window._invParsedProducts?.length) { await alertModal('Subí al menos un archivo XLS válido.'); return; }
 
   const SNAMES = {
     B01:'B01 Hangar', B02:'B02 Zdt', B03:'B03 Oriente', M01:'M01 Merliot',
@@ -4401,7 +4429,7 @@ window.crearConteoInv = async () => {
     closeInvModal();
     openInvDetalle(ref.id);
   } catch(e) {
-    alert('Error creando conteo: ' + e.message);
+    await alertModal({ msg: 'Error creando conteo: ' + e.message, danger: true });
   }
 };
 
@@ -4548,7 +4576,7 @@ window.guardarReasignar = async () => {
     });
     closeReasignarModal();
   } catch(e) {
-    alert('Error reasignando: ' + e.message);
+    await alertModal({ msg: 'Error reasignando: ' + e.message, danger: true });
   }
 };
 
@@ -4558,11 +4586,11 @@ async function openInvDetalle(invId) {
     try {
       const snap = await fbMod.getDoc(fbMod.doc(db, 'inventarios', invId));
       if (!snap.exists() || snap.data().asignadoA !== currentUser.uid) {
-        alert('Ese conteo no está asignado a vos.');
+        await alertModal('Ese conteo no está asignado a vos.');
         showScreen('s-inventario'); initInvScreen();
         return;
       }
-    } catch (e) { alert('No se pudo abrir el conteo: ' + e.message); return; }
+    } catch (e) { await alertModal({ msg: 'No se pudo abrir el conteo: ' + e.message, danger: true }); return; }
   }
   currentInvId = invId;
   showScreen('s-inventario-detalle');
@@ -4928,7 +4956,7 @@ window.toggleHistDet = id => {
 
 window.exportInvXLS = async (invId) => {
   if (typeof XLSX === 'undefined') {
-    alert('SheetJS no cargado. Recargá la página.');
+    await alertModal({ msg: 'SheetJS no cargado. Recargá la página.', danger: true });
     return;
   }
   try {
@@ -4969,7 +4997,7 @@ window.exportInvXLS = async (invId) => {
     const fecha  = d.fecha || getTodaySV();
     XLSX.writeFile(wb, `Inventario_${suc}_${titulo}_${fecha}.xlsx`);
   } catch(e) {
-    alert('Error exportando: ' + e.message);
+    await alertModal({ msg: 'Error exportando: ' + e.message, danger: true });
   }
 };
 
