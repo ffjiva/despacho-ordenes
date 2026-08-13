@@ -2861,7 +2861,8 @@ async function findEncargado(sucId) {
     const c = d.data();
     const correos = [...new Set([c.correoTrabajo, c.correo]
       .map(x => (x || '').trim()).filter(Boolean))];
-    if (correos.length) found = { nombre: c.nombre || '', correos };
+    if (correos.length) found = { nombre: c.nombre || '', correos,
+      telefono: c.telefono || c.telefono2 || '' };
   });
   return found;
 }
@@ -2909,6 +2910,45 @@ function saludoHora() {
   if (t >= 180 && t <= 720)  return 'Buenos días ooo';    // 03:00–12:00
   if (t >= 721 && t <= 1080) return 'Buenas tardes ooo';  // 12:01–18:00
   return 'Buenas noches ooo';                             // 18:01–02:59
+}
+
+// Modal de éxito de proyección + aviso opcional por WhatsApp (wa.me, sale desde tu número).
+// Un solo modal (opción 3): si el encargado tiene teléfono, el botón primario abre wa.me
+// EN EL CLICK (evita bloqueo de popups en móvil). Restaura cm-cancel al cerrar.
+const REP_WA_MSG = 'Ooooy ya te envié al correo lo que pienso mandarles, hay me decís si te hace falta algo más';
+function projectionSentModal(ordenNo, correos, tel) {
+  const ov = $('cm-overlay');
+  $('cm-title').textContent = '✓ Proyección enviada';
+  $('cm-msg').innerHTML = `Provisional ${ordenNo} enviada a ${correos}.`;
+  const ok = $('cm-ok'), cancel = $('cm-cancel');
+  const cxtOrig = cancel.textContent, cclsOrig = cancel.className;   // restaurar al cerrar
+  let phone = String(tel || '').replace(/\D/g, '');
+  if (phone.length === 8) phone = '503' + phone;                     // 503 + 8 dígitos
+  const waUrl = phone.length >= 8
+    ? `https://wa.me/${phone}?text=${encodeURIComponent(REP_WA_MSG)}` : '';
+  return new Promise(resolve => {
+    const close = () => {
+      ov.classList.remove('on');
+      cancel.textContent = cxtOrig; cancel.className = cclsOrig; cancel.style.display = '';
+      ok.onclick = cancel.onclick = ov.onclick = null;
+      document.removeEventListener('keydown', onKey);
+      resolve();
+    };
+    const onKey = (e) => { if (e.key === 'Escape' || e.key === 'Enter') close(); };
+    if (waUrl) {
+      ok.textContent = '📱 Abrir WhatsApp'; ok.className = 'btn btn-dark';
+      ok.onclick = () => { window.open(waUrl, '_blank'); close(); };  // open dentro del click
+      cancel.textContent = 'Listo'; cancel.className = 'btn btn-ghost';
+      cancel.style.display = ''; cancel.onclick = () => close();
+    } else {
+      ok.textContent = 'Aceptar'; ok.className = 'btn btn-dark';
+      ok.onclick = () => close();
+      cancel.style.display = 'none';
+    }
+    document.addEventListener('keydown', onKey);
+    ov.onclick = (e) => { if (e.target === ov) close(); };
+    ov.classList.add('on');
+  });
 }
 
 // Envío de la proyección al encargado — helper compartido (stock y compra).
@@ -2969,7 +3009,7 @@ async function sendProjectionFor(sucId, items, opts = {}) {
   try { await saveProyeccionRecord(sucId, destNombre, ordenNo, encargado, items); }
   catch (e) { console.warn('saveProyeccionRecord:', e); }
 
-  await alertModal(`✓ Proyección "Provisional ${ordenNo}" enviada a ${encargado.correos.join(', ')}.`);
+  await projectionSentModal(ordenNo, encargado.correos.join(', '), encargado.telefono);
 }
 
 // Flujo STOCK: arma items desde repSendData (assignOrigins) y envía.
