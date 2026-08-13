@@ -2205,6 +2205,7 @@ function renderRepTable() {
   const sucId    = repActiveTab;
   const send     = repSendData[sucId] || {};
   const hasBrand = repProducts.some(p => p.brand);
+  const isZeroed = repZeroedSucs.has(sucId);   // sucursal puesta en 0: sin sugerencias
 
   const filtered = repProducts.filter(repRowMatches);
 
@@ -2219,7 +2220,7 @@ function renderRepTable() {
   const totalSend = Object.values(send).reduce((s,v) => s+v, 0);
   const totalSendF= filtered.reduce((s,p) => s+(send[p.code]||0), 0);
   const filled    = Object.values(send).filter(v => v > 0).length;
-  const totalSug  = filtered.reduce((s,p) => {
+  const totalSug  = isZeroed ? 0 : filtered.reduce((s,p) => {
     const sst      = p.stock[sucId]||0;
     const _minimum = repMinFor(p, sucId);
     const avail    = repAvailable(p, repOrigin);
@@ -2240,8 +2241,8 @@ function renderRepTable() {
   const sorted = [...filtered].sort((a, b) => {
     const sendA   = send[a.code] || 0;
     const sendB   = send[b.code] || 0;
-    const sugA = ((a.stock[sucId]||0) < repMinFor(a, sucId) && repAvailable(a, repOrigin) > 0) ? 1 : 0;
-    const sugB = ((b.stock[sucId]||0) < repMinFor(b, sucId) && repAvailable(b, repOrigin) > 0) ? 1 : 0;
+    const sugA = (!isZeroed && (a.stock[sucId]||0) < repMinFor(a, sucId) && repAvailable(a, repOrigin) > 0) ? 1 : 0;
+    const sugB = (!isZeroed && (b.stock[sucId]||0) < repMinFor(b, sucId) && repAvailable(b, repOrigin) > 0) ? 1 : 0;
     const bavailA = repPoolCeiling(a, repOrigin);
     const bavailB = repPoolCeiling(b, repOrigin);
 
@@ -2301,7 +2302,7 @@ function renderRepTable() {
     const sst   = p.stock[sucId] || 0;
     const avail      = repAvailable(p, repOrigin);
     const minimum    = repMinFor(p, sucId);
-    const sug        = (repOriginServes(sucId) && sst < minimum && avail > 0)
+    const sug        = (repOriginServes(sucId) && !isZeroed && sst < minimum && avail > 0)
       ? Math.min(minimum - sst, avail) : 0;
 
     // Pool en vivo: tope duro y zonas según lo ya asignado en otros destinos.
