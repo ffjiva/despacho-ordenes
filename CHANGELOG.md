@@ -13,6 +13,21 @@
 
 ## Sesiones y módulos
 
+### Sesión Reposición — sugerencias en 0 + aviso WhatsApp al enviar proyección — 13 Ago 2026 *(reposicion.html)*
+
+**feat(reposicion): aviso por WhatsApp tras enviar proyección** *(commit 580cd9f)*
+`sendProjectionFor` (compartido por los modos stock y compra) ya no cierra con el `alertModal`
+de éxito simple: nuevo `projectionSentModal()` fusiona ese aviso con un botón opcional "📱 Abrir
+WhatsApp" cuando el encargado tiene teléfono en `colaboradores` (`telefono`/`telefono2`, vía
+`findEncargado`). Abre `wa.me` con mensaje pre-escrito en el click (evita bloqueo de popups en
+móvil), sin adjuntar el PDF — el correo ya lo lleva. Sin Cloud Function nueva. Resuelve el ítem
+de Backlog "Aviso por WhatsApp al enviar proyección" (opción semi-manual, vía `wa.me`).
+
+**feat(reposicion): oculta sugerencias de sucursales puestas en 0** *(commit 49d96a6)*
+En modo stock de `renderRepTable()`, una sucursal en `repZeroedSucs` ya no muestra el badge ▲
+de sugerido por fila, no suma al total del pie, y no se prioriza en el orden "Sugeridos
+primero" — consistente con que sus sugerencias ya fueron puestas en 0 y redistribuidas.
+
 ### Sesión Reposición — alert() nativos migrados a alertModal — 10 Ago 2026 *(reposicion.html)*
 
 **feat(reposicion): migra los alert() nativos restantes a alertModal** *(commit 6c8aad1)*

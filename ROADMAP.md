@@ -229,7 +229,11 @@ movida al CHANGELOG (10 Ago 2026); redistribución del pool liberado al poner un
 ad-hoc, continuación de la misma sesión) cerrada, validada con smoke test Playwright y movida
 al CHANGELOG (10 Ago 2026); migración de los 33 `alert()` nativos restantes a `alertModal` en
 reposicion.html (ítem ad-hoc, detectado por Fernando al probar en real, continuación de la
-misma sesión) cerrada, validada con smoke test Playwright y movida al CHANGELOG (10 Ago 2026).*
+misma sesión) cerrada, validada con smoke test Playwright y movida al CHANGELOG (10 Ago 2026);
+ocultar sugerencias de sucursales puestas en 0 en `renderRepTable()` (ítem ad-hoc) y aviso por
+WhatsApp tras enviar la proyección vía `wa.me` (resuelve el ítem de Backlog homónimo) en
+reposicion.html cerrados, probados en producción por Fernando y movidos al CHANGELOG
+(13 Ago 2026).*
 
 ---
 
@@ -337,7 +341,6 @@ Nuevo rol en consideración. Aún sin definir: archivos a los que tendrá acceso
 - **Imagen en viñetas de vueltas** — foto adjunta en cards de vueltas (ops.html)
 - **GPS picking** — registrar coordenadas al iniciar y completar una orden de bodega (index.html)
 - **Agente WhatsApp** — notificaciones o comandos por WhatsApp (largo plazo)
-- **Aviso por WhatsApp al enviar proyección** *(reposicion.html + posible Cloud Function)* — tras el auto-envío del correo (ya funcionando), notificar al encargado por WhatsApp como empujón para que revise el correo (NO adjuntar el PDF; el correo ya lo lleva). Evaluar dos vías: (a) `wa.me` semi-manual — gratis, un clic, sin adjunto; (b) WhatsApp Cloud API — automático, de paga por mensaje desde jul 2025 pero "utility" baratísimo (~USD 0.004–0.045, El Salvador en rango bajo; 1,000 conversaciones de servicio gratis/mes). El costo real no es la plata sino el setup: número dedicado (no el WhatsApp personal) + plantillas pre-aprobadas por Meta + cuenta Business. Parqueado — evaluar en sesión aparte.
 - **Rediseño home ops.html** — revisión estética del layout de navegación principal. Dos conceptos bocetados en sesión 03 Jun 2026: (A) home con botones por módulo agrupados por sección, (B) tabs superiores por módulo. Pendiente de evaluar cuando haya espacio.
 - **Modularizar ops.html** — *condicional, no prioritario.* Medición 12 Jul: ops.html
   ~4.672 líneas y **ningún apartado justifica archivo propio** (el más pesado es
@@ -385,7 +388,6 @@ hacia el CHANGELOG.
 
 ---
 
-*Última actualización: 10 Agosto 2026 — Botón "Sucursal a 0", modal de confirmación
-genérico (`confirmModal`), su migración al resto de `confirm()` nativos, la redistribución
-del pool liberado con exclusión persistente de sugerencias, y la migración de los `alert()`
-nativos restantes a `alertModal` en reposicion.html cerrados (ver CHANGELOG).*
+*Última actualización: 13 Agosto 2026 — Ocultar sugerencias de sucursales puestas en 0 y
+aviso por WhatsApp tras enviar la proyección (`wa.me`) en reposicion.html cerrados
+(ver CHANGELOG).*
