@@ -977,10 +977,10 @@ document.addEventListener('visibilitychange', async () => {
     if (!lockSessionStart) return;
     localActiveMs += Math.max(0, Date.now() - lockSessionStart);
     lockSessionStart = 0;
-    try { await dbUpdate(curId, { activeMs: localActiveMs }); } catch {}
+    try { await dbUpdate(curId, { activeMs: localActiveMs, running: false }); } catch {}
   } else {
     lockSessionStart = Date.now();
-    try { await dbUpdate(curId, { lockedAt: lockSessionStart }); } catch {}
+    try { await dbUpdate(curId, { lockedAt: lockSessionStart, running: true }); } catch {}
   }
 });
 
@@ -1327,7 +1327,7 @@ window.goHome = async () => {
     const _add     = lockSessionStart ? Math.max(0, Date.now() - lockSessionStart) : 0;
     const _lockId  = curId;
     const _finalMs = localActiveMs + _add;
-    dbUpdate(_lockId, { lockedBy: null, lockedAt: null, activeMs: _finalMs }).catch(() => {});
+    dbUpdate(_lockId, { lockedBy: null, lockedAt: null, activeMs: _finalMs, running: false }).catch(() => {});
     lockSet = false;
     lockSessionStart = 0;
     localActiveMs = 0;
@@ -1492,7 +1492,7 @@ function cardHtml(d, archived = false) {
 
   // B7 — tiempo de trabajo acumulado (solo corre mientras la orden está abierta).
   const _base = Number(d.activeMs) || 0;
-  const _openNow = d.lockedBy && (Date.now() - (d.lockedAt || 0)) < LOCK_TTL_MS;
+  const _openNow = d.lockedBy && d.running !== false && (Date.now() - (d.lockedAt || 0)) < LOCK_TTL_MS;
   let timeChip = '';
   if (_openNow) {
     timeChip = `<span class="dcard-time dcard-time-live" data-base="${_base}" data-since="${d.lockedAt || 0}">⏱ ${fmtClock(_base + Math.max(0, Date.now() - (d.lockedAt || 0)))}</span>`;
@@ -2368,7 +2368,7 @@ async function doOpenDespacho(id, readOnly = false, lockedBy = '') {
       const _sessionStart = Date.now();
       try {
         await Promise.race([
-          dbUpdate(id, { lockedBy: currentUser?.uid, lockedByName: currentUser?.name, lockedAt: _sessionStart }),
+          dbUpdate(id, { lockedBy: currentUser?.uid, lockedByName: currentUser?.name, lockedAt: _sessionStart, running: true }),
           new Promise((_, rej) => setTimeout(() => rej(new Error('lock timeout')), 5000))
         ]);
         lockSet = true;
