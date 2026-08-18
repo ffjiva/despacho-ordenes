@@ -13,6 +13,18 @@
 
 ## Sesiones y módulos
 
+### Fix — timer de órdenes se congela al pausar — 18 Ago 2026 *(index.html)*
+
+**fix(index): congela el timer de órdenes al pausar en vez de seguir hasta el TTL** *(commit f480a66)*
+Nuevo flag `running` en el doc de `despachos`. Antes, al salir de la app o bloquear pantalla
+(`visibilitychange` → hidden), el chip en vivo del super seguía sumando tiempo hasta que
+vencía el TTL del lock, aunque el bodeguero ya no estaba trabajando. Ahora `running: false`
+se escribe junto con el `activeMs` acumulado al perder visibilidad y al volver al home
+(`goHome`); `running: true` se restaura al reanudar (`visibilitychange` → visible) y al abrir
+la orden (`doOpenDespacho`). El chip en vivo (`cardHtml`) solo tickea si `running !== false`.
+No cambia la semántica del lock — una orden pausada sigue mostrando "Dándole". 5 find/replace
+quirúrgicos, validado con `node --check` sobre el `<script type="module">`.
+
 ### Sesión Reposición — sugerencias en 0 + aviso WhatsApp al enviar proyección — 13 Ago 2026 *(reposicion.html)*
 
 **feat(reposicion): aviso por WhatsApp tras enviar proyección** *(commit 580cd9f)*

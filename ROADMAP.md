@@ -131,6 +131,9 @@ status:         'pending'|'active'|'done'|'dispatched'|'dispatched_incomplete'
 lockedBy, lockedAt, archived, originalUrl
 startedAt, completedAt, dispatchedAt, createdAt: number
 activeMs: number   ← tiempo de trabajo acumulado; corre solo con la orden abierta (lock activo)
+running:  boolean  ← true mientras el picker tiene la app visible/activa; false al pausar
+                     (visibilitychange oculto) o volver al home — el chip en vivo solo
+                     tickea si running !== false
 users/{uid}
 (ver arriba)
 vueltas/{id}
@@ -233,7 +236,8 @@ misma sesión) cerrada, validada con smoke test Playwright y movida al CHANGELOG
 ocultar sugerencias de sucursales puestas en 0 en `renderRepTable()` (ítem ad-hoc) y aviso por
 WhatsApp tras enviar la proyección vía `wa.me` (resuelve el ítem de Backlog homónimo) en
 reposicion.html cerrados, probados en producción por Fernando y movidos al CHANGELOG
-(13 Ago 2026).*
+(13 Ago 2026); congelar el timer de órdenes al pausar (`running` en `despachos`, ítem ad-hoc,
+pedido directamente por Fernando) en index.html cerrado y movido al CHANGELOG (18 Ago 2026).*
 
 ---
 
@@ -388,6 +392,5 @@ hacia el CHANGELOG.
 
 ---
 
-*Última actualización: 13 Agosto 2026 — Ocultar sugerencias de sucursales puestas en 0 y
-aviso por WhatsApp tras enviar la proyección (`wa.me`) en reposicion.html cerrados
-(ver CHANGELOG).*
+*Última actualización: 18 Agosto 2026 — Timer de órdenes se congela al pausar (`running` en
+despachos) en index.html cerrado (ver CHANGELOG).*
