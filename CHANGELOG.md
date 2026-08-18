@@ -13,6 +13,40 @@
 
 ## Sesiones y módulos
 
+### Sesión Picking — PDF calcado de facturación + chequeo de versión — 18 Ago 2026 *(index.html, scripts/utilidades/)*
+
+**feat(index): PDF de orden calca formato de facturación + chequeo de versión desplegada** *(commit 093575e)*
+`window.printPDF` reemplaza el export HTML+`window.print()` por un PDF generado con jsPDF
+(CDN `jspdf.umd.min.js`) que replica el layout exacto de la "ORDEN DE ENVIO" de facturación:
+mismas coordenadas de encabezado (origen/destino/fecha/no. orden), tabla cantidad/código/
+producto/familia/lote, fila de total, y firmas AUTORIZADO/PREPARADO/DESPACHADO. Nombres de
+sucursal traducidos a los nombres exactos de facturación (`FACT_NAMES`), con fallback a
+`ubicLabel`. Abre el PDF en pestaña nueva (`bloburl`); si el navegador bloquea popups, hace
+`doc.save()` directo. Resuelve en parte el ítem de Backlog "Exportar PDF mejorado" (firma y
+totales cubiertos; logo queda pendiente — ver Backlog).
+
+Además, nuevo chequeo de versión desplegada: constante `APP_VERSION` + listener en
+`config/version.latest` (Firestore) vía `initVersionCheck()`, que muestra un banner
+"🔄 Hay una actualización" con botón de recarga cuando el build servido queda desactualizado
+respecto al último deploy — apunta a eliminar bugs reportados por `index.html` cacheado. Se
+engancha tras resolver `currentUser`/`currentRole` en el flujo de auth.
+
+**fix(scripts): compatibilidad `firebase-admin` v14 en `publish-version.js` y `verify-users.js`** *(commits c76c4bc, ab5da89)*
+Nuevo script `scripts/utilidades/publish-version.js` (+ `npm run version:publish`) que lee
+`APP_VERSION` de `index.html` y lo escribe en `config/version.latest` tras cada deploy que
+toque `index.html` — paso agregado al flujo de deploy documentado en `CLAUDE.md`. Al
+implementarlo se detectó que `firebase-admin` v14 (instalado en el `package.json` raíz)
+rompió la API usada por los scripts de `scripts/utilidades/`: `admin.credential.cert()` →
+`admin.cert()`, `admin.firestore()`/`admin.auth()` → `getFirestore()`/`getAuth()` desde sus
+subpaths. Corregido en ambos scripts y verificado corriendo `verify-users.js` contra
+producción real (sin cambios en su lógica de negocio). No afecta Cloud Functions
+(`functions/` usa su propio `firebase-admin` v13, aislado). También se detectó que
+`serviceAccountKey.json` no estaba cubierto por los patrones existentes de `.gitignore` — se
+agregó explícito antes de que se hiciera ningún `git add` sobre el archivo real.
+
+Archivos: `index.html`, `CLAUDE.md`, `package.json`, `.gitignore`,
+`scripts/utilidades/publish-version.js` (nuevo), `scripts/utilidades/verify-users.js`.
+
 ### Fix — timer de órdenes se congela al pausar — 18 Ago 2026 *(index.html)*
 
 **fix(index): congela el timer de órdenes al pausar en vez de seguir hasta el TTL** *(commit f480a66)*

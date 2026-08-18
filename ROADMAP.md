@@ -163,6 +163,11 @@ config/proyeccion
 counters: { [sucId]: number }   ← correlativo Provisional por sucursal (desde 1)
 config/agenda
 events: []
+config/version
+latest: string   ← APP_VERSION del build actualmente desplegado; publicado por
+                   `npm run version:publish` tras cada deploy que toque index.html.
+                   index.html escucha este doc (initVersionCheck) y muestra un
+                   banner de actualización si su APP_VERSION quedó desactualizado.
 config/team
 ← DEPRECADO como fuente de usuarios.
 Solo persiste por FCM tokens legacy. No usar para nuevos desarrollos.
@@ -237,7 +242,11 @@ ocultar sugerencias de sucursales puestas en 0 en `renderRepTable()` (ítem ad-h
 WhatsApp tras enviar la proyección vía `wa.me` (resuelve el ítem de Backlog homónimo) en
 reposicion.html cerrados, probados en producción por Fernando y movidos al CHANGELOG
 (13 Ago 2026); congelar el timer de órdenes al pausar (`running` en `despachos`, ítem ad-hoc,
-pedido directamente por Fernando) en index.html cerrado y movido al CHANGELOG (18 Ago 2026).*
+pedido directamente por Fernando) en index.html cerrado y movido al CHANGELOG (18 Ago 2026);
+PDF de orden calcado del formato de facturación (jsPDF) + chequeo de versión desplegada
+(banner de actualización) en index.html, junto con el fix de compatibilidad de
+`firebase-admin` v14 en los scripts de `scripts/utilidades/`, cerrados, desplegados en
+producción y movidos al CHANGELOG (18 Ago 2026).*
 
 ---
 
@@ -340,7 +349,8 @@ Nuevo rol en consideración. Aún sin definir: archivos a los que tendrá acceso
 
 ## 📋 Backlog de mejoras menores (sin fecha)
 
-- **Exportar PDF mejorado** en picking — incluir logo, firma, totales (index.html)
+- **Logo en el PDF de orden** *(index.html)* — el PDF de "ORDEN DE ENVIO" (jsPDF, cerrado
+  18 Ago 2026) ya incluye firma y totales calcados de facturación; falta insertar el logo.
 - **Comentarios por orden** — chat interno entre Fernando y el bodeguero asignado (index.html)
 - **Imagen en viñetas de vueltas** — foto adjunta en cards de vueltas (ops.html)
 - **GPS picking** — registrar coordenadas al iniciar y completar una orden de bodega (index.html)
@@ -392,5 +402,5 @@ hacia el CHANGELOG.
 
 ---
 
-*Última actualización: 18 Agosto 2026 — Timer de órdenes se congela al pausar (`running` en
-despachos) en index.html cerrado (ver CHANGELOG).*
+*Última actualización: 18 Agosto 2026 — PDF de orden calcado del formato de facturación
+(jsPDF) + chequeo de versión desplegada en index.html cerrados (ver CHANGELOG).*
