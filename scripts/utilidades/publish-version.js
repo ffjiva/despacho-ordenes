@@ -1,13 +1,14 @@
 const fs = require('fs');
 const path = require('path');
 const admin = require('firebase-admin');
+const { getFirestore } = require('firebase-admin/firestore');
 const serviceAccount = require('./serviceAccountKey.json');
 
 admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount)
+  credential: admin.cert(serviceAccount)
 });
 
-const db = admin.firestore();
+const db = getFirestore();
 
 async function publish() {
   const indexPath = path.join(__dirname, '..', '..', 'index.html');

@@ -19,6 +19,7 @@ firebase-debug.*.log*
 # Credenciales de administrador (NO subir)
 *firebase-adminsdk*.json
 *.key.json
+serviceAccountKey.json
 
 # Datos sensibles del equipo
 Colaboradores.xlsx
