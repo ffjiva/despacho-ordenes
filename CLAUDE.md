@@ -108,6 +108,12 @@ Siempre en este orden — **nunca saltarse el commit**:
 Si se deploya antes de commitear, Firebase verá el código como "sin cambios" en el siguiente
 deploy y lo saltará silenciosamente (bug difícil de detectar).
 
+**Si el deploy toca `index.html`:** subir `APP_VERSION` (constante cerca de `uid()`) antes del
+paso 1, y después del paso 3 correr `npm run version:publish` — lee `APP_VERSION` de
+`index.html` y lo escribe en `config/version.latest` (Firestore), lo que dispara el banner de
+"hay una actualización" (`initVersionCheck`) en las sesiones que quedaron con el build viejo
+cacheado. Requiere `scripts/utilidades/serviceAccountKey.json` (gitignored, no versionado).
+
 ## Para cambios en Cloud Functions
 Indicarlo por separado — no modificar los `.html` por esos cambios.
 

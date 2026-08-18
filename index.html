@@ -546,6 +546,7 @@ body:not(.dark) input[type="time"] {
 </style>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
 
@@ -995,6 +996,36 @@ function startDashTicker() {
     });
   }, 1000);
 }
+// ── Chequeo de versión: avisa (y permite recargar) si hay una build más nueva desplegada ──
+// Subir APP_VERSION en CADA deploy y reflejar el mismo string en config/version.latest (Firestore).
+const APP_VERSION = '2026-08-18.2';
+let _versionCheckStarted = false;
+function initVersionCheck() {
+  if (isLocal || !db || _versionCheckStarted) return;
+  _versionCheckStarted = true;
+  try {
+    fbMod.onSnapshot(fbMod.doc(db, 'config', 'version'), snap => {
+      const latest = snap.exists() ? (snap.data().latest || '') : '';
+      if (latest && latest !== APP_VERSION) showUpdateBanner();
+    }, () => {});
+  } catch (e) { console.warn('versionCheck:', e.message); }
+}
+function showUpdateBanner() {
+  if ($('update-banner')) return;
+  const bar = document.createElement('div');
+  bar.id = 'update-banner';
+  bar.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:9999;'
+    + 'background:var(--warn-bg);color:var(--warn-tx);border-top:1px solid var(--warn-bd);'
+    + 'padding:10px 14px;display:flex;align-items:center;justify-content:center;gap:12px;'
+    + 'font-family:var(--mono);font-size:.72rem;font-weight:700';
+  bar.innerHTML = '🔄 Hay una actualización.'
+    + ' <button onclick="location.replace(location.pathname + \'?v=\' + Date.now())"'
+    + ' style="padding:4px 12px;font-family:var(--mono);font-size:.7rem;font-weight:700;'
+    + 'border:1px solid var(--warn-bd);border-radius:5px;background:transparent;'
+    + 'color:var(--warn-tx);cursor:pointer">Recargar</button>';
+  document.body.appendChild(bar);
+}
+
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
 
 function setStatus(msg, type='info', loading=false) {
@@ -2725,82 +2756,102 @@ window.viewSummary = () => {
 
 window.printPDF = () => {
   if (!curData) return;
-  const { orderNumber, orderDate, origin, destination, assignedTo, createdAt, products = [], checked = {} } = curData;
-  const now = new Date().toLocaleString('es-SV', { timeZone: 'America/El_Salvador', day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
-  const totalUnits = products.reduce((s, p) => s + (Number(p.qty) || 0), 0);
+  if (!window.jspdf || !window.jspdf.jsPDF) { alert('No se pudo cargar el generador de PDF. Revisa tu conexión y reintenta.'); return; }
+  const { orderNumber, orderDate, origin, destination, products = [] } = curData;
 
-  const rows = products.map(p => {
-    const ck = checked[p.id];
-    const done = !!ck?.done;
-    const checkSymbol = done ? '✓' : '□';
-    const checkColor  = done ? '#2d5a1b' : '#888';
-    const timeStr = done && ck.time ? `<div style="font-size:9px;color:#2d5a1b">${ck.time}</div>` : '';
-    const noteTxt = ck?.note ? `<div style="font-size:9px;color:#555;font-style:italic">${ck.note}</div>` : '';
-    return `
-      <tr>
-        <td style="text-align:center;font-size:1.1em;color:${checkColor};white-space:nowrap">
-          ${checkSymbol}${timeStr}
-        </td>
-        <td>
-          <div style="font-weight:${done?'600':'400'}">${p.name}</div>
-          <div style="font-size:9px;color:#666">${[p.code, p.family].filter(Boolean).join(' · ')}</div>
-          ${noteTxt}
-        </td>
-        <td style="text-align:center;font-weight:700">${p.qty}</td>
-      </tr>`;
-  }).join('');
+  // Nombres exactos de facturación (id → nombre impreso). S06/Zoditech no está en factura → label.
+  const FACT_NAMES = {
+    B01: 'BODEGA MATRIX SF', B02: 'BODEGA CENTRAL', B03: 'BODEGA ORIENTE',
+    M01: 'ZONA DIGITAL MATRIX', S02: 'ZONA DIGITAL SAN SALVADOR',
+    S03: 'ZONA DIGITAL SAN MIGUEL', S04: 'ZONA DIGITAL SOYAPANGO',
+    S07: 'ZONA DIGITAL USULUTAN', S06: 'ZODITECH',
+  };
+  const factName = c => FACT_NAMES[c] || ubicLabel(c) || c || '—';
+  const fmtDMY   = () => new Date().toLocaleDateString('en-GB', { timeZone: 'America/El_Salvador' });
+  const fmtQty   = q => Number(q).toFixed(2);
 
-  const html = `<!DOCTYPE html><html lang="es"><head>
-<meta charset="UTF-8"/>
-<title>Orden ${orderNumber || ''}</title>
-<style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: Arial, sans-serif; font-size: 11px; color: #000; background: #fff; margin: 2cm; }
-  h1 { font-size: 16px; font-weight: 700; letter-spacing: .05em; margin-bottom: 2px; }
-  .sub { font-size: 12px; color: #333; margin-bottom: 2px; }
-  .meta { font-size: 10px; color: #555; margin-bottom: 14px; }
-  hr { border: none; border-top: 1px solid #ccc; margin: 10px 0; }
-  table { width: 100%; border-collapse: collapse; margin-top: 8px; }
-  th { background: #f0f0f0; font-weight: 700; padding: 6px 8px; text-align: left; border: 1px solid #ccc; font-size: 10px; letter-spacing: .06em; }
-  th:first-child, th:last-child { text-align: center; width: 40px; }
-  td { padding: 5px 8px; border: 1px solid #ddd; vertical-align: middle; }
-  td:first-child, td:last-child { text-align: center; }
-  tr:nth-child(even) { background: #fafafa; }
-  .total-row td { font-weight: 700; background: #f0f0f0; border-top: 2px solid #aaa; }
-  .footer { margin-top: 18px; font-size: 9px; color: #888; text-align: center; }
-  @media print { body { margin: 1.5cm; } }
-</style>
-</head><body>
-<h1>DESPACHO MANAGER</h1>
-<div class="sub">ORDEN ${orderNumber || '—'} · ${orderDate || '—'}</div>
-<div class="sub">${origin || '—'} → ${destination || '—'}</div>
-<div class="meta">Asignado: ${curData?.assignedToName || assignedTo || 'Sin asignar'} &nbsp;|&nbsp; Generado: ${now}</div>
-<hr/>
-<table>
-  <thead>
-    <tr>
-      <th></th>
-      <th>PRODUCTO</th>
-      <th>CANT.</th>
-    </tr>
-  </thead>
-  <tbody>
-    ${rows}
-    <tr class="total-row">
-      <td></td>
-      <td>TOTAL UNIDADES</td>
-      <td>${totalUnits}</td>
-    </tr>
-  </tbody>
-</table>
-<div class="footer">Documento generado por Despacho Manager</div>
-<script>window.onload = () => { window.print(); }<\/script>
-</body></html>`;
+  const items = products
+    .map(p => ({ code: p.code || '', qty: Number(p.qty) || 0, name: p.name || p.code || '', familia: p.family || '' }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'es'));
+  if (!items.length) { alert('La orden no tiene productos.'); return; }
 
-  const w = window.open('', '_blank');
-  if (!w) { alert('Permite ventanas emergentes para generar el PDF.'); return; }
-  w.document.write(html);
-  w.document.close();
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'pt', format: 'letter' });   // 612 x 792, calco de facturación
+  const PAGE_W = 612, PAGE_H = 792;
+  const CANT_X = 16, CODE_X = 59, PROD_X = 143, PROD_W = 384 - 143 - 4;
+  const FAM_X = 386, LOTE_CX = (472 + 582) / 2;
+  const ROW_TOP0 = 143.3, LINE_H = 11.4, ITEM_GAP = 14, FOOT_LIMIT = 758;
+
+  const fechaEnvio = orderDate || fmtDMY();
+  const noOrden    = orderNumber ? String(orderNumber) : '—';
+
+  function drawHeader() {
+    doc.setFont('helvetica', 'bold').setFontSize(14);
+    doc.text('ORDEN DE ENVIO', PAGE_W / 2, 23.6, { baseline: 'top', align: 'center' });
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Sucursal Origen:',  39,  93.3,  { baseline: 'top' });
+    doc.text('Sucursal Destino:', 39,  108.3, { baseline: 'top' });
+    doc.text('Fecha Envio:',      384, 93.3,  { baseline: 'top' });
+    doc.text('No.Orden Envio:',   384, 108.3, { baseline: 'top' });
+    doc.setFont('helvetica', 'normal');
+    doc.text(factName(origin),      134, 93.3,  { baseline: 'top' });
+    doc.text(factName(destination), 134, 108.3, { baseline: 'top' });
+    doc.text(fechaEnvio,            461, 93.3,  { baseline: 'top' });
+    doc.text(noOrden,               461, 108.3, { baseline: 'top' });
+    doc.setLineWidth(0.5);
+    [14, 57, 141, 384, 472, 582].forEach(x => doc.line(x, 127, x, 141));
+    doc.line(14, 127, 582, 127);
+    doc.line(14, 141, 582, 141);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Cantidad', 35.5,  129.3, { baseline: 'top', align: 'center' });
+    doc.text('Codigo',   99,    129.3, { baseline: 'top', align: 'center' });
+    doc.text('Producto', 262.5, 129.3, { baseline: 'top', align: 'center' });
+    doc.text('Familia',  428,   129.3, { baseline: 'top', align: 'center' });
+    doc.text('Lote/Fecha Vencimiento', 527, 129.3, { baseline: 'top', align: 'center' });
+    doc.setFont('helvetica', 'normal');
+  }
+
+  drawHeader();
+  let y = ROW_TOP0, totalQty = 0;
+  items.forEach(it => {
+    const nameLines = doc.splitTextToSize(it.name, PROD_W);
+    const blockH = Math.max(ITEM_GAP, nameLines.length * LINE_H);
+    if (y + blockH > FOOT_LIMIT) { doc.addPage(); drawHeader(); y = ROW_TOP0; }
+    doc.text(fmtQty(it.qty),  CANT_X, y, { baseline: 'top' });
+    doc.text(String(it.code), CODE_X, y, { baseline: 'top' });
+    nameLines.forEach((ln, i) => doc.text(ln, PROD_X, y + i * LINE_H, { baseline: 'top' }));
+    doc.text(it.familia, FAM_X, y, { baseline: 'top' });
+    doc.text('n/a', LOTE_CX, y, { baseline: 'top', align: 'center' });
+    y += blockH;
+    totalQty += Number(it.qty);
+  });
+
+  if (y + 140 > PAGE_H - 20) { doc.addPage(); drawHeader(); y = ROW_TOP0; }
+  doc.line(16, y - 1, 56, y - 1);
+  doc.setFont('helvetica', 'bold');
+  doc.text(fmtQty(totalQty), CANT_X, y + 2, { baseline: 'top' });
+  doc.setFont('helvetica', 'normal');
+  y += 20;
+  doc.text('*'.repeat(41), PAGE_W / 2, y, { baseline: 'top', align: 'center' });
+  y += 14;
+  doc.setFont('helvetica', 'bold');
+  doc.text('Observaciones:', 41, y, { baseline: 'top' });
+  doc.setFont('helvetica', 'normal');
+  const yF = Math.min(y + 86, PAGE_H - 40);
+  doc.text('_______________________________', 39,  yF, { baseline: 'top' });
+  doc.text('_______________________________', 210, yF, { baseline: 'top' });
+  doc.text('_______________________________', 381, yF, { baseline: 'top' });
+  doc.setFont('helvetica', 'bold');
+  doc.text('AUTORIZADO', 87.5, yF + 11, { baseline: 'top' });
+  doc.text('PREPARADO',  261,  yF + 11, { baseline: 'top' });
+  doc.text('DESPACHADO', 428,  yF + 11, { baseline: 'top' });
+  doc.setFont('helvetica', 'normal');
+
+  const fname = ('OrdenEnvio_' + noOrden + '_' + factName(destination) + '.pdf').replace(/[\/\\?%*:|"<>]/g, '-');
+  const url = doc.output('bloburl');
+  const w = window.open(url, '_blank');
+  if (!w) { doc.save(fname); }   // popups bloqueados → descarga directa
 };
 
 window.saveNote = async (pid, note) => {
@@ -3278,6 +3329,7 @@ function setupAuthListener() {
       const resolvedRole = profile.apps?.despacho?.role ?? profile.role;
       currentUser = { uid: firebaseUser.uid, email: firebaseUser.email, name: profile.name, role: resolvedRole };
       currentRole  = resolvedRole;
+      initVersionCheck();
       $('s-loading').classList.remove('on');
       requestNotificationPermission(); // fire-and-forget
       const deepId = new URLSearchParams(window.location.search).get('orden');
