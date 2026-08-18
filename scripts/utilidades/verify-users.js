@@ -1,12 +1,14 @@
 const admin = require('firebase-admin');
+const { getFirestore } = require('firebase-admin/firestore');
+const { getAuth } = require('firebase-admin/auth');
 const serviceAccount = require('./serviceAccountKey.json');
 
 admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount)
+  credential: admin.cert(serviceAccount)
 });
 
-const db    = admin.firestore();
-const auth  = admin.auth();
+const db    = getFirestore();
+const auth  = getAuth();
 
 async function verify() {
   console.log('\n═══════════════════════════════════');
