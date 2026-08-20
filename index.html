@@ -1010,7 +1010,7 @@ function startDashTicker() {
 }
 // ── Chequeo de versión: avisa (y permite recargar) si hay una build más nueva desplegada ──
 // Subir APP_VERSION en CADA deploy y reflejar el mismo string en config/version.latest (Firestore).
-const APP_VERSION = '2026-08-18.2';
+const APP_VERSION = '2026-08-19.1';
 let _versionCheckStarted = false;
 function initVersionCheck() {
   if (isLocal || !db || _versionCheckStarted) return;
@@ -2670,7 +2670,7 @@ window._imgAddStart = () => {
   const code = _imgCtxCode;
   const prod = (curData?.products || []).find(x => x.code === code);
   const name = prod ? prod.name : code;
-  openModal('Agregar foto', `Foto de:<br><b>${esc(name)}</b>`, '', [
+  openModal('Agregar foto', 'Foto de:', `<div style="font-family:var(--mono);font-weight:700;color:var(--text2);font-size:.8rem">${esc(name)}</div>`, [
     { label: '📷 Tomar / Subir foto', cls: 'btn-dark',    fn: 'window._imgPickFile()' },
     { label: 'Pegar URL',             cls: 'btn-outline', fn: 'window._imgPasteUrl()' },
     { label: 'Cancelar',              cls: 'btn-outline', fn: 'closeModal(event)' },
@@ -2693,8 +2693,9 @@ window._imgPasteUrl = () => {
   const code = _imgCtxCode;
   const prod = (curData?.products || []).find(x => x.code === code);
   const name = prod ? prod.name : code;
-  openModal('Pegar URL de imagen', `Foto de <b>${esc(name)}</b>. Pegá la dirección de una imagen:`,
-    `<input id="img-url-in" placeholder="https://..." autocomplete="off"
+  openModal('Pegar URL de imagen', 'Pegá la dirección de una imagen (jpg, png…):',
+    `<div style="font-family:var(--mono);font-weight:700;color:var(--text2);font-size:.75rem;margin-bottom:8px">${esc(name)}</div>
+     <input id="img-url-in" placeholder="https://..." autocomplete="off"
       style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--r);font-family:var(--mono);font-size:.72rem;background:var(--surface2);color:var(--text);outline:none"/>`,
     [{ label: 'Cancelar', cls: 'btn-outline', fn: 'closeModal(event)' },
      { label: 'Guardar',  cls: 'btn-dark',    fn: 'window._imgSaveUrl()' }]);
