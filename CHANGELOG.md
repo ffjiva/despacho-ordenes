@@ -13,6 +13,24 @@
 
 ## Sesiones y módulos
 
+### Sesión Push — Notificaciones FCM duplicadas — 20 Ago 2026 *(functions/index.js, index.html, moto.html)*
+
+**fix(fcm): tokens push por dispositivo — elimina duplicados** *(commit 29c137e)*
+`users/{uid}.fcmTokens` pasa de arreglo acumulativo a mapa `{ deviceId: token }`. Causa raíz:
+FCM rota el token de un dispositivo periódicamente y el arreglo nunca podaba el token viejo,
+así que `sendEach` entregaba al token viejo y al nuevo → push duplicado en el mismo aparato.
+Un `deviceId` estable por navegador (`localStorage`, helper `fcmDeviceId()` en `index.html` y
+`moto.html`) hace que el token rotado reemplace la misma clave en vez de sumarse; un
+dispositivo distinto sí agrega su propia clave (multi-dispositivo legítimo, no duplica).
+Backend (`pushToUser` en `functions/index.js`) tolerante a ambos formatos — mapa nuevo y
+arreglo legacy — tanto al leer tokens como al podar los inválidos tras el envío. Sin cambios
+en `firestore.rules` (el campo sigue llamándose `fcmTokens`, la regla `hasOnly` no valida
+tipo). Desplegado: 4 Cloud Functions (`onDespachoAssigned`, `onVueltaAssigned`,
+`onVueltaEmergencia`, `onInventarioAsignado`) + hosting (`index.html`, `moto.html`,
+`APP_VERSION` → `2026-08-20.1`) + `config/version.latest` publicado. La migración
+arreglo→mapa es auto-sanadora por dispositivo: cada aparato reemplaza su entrada al reabrir
+la app y re-registrar el token.
+
 ### Sesión Picking — Fotos de producto en picking list — 19 Ago 2026 *(index.html, firestore.rules)*
 
 **feat(index): fotos de producto en picking list — catálogo compartido `productImages/{code}`** *(commits e3bb29e, 2bdac2a)*

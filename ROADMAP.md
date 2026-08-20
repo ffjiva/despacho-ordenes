@@ -62,7 +62,9 @@ estado:       'aprobado'
 colaboradorId: string | null    ← FK → colaboradores/{id}
 active:       boolean
 createdAt:    number
-fcmTokens:    string[]
+fcmTokens:    { [deviceId]: string } | string[]   ← mapa por dispositivo (nuevo, un token
+                                                     por aparato); arreglo legacy tolerado
+                                                     por compatibilidad en el backend
 
 colaboradores/{id}  (campos de vinculación)
 uid:          string | null     ← FK → users/{uid} — presente solo cuando tiene cuenta
@@ -254,7 +256,10 @@ PDF de orden calcado del formato de facturación (jsPDF) + chequeo de versión d
 producción y movidos al CHANGELOG (18 Ago 2026); fotos de producto en la picking list (chip
 + catálogo compartido `productImages/{code}`, ítem ad-hoc pedido directamente por Fernando) en
 index.html cerrada, validada en celular vía canal preview de Firebase Hosting y movida al
-CHANGELOG (19 Ago 2026).*
+CHANGELOG (19 Ago 2026); notificaciones FCM duplicadas en el mismo dispositivo (`fcmTokens`
+de arreglo acumulativo a mapa por `deviceId`, ítem ad-hoc reportado por Fernando) en
+`functions/index.js`, `index.html` y `moto.html` cerrada, desplegada en producción y movida
+al CHANGELOG (20 Ago 2026).*
 
 ---
 
@@ -410,5 +415,5 @@ hacia el CHANGELOG.
 
 ---
 
-*Última actualización: 19 Agosto 2026 — Fotos de producto en picking list cerrada
+*Última actualización: 20 Agosto 2026 — Notificaciones FCM duplicadas cerrada
 (ver CHANGELOG).*
