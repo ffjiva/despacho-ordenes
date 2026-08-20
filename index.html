@@ -383,6 +383,18 @@ html, body {
   font-weight: 700;
 }
 .ic.has-nota .note-in { color: var(--warn-tx); }
+.tag-foto {
+  display: inline-block; font-family: var(--mono);
+  font-size: .58rem; font-weight: 700; letter-spacing: .06em;
+  margin-top: 6px; padding: 2px 7px; border-radius: 3px;
+  background: var(--bg); color: var(--muted);
+  border: 1px dashed var(--border2); cursor: pointer; white-space: nowrap;
+}
+.tag-foto:hover { border-color: var(--muted); color: var(--text2); }
+.tag-foto.has {
+  border-style: solid; border-color: var(--accent2);
+  color: var(--accent2); background: var(--surface);
+}
 .ic-qty-wrap { flex-shrink: 0; text-align: right; }
 .ic-qty { font-size: 1rem; font-weight: 700; color: var(--muted); line-height: 1; }
 .ic.done .ic-qty { color: var(--done-tx); }
@@ -2489,6 +2501,7 @@ function renderPick() {
   if (!curData) return;
   const { products = [], checked = {}, name = '', createdAt, assignedTo = '', origin = '', destination = '', originalUrl = '' } = curData;
 
+  if (_pickImgOrder !== curId) { _pickImgOrder = curId; pickImageMap = {}; loadPickImages(products); }
   const tot = products.length;
   const done = Object.values(checked).filter(c => c.done).length;
   const totU = products.reduce((s,p) => s + (Number(p.qty)||0), 0);
@@ -2597,6 +2610,9 @@ function buildItem(p, ckData, leaving = false) {
         <div class="ic-qty-wrap">
           <div class="ic-qty">${p.qty}</div>
           <div class="ic-qty-lbl">unid.</div>
+          ${p.code ? `<button class="tag-foto${pickImageMap[p.code] ? ' has' : ''}" data-code="${esc(p.code)}"
+            onclick="event.stopPropagation(); openProductImage(this.dataset.code)"
+            title="${pickImageMap[p.code] ? 'Ver foto del producto' : 'Agregar foto del producto'}">${pickImageMap[p.code] ? 'FOTO' : '+ FOTO'}</button>` : ''}
         </div>
       </div>
       <div class="ic-footer">
@@ -2607,6 +2623,137 @@ function buildItem(p, ckData, leaving = false) {
         </div>
       </div>
     </div>`;
+}
+
+/* ═══ Fotos de producto (productImages/{code}) ═══ */
+let pickImageMap = {};      // code -> { url, source, ... }
+let _pickImgOrder = null;   // orden para la que se cargó el mapa
+let _imgCtxCode   = null;   // código en contexto (modal actual)
+let _imgFileInput = null;
+
+const imgId = code => String(code).replace(new RegExp('[/.]', 'g'), '_');
+
+async function loadPickImages(products) {
+  if (isLocal || !db) return;
+  const codes = [...new Set((products || []).map(p => p.code).filter(Boolean))];
+  const map = {};
+  await Promise.all(codes.map(async code => {
+    try {
+      const snap = await fbMod.getDoc(fbMod.doc(db, 'productImages', imgId(code)));
+      if (snap.exists()) map[code] = snap.data();
+    } catch (e) {}
+  }));
+  pickImageMap = map;
+  renderPick();
+}
+
+window.openProductImage = (code) => {
+  if (!code) return;
+  _imgCtxCode = code;
+  const rec  = pickImageMap[code];
+  const prod = (curData?.products || []).find(x => x.code === code);
+  const name = prod ? prod.name : code;
+  if (rec && rec.url) {
+    const canReplace = currentUser?.role === 'super';
+    const html = `<img src="${esc(rec.url)}" alt="" loading="lazy"
+      style="max-width:100%;max-height:60vh;border-radius:var(--r);display:block;margin:0 auto;background:var(--surface2)"/>`;
+    const btns = [];
+    if (canReplace) btns.push({ label: 'Reemplazar', cls: 'btn-outline', fn: 'window._imgAddStart()' });
+    btns.push({ label: 'Cerrar', cls: 'btn-dark', fn: 'closeModal(event)' });
+    openModal('📷 ' + name, '', html, btns);
+  } else {
+    window._imgAddStart();
+  }
+};
+
+window._imgAddStart = () => {
+  const code = _imgCtxCode;
+  const prod = (curData?.products || []).find(x => x.code === code);
+  const name = prod ? prod.name : code;
+  openModal('Agregar foto', `Foto de:<br><b>${esc(name)}</b>`, '', [
+    { label: '📷 Tomar / Subir foto', cls: 'btn-dark',    fn: 'window._imgPickFile()' },
+    { label: 'Pegar URL',             cls: 'btn-outline', fn: 'window._imgPasteUrl()' },
+    { label: 'Cancelar',              cls: 'btn-outline', fn: 'closeModal(event)' },
+  ]);
+};
+
+function ensureImgInput() {
+  if (_imgFileInput) return _imgFileInput;
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = 'image/*'; inp.capture = 'environment';
+  inp.style.display = 'none';
+  inp.onchange = () => { const file = inp.files && inp.files[0]; inp.value = ''; if (file) handleImgFile(file); };
+  document.body.appendChild(inp);
+  _imgFileInput = inp;
+  return inp;
+}
+window._imgPickFile = () => { closeModal(); ensureImgInput().click(); };
+
+window._imgPasteUrl = () => {
+  const code = _imgCtxCode;
+  const prod = (curData?.products || []).find(x => x.code === code);
+  const name = prod ? prod.name : code;
+  openModal('Pegar URL de imagen', `Foto de <b>${esc(name)}</b>. Pegá la dirección de una imagen:`,
+    `<input id="img-url-in" placeholder="https://..." autocomplete="off"
+      style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--r);font-family:var(--mono);font-size:.72rem;background:var(--surface2);color:var(--text);outline:none"/>`,
+    [{ label: 'Cancelar', cls: 'btn-outline', fn: 'closeModal(event)' },
+     { label: 'Guardar',  cls: 'btn-dark',    fn: 'window._imgSaveUrl()' }]);
+};
+window._imgSaveUrl = async () => {
+  const url = ($('img-url-in')?.value || '').trim();
+  if (!/^https?:\/\//i.test(url)) { alert('URL inválida — debe empezar con http.'); return; }
+  try { await saveProductImage(_imgCtxCode, url, 'link'); }
+  catch (e) { alert('No se pudo guardar: ' + (e?.message || e)); }
+};
+
+function compressImage(file, maxDim = 800, quality = 0.7) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const im = new Image();
+    im.onload = () => {
+      URL.revokeObjectURL(url);
+      let w = im.width, h = im.height;
+      if (w > h && w > maxDim)      { h = Math.round(h * maxDim / w); w = maxDim; }
+      else if (h >= w && h > maxDim) { w = Math.round(w * maxDim / h); h = maxDim; }
+      const c = document.createElement('canvas'); c.width = w; c.height = h;
+      c.getContext('2d').drawImage(im, 0, 0, w, h);
+      c.toBlob(b => b ? resolve(b) : reject(new Error('No se pudo procesar la imagen')), 'image/jpeg', quality);
+    };
+    im.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Imagen inválida')); };
+    im.src = url;
+  });
+}
+
+async function handleImgFile(file) {
+  const code = _imgCtxCode;
+  if (!code || !storageMod || !storage) { alert('Storage no disponible.'); return; }
+  openModal('Subiendo foto…', 'Un momento, por favor.', '', []);
+  try {
+    const blob = await compressImage(file, 800, 0.7);
+    const path = 'productImages/' + imgId(code) + '_' + Date.now() + '.jpg';
+    const storRef = storageMod.ref(storage, path);
+    await storageMod.uploadBytes(storRef, blob);
+    const url = await storageMod.getDownloadURL(storRef);
+    await saveProductImage(code, url, 'upload');
+  } catch (e) {
+    closeModal();
+    alert('No se pudo subir la foto: ' + (e?.message || e));
+  }
+}
+
+async function saveProductImage(code, url, source) {
+  const prod = (curData?.products || []).find(x => x.code === code);
+  await fbMod.setDoc(fbMod.doc(db, 'productImages', imgId(code)), {
+    code, url, source,
+    name: prod ? prod.name : code,
+    updatedAt: Date.now(),
+    updatedBy: currentUser?.uid || '',
+    updatedByName: currentUser?.name || '',
+    updatedByRole: currentUser?.role || '',
+  });
+  pickImageMap[code] = { code, url, source };
+  closeModal();
+  renderPick();
 }
 
 window.toggleItem = async pid => {

@@ -107,5 +107,12 @@ service cloud.firestore {
     match /colaboradores/{id} {
       allow read, write: if isSuper();
     }
+
+    // ── productImages/{code} — fotos de producto ──
+    match /productImages/{code} {
+      allow read:            if isAuth();
+      allow create:          if isAuth();     // todos agregan (producto sin foto)
+      allow update, delete:  if isSuper();    // solo super reemplaza/borra
+    }
   }
 }
