@@ -99,9 +99,12 @@ async function pushToUser(uid, { title, body, link }) {
     return false;
   }
   const userData = userSnap.data();
-  // Dedup: el array puede traer el mismo token repetido (registros múltiples);
-  // sin esto sendEach mostraría notificaciones duplicadas en el mismo dispositivo.
-  const tokens = [...new Set(userData.fcmTokens || (userData.fcmToken ? [userData.fcmToken] : []))];
+  // fcmTokens puede ser un MAPA { deviceId: token } (esquema nuevo, un token por
+  // dispositivo) o un arreglo legacy. Normalizamos a lista y deduplicamos. El mapa
+  // por dispositivo evita que los tokens rotados se acumulen y dupliquen el push.
+  const rawTokens = userData.fcmTokens || (userData.fcmToken ? [userData.fcmToken] : []);
+  const tokenList = Array.isArray(rawTokens) ? rawTokens : Object.values(rawTokens || {});
+  const tokens = [...new Set(tokenList.filter(Boolean))];
   if (!tokens.length) {
     console.log(`Sin tokens FCM para ${userData.name || uid}`);
     return false;
@@ -124,8 +127,17 @@ async function pushToUser(uid, { title, body, link }) {
     .map((r, i) => (!r.success && r.error?.code === 'messaging/registration-token-not-registered') ? tokens[i] : null)
     .filter(Boolean);
   if (invalidTokens.length) {
-    const cleanTokens = tokens.filter(t => !invalidTokens.includes(t));
-    await admin.firestore().doc(`users/${uid}`).update({ fcmTokens: cleanTokens });
+    const bad = new Set(invalidTokens);
+    let cleaned;
+    if (Array.isArray(rawTokens)) {
+      cleaned = tokens.filter(t => !bad.has(t));
+    } else {
+      cleaned = {};
+      for (const [dev, tok] of Object.entries(rawTokens || {})) {
+        if (!bad.has(tok)) cleaned[dev] = tok;
+      }
+    }
+    await admin.firestore().doc(`users/${uid}`).update({ fcmTokens: cleaned });
     console.log(`Tokens inválidos removidos: ${invalidTokens.length}`);
   }
   return true;

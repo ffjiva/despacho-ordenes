@@ -1010,7 +1010,7 @@ function startDashTicker() {
 }
 // ── Chequeo de versión: avisa (y permite recargar) si hay una build más nueva desplegada ──
 // Subir APP_VERSION en CADA deploy y reflejar el mismo string en config/version.latest (Firestore).
-const APP_VERSION = '2026-08-19.1';
+const APP_VERSION = '2026-08-20.1';
 let _versionCheckStarted = false;
 function initVersionCheck() {
   if (isLocal || !db || _versionCheckStarted) return;
@@ -1207,6 +1207,19 @@ function updateNotifUI() {
   chip.textContent = st === 'denied' ? '🔕 Avisos bloqueados' : '🔔 Activar avisos';
 }
 
+// deviceId estable por navegador: permite guardar UN token por dispositivo
+// (fcmTokens como mapa), evitando que los tokens rotados se acumulen y dupliquen el push.
+function fcmDeviceId() {
+  try {
+    let id = localStorage.getItem('fcm_device_id');
+    if (!id) {
+      id = 'dev_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+      localStorage.setItem('fcm_device_id', id);
+    }
+    return id;
+  } catch (e) { return 'dev_fallback'; }
+}
+
 // Obtiene y guarda el token FCM. Asume permiso ya concedido; NO pide permiso.
 async function registerFcmToken() {
   if (!fbApp || !db || !fbMod || !currentUser?.uid) return false;
@@ -1225,9 +1238,13 @@ async function registerFcmToken() {
     const userRef = fbMod.doc(db, 'users', currentUser.uid);
     const snap = await fbMod.getDoc(userRef);
     if (!snap.exists()) return false;
-    const tokens = snap.data().fcmTokens || [];
-    if (!tokens.includes(token)) {
-      await fbMod.updateDoc(userRef, { fcmTokens: [...tokens, token] });
+    const cur = snap.data().fcmTokens;
+    // Arreglo legacy → se descarta (purga tokens acumulados); mapa → se conserva y upserta.
+    const map = (cur && !Array.isArray(cur) && typeof cur === 'object') ? { ...cur } : {};
+    const devId = fcmDeviceId();
+    if (map[devId] !== token) {
+      map[devId] = token;
+      await fbMod.updateDoc(userRef, { fcmTokens: map });
     }
     return true;
   } catch(e) {

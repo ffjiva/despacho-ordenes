@@ -565,6 +565,18 @@ async function enableNotifications() {
 }
 window.enableNotifications = enableNotifications;
 
+// deviceId estable por navegador: un token por dispositivo (fcmTokens como mapa).
+function fcmDeviceId() {
+  try {
+    let id = localStorage.getItem('fcm_device_id');
+    if (!id) {
+      id = 'dev_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+      localStorage.setItem('fcm_device_id', id);
+    }
+    return id;
+  } catch (e) { return 'dev_fallback'; }
+}
+
 // Registra el token FCM. NO pide permiso (eso lo hace el botón); solo si ya está concedido.
 async function registerFCMToken(userName) {
   updateNotifUI();
@@ -586,10 +598,12 @@ async function registerFCMToken(userName) {
     const userRef = fbMod.doc(db, 'users', auth.currentUser.uid);
     const userSnap = await fbMod.getDoc(userRef);
     if (!userSnap.exists()) return false;
-    const tokens = userSnap.data().fcmTokens || [];
-    if (!tokens.includes(token)) {
-      tokens.push(token);
-      await fbMod.updateDoc(userRef, { fcmTokens: tokens });
+    const cur = userSnap.data().fcmTokens;
+    const map = (cur && !Array.isArray(cur) && typeof cur === 'object') ? { ...cur } : {};
+    const devId = fcmDeviceId();
+    if (map[devId] !== token) {
+      map[devId] = token;
+      await fbMod.updateDoc(userRef, { fcmTokens: map });
     }
     console.log('FCM token registrado para', userName);
     return true;
