@@ -175,6 +175,11 @@ config/compraExclusions
 proveedores: string[], codigos: string[], keywords: string[]
 ← no inventariables a ignorar al parsear "Reporte de Compras por Producto"
 (reposicion.html, modo compra). Editable desde panel ⚙️ Exclusiones.
+productImages/{code}
+code, name, url, source: 'upload'|'link'
+updatedAt: number, updatedBy, updatedByName, updatedByRole
+← catálogo compartido de fotos de producto para picking (index.html);
+  cualquier autenticado crea, solo super reemplaza/borra
 
 ---
 
@@ -246,7 +251,10 @@ pedido directamente por Fernando) en index.html cerrado y movido al CHANGELOG (1
 PDF de orden calcado del formato de facturación (jsPDF) + chequeo de versión desplegada
 (banner de actualización) en index.html, junto con el fix de compatibilidad de
 `firebase-admin` v14 en los scripts de `scripts/utilidades/`, cerrados, desplegados en
-producción y movidos al CHANGELOG (18 Ago 2026).*
+producción y movidos al CHANGELOG (18 Ago 2026); fotos de producto en la picking list (chip
++ catálogo compartido `productImages/{code}`, ítem ad-hoc pedido directamente por Fernando) en
+index.html cerrada, validada en celular vía canal preview de Firebase Hosting y movida al
+CHANGELOG (19 Ago 2026).*
 
 ---
 
@@ -402,5 +410,5 @@ hacia el CHANGELOG.
 
 ---
 
-*Última actualización: 18 Agosto 2026 — PDF de orden calcado del formato de facturación
-(jsPDF) + chequeo de versión desplegada en index.html cerrados (ver CHANGELOG).*
+*Última actualización: 19 Agosto 2026 — Fotos de producto en picking list cerrada
+(ver CHANGELOG).*

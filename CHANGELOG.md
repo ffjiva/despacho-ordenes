@@ -13,6 +13,23 @@
 
 ## Sesiones y módulos
 
+### Sesión Picking — Fotos de producto en picking list — 19 Ago 2026 *(index.html, firestore.rules)*
+
+**feat(index): fotos de producto en picking list — catálogo compartido `productImages/{code}`** *(commits e3bb29e, 2bdac2a)*
+Nuevo chip `+ FOTO` / `FOTO` en cada ítem de `s-pick`, junto a la cantidad, para que el picker
+consulte cómo es el producto cuando no lo ubica. Al tocarlo abre un modal: si el producto ya
+tiene foto, la muestra en grande (botón "Reemplazar" visible solo para `super`); si no, ofrece
+"Tomar / Subir foto" (cámara/galería, comprimida a 800px/JPEG 0.7 antes de subir a Storage
+`productImages/`) o "Pegar URL" directa. Las fotos quedan en una colección nueva
+`productImages/{code}` — catálogo **compartido por código de producto**, no por orden: una
+foto agregada en cualquier despacho queda disponible para todos los futuros pedidos con ese
+mismo código. Cualquier usuario autenticado puede agregar foto a un producto que no la tiene;
+solo `super` reemplaza o borra. Reglas de Firestore actualizadas (`firestore.rules`); Storage
+ya cubría la ruta con la regla wildcard existente (`allow read, write: if request.auth !=
+null`), sin cambios ahí. Validado primero en un canal preview de Firebase Hosting
+(`hosting:channel:deploy`) antes de pasar a producción — método nuevo para validar cambios de
+`index.html` en el celular sin afectar el build en vivo. Sube `APP_VERSION` a `2026-08-19.1`.
+
 ### Sesión Picking — PDF calcado de facturación + chequeo de versión — 18 Ago 2026 *(index.html, scripts/utilidades/)*
 
 **feat(index): PDF de orden calca formato de facturación + chequeo de versión desplegada** *(commit 093575e)*
