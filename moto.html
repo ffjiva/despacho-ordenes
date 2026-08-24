@@ -1400,47 +1400,39 @@ window.toggleDark = () => {
    ACCIONES
 ═══════════════════════════════════ */
 window.irEnCamino = async (id, dest) => {
-  const btn = document.querySelector(`#mc-${id} .btn-warn`);
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ Actualizando…'; }
-  const update = {
-    status:     'en_camino',
-    enCaminoAt: Date.now(),
-    paradero:   `En camino a ${dest} — ${nowTime()}`
-  };
-  try {
-    await fbMod.updateDoc(fbMod.doc(db, COLLECTION, id), update);
-    getGPS().then(gps => {
-      if (gps) fbMod.updateDoc(fbMod.doc(db, COLLECTION, id), { location_start: gps });
-    }).catch(() => {});
-    const idx = cachedList.findIndex(v => v.id === id);
-    if (idx !== -1) { cachedList[idx] = { ...cachedList[idx], ...update }; renderCombined(); }
-  } catch(e) {
-    console.error(e);
-    if (btn) { btn.disabled = false; btn.textContent = '🚐 En camino'; }
-  }
+  const update = { status: 'en_camino', enCaminoAt: Date.now(), paradero: `En camino a ${dest} — ${nowTime()}` };
+  const idx  = cachedList.findIndex(v => v.id === id);
+  const prev = idx !== -1 ? { ...cachedList[idx] } : null;
+  if (idx !== -1) { cachedList[idx] = { ...cachedList[idx], ...update }; renderCombined(); }
+  fbMod.updateDoc(fbMod.doc(db, COLLECTION, id), update)
+    .then(() => {
+      getGPS().then(gps => {
+        if (gps) fbMod.updateDoc(fbMod.doc(db, COLLECTION, id), { location_start: gps }).catch(() => {});
+      });
+    })
+    .catch(e => {
+      console.error(e);
+      if (idx !== -1 && prev) { cachedList[idx] = prev; renderCombined(); }
+      alert('No se pudo actualizar. Revisa tu conexión e intenta de nuevo.');
+    });
 };
 
 window.completarVuelta = async id => {
-  const btn = document.querySelector(`#mc-${id} .btn-done-action`);
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ Guardando…'; }
-  const update = {
-    status:      'done',
-    completedAt: Date.now(),
-    date:        today(),
-    paradero:    '',
-    emergency:   false
-  };
-  try {
-    await fbMod.updateDoc(fbMod.doc(db, COLLECTION, id), update);
-    getGPS().then(gps => {
-      if (gps) fbMod.updateDoc(fbMod.doc(db, COLLECTION, id), { location_end: gps });
-    }).catch(() => {});
-    const idx = cachedList.findIndex(v => v.id === id);
-    if (idx !== -1) { cachedList[idx] = { ...cachedList[idx], ...update }; renderCombined(); }
-  } catch(e) {
-    console.error(e);
-    if (btn) { btn.disabled = false; btn.textContent = '✓ ACABÉ'; }
-  }
+  const update = { status: 'done', completedAt: Date.now(), date: today(), paradero: '', emergency: false };
+  const idx  = cachedList.findIndex(v => v.id === id);
+  const prev = idx !== -1 ? { ...cachedList[idx] } : null;
+  if (idx !== -1) { cachedList[idx] = { ...cachedList[idx], ...update }; renderCombined(); }
+  fbMod.updateDoc(fbMod.doc(db, COLLECTION, id), update)
+    .then(() => {
+      getGPS().then(gps => {
+        if (gps) fbMod.updateDoc(fbMod.doc(db, COLLECTION, id), { location_end: gps }).catch(() => {});
+      });
+    })
+    .catch(e => {
+      console.error(e);
+      if (idx !== -1 && prev) { cachedList[idx] = prev; renderCombined(); }
+      alert('No se pudo guardar. Revisa tu conexión e intenta de nuevo.');
+    });
 };
 
 window.tomarFoto = id => {
@@ -1484,69 +1476,86 @@ window.uploadFoto = async input => {
 };
 
 window.revertirVuelta = async id => {
-  try {
-    await fbMod.updateDoc(fbMod.doc(db, COLLECTION, id), {
-      status:      'en_camino',
-      completedAt: null
+  const update = { status: 'en_camino', completedAt: null };
+  const idx  = cachedList.findIndex(v => v.id === id);
+  const prev = idx !== -1 ? { ...cachedList[idx] } : null;
+  if (idx !== -1) { cachedList[idx] = { ...cachedList[idx], ...update }; renderCombined(); }
+  fbMod.updateDoc(fbMod.doc(db, COLLECTION, id), update)
+    .catch(e => {
+      console.error(e);
+      if (idx !== -1 && prev) { cachedList[idx] = prev; renderCombined(); }
+      alert('No se pudo revertir. Revisa tu conexión e intenta de nuevo.');
     });
-  } catch(e) { console.error(e); }
 };
 
 /* ═══════════════════════════════════
    ACCIONES DOMICILIOS
 ═══════════════════════════════════ */
 window.salirDomicilio = async id => {
-  const btn = document.querySelector(`#mc-${id} .btn-warn`);
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ Saliendo…'; }
-  try {
-    const update = { status: 'en_camino', enCaminoAt: Date.now() };
-    await fbMod.updateDoc(fbMod.doc(db, 'domicilios', id), update);
-    getGPS().then(gps => {
-      if (gps) fbMod.updateDoc(fbMod.doc(db, 'domicilios', id), { gpsInicio: gps });
-    }).catch(() => {});
-  } catch(e) {
-    console.error(e);
-    if (btn) { btn.disabled = false; btn.textContent = '🚐 Salir'; }
-  }
+  const update = { status: 'en_camino', enCaminoAt: Date.now() };
+  const idx  = cachedDomicilios.findIndex(x => x.id === id);
+  const prev = idx !== -1 ? { ...cachedDomicilios[idx] } : null;
+  if (idx !== -1) { cachedDomicilios[idx] = { ...cachedDomicilios[idx], ...update }; renderCombined(); }
+  fbMod.updateDoc(fbMod.doc(db, 'domicilios', id), update)
+    .then(() => {
+      getGPS().then(gps => {
+        if (gps) fbMod.updateDoc(fbMod.doc(db, 'domicilios', id), { gpsInicio: gps }).catch(() => {});
+      });
+    })
+    .catch(e => {
+      console.error(e);
+      if (idx !== -1 && prev) { cachedDomicilios[idx] = prev; renderCombined(); }
+      alert('No se pudo actualizar. Revisa tu conexión e intenta de nuevo.');
+    });
 };
 
 window.acabeDomicilio = async id => {
-  const btn = document.querySelector(`#mc-${id} .btn-done-action`);
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ Guardando…'; }
   const d = cachedDomicilios.find(x => x.id === id);
-  try {
-    const update = { status: 'entregado', completadoAt: Date.now(), date: today() };
-    await fbMod.updateDoc(fbMod.doc(db, 'domicilios', id), update);
-    getGPS().then(gps => {
-      if (gps) fbMod.updateDoc(fbMod.doc(db, 'domicilios', id), { gpsFin: gps });
-    }).catch(() => {});
-    notify('📦 Entrega completada', `${currentDriver} entregó a ${d?.cliente || ''}`);
-    if (d && WHATSAPP_GROUP) {
-      const hora = new Date().toLocaleTimeString('es-SV',
-        { hour:'2-digit', minute:'2-digit', hour12:false });
-      const msg = encodeURIComponent(
-        `✅ Entrega completada\nCliente: ${d.cliente || '—'}\n` +
-        `Tel: ${d.telefono || '—'}\nDirección: ${d.direccion || '—'}\n` +
-        `Monto: $${d.total || '0'} · ${d.formaPago || '—'}\n` +
-        `Motorista: ${currentDriver}\n🕐 ${hora}`
-      );
-      window.open(`https://wa.me/${WHATSAPP_GROUP}?text=${msg}`, '_blank');
-    }
-  } catch(e) {
-    console.error(e);
-    if (btn) { btn.disabled = false; btn.textContent = '✓ ACABÉ'; }
+
+  // WhatsApp DENTRO del gesto del usuario (antes de cualquier await, si no el móvil lo bloquea)
+  if (d && WHATSAPP_GROUP) {
+    const hora = new Date().toLocaleTimeString('es-SV', { hour:'2-digit', minute:'2-digit', hour12:false });
+    const msg = encodeURIComponent(
+      `✅ Entrega completada\nCliente: ${d.cliente || '—'}\n` +
+      `Tel: ${d.telefono || '—'}\nDirección: ${d.direccion || '—'}\n` +
+      `Monto: $${d.total || '0'} · ${d.formaPago || '—'}\n` +
+      `Motorista: ${currentDriver}\n🕐 ${hora}`
+    );
+    window.open(`https://wa.me/${WHATSAPP_GROUP}?text=${msg}`, '_blank');
   }
+
+  // UI optimista: reflejar 'entregado' de inmediato (no esperamos el ack del servidor)
+  const update = { status: 'entregado', completadoAt: Date.now(), date: today() };
+  const idx  = cachedDomicilios.findIndex(x => x.id === id);
+  const prev = idx !== -1 ? { ...cachedDomicilios[idx] } : null;
+  if (idx !== -1) { cachedDomicilios[idx] = { ...cachedDomicilios[idx], ...update }; renderCombined(); }
+  notify('📦 Entrega completada', `${currentDriver} entregó a ${d?.cliente || ''}`);
+
+  // Escritura en segundo plano — la cola offline de Firestore sincroniza si no hay señal
+  fbMod.updateDoc(fbMod.doc(db, 'domicilios', id), update)
+    .then(() => {
+      getGPS().then(gps => {
+        if (gps) fbMod.updateDoc(fbMod.doc(db, 'domicilios', id), { gpsFin: gps }).catch(() => {});
+      });
+    })
+    .catch(e => {
+      console.error(e);
+      if (idx !== -1 && prev) { cachedDomicilios[idx] = prev; renderCombined(); }
+      alert('No se pudo guardar la entrega. Revisa tu conexión e intenta de nuevo.');
+    });
 };
 
 window.reintentarEntrega = async id => {
-  try {
-    await fbMod.updateDoc(fbMod.doc(db, 'domicilios', id), {
-      status:          'en_camino',
-      motivoNoEntrega: '',
-      fechaReagenda:   '',
-      enCaminoAt:      Date.now()
+  const update = { status: 'en_camino', motivoNoEntrega: '', fechaReagenda: '', enCaminoAt: Date.now() };
+  const idx  = cachedDomicilios.findIndex(x => x.id === id);
+  const prev = idx !== -1 ? { ...cachedDomicilios[idx] } : null;
+  if (idx !== -1) { cachedDomicilios[idx] = { ...cachedDomicilios[idx], ...update }; renderCombined(); }
+  fbMod.updateDoc(fbMod.doc(db, 'domicilios', id), update)
+    .catch(e => {
+      console.error(e);
+      if (idx !== -1 && prev) { cachedDomicilios[idx] = prev; renderCombined(); }
+      alert('No se pudo reintentar. Revisa tu conexión e intenta de nuevo.');
     });
-  } catch(e) { console.error(e); }
 };
 
 window.noPudeEntregar = id => {
@@ -1569,28 +1578,30 @@ window.selectNEMotivo = (idx, motivo) => {
 
 window.confirmarNoEntrega = async () => {
   if (!noEntregaMotivo) { alert('Selecciona un motivo'); return; }
-  const btn = $('btn-confirmar-ne');
-  btn.disabled = true;
-  const d = cachedDomicilios.find(x => x.id === noEntregaId);
+  const id = noEntregaId;
+  const d  = cachedDomicilios.find(x => x.id === id);
   const fechaReagenda = $('ne-fecha').value || '';
-  try {
-    await fbMod.updateDoc(fbMod.doc(db, 'domicilios', noEntregaId), {
-      status: 'no_entregado',
-      motivoNoEntrega: noEntregaMotivo,
-      fechaReagenda
-    });
-    closeNoEntregaModal();
-    if (d) {
-      const msg = encodeURIComponent(
-        `🚨 Entrega pendiente\nCliente: ${d.cliente}\nTel: ${d.telefono}\nMotivo: ${noEntregaMotivo}\nDirección: ${d.direccion}`
-      );
-      window.open(`https://wa.me/${WHATSAPP_GROUP}?text=${msg}`, '_blank');
-    }
-  } catch(e) {
-    console.error(e);
-    alert('Error al guardar');
-    btn.disabled = false;
+
+  // WhatsApp dentro del gesto (antes de cerrar el modal / de cualquier await)
+  if (d && WHATSAPP_GROUP) {
+    const msg = encodeURIComponent(
+      `🚨 Entrega pendiente\nCliente: ${d.cliente || '—'}\nTel: ${d.telefono || '—'}\n` +
+      `Motivo: ${noEntregaMotivo}\nDirección: ${d.direccion || '—'}`
+    );
+    window.open(`https://wa.me/${WHATSAPP_GROUP}?text=${msg}`, '_blank');
   }
+
+  const update = { status: 'no_entregado', motivoNoEntrega: noEntregaMotivo, fechaReagenda };
+  const idx  = cachedDomicilios.findIndex(x => x.id === id);
+  const prev = idx !== -1 ? { ...cachedDomicilios[idx] } : null;
+  if (idx !== -1) { cachedDomicilios[idx] = { ...cachedDomicilios[idx], ...update }; renderCombined(); }
+  closeNoEntregaModal();
+  fbMod.updateDoc(fbMod.doc(db, 'domicilios', id), update)
+    .catch(e => {
+      console.error(e);
+      if (idx !== -1 && prev) { cachedDomicilios[idx] = prev; renderCombined(); }
+      alert('No se pudo guardar. Revisa tu conexión e intenta de nuevo.');
+    });
 };
 
 window.closeNoEntregaModal = (e) => {
