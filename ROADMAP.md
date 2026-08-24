@@ -259,7 +259,11 @@ index.html cerrada, validada en celular vía canal preview de Firebase Hosting y
 CHANGELOG (19 Ago 2026); notificaciones FCM duplicadas en el mismo dispositivo (`fcmTokens`
 de arreglo acumulativo a mapa por `deviceId`, ítem ad-hoc reportado por Fernando) en
 `functions/index.js`, `index.html` y `moto.html` cerrada, desplegada en producción y movida
-al CHANGELOG (20 Ago 2026).*
+al CHANGELOG (20 Ago 2026); UI optimista en las acciones de vueltas y domicilios (`irEnCamino`,
+`completarVuelta`, `salirDomicilio`, `acabeDomicilio`, `confirmarNoEntrega`, `revertirVuelta`,
+`reintentarEntrega`; ítem ad-hoc, continuación de un refactor local interrumpido por un
+reinicio del equipo) en moto.html cerrada, desplegada en producción y movida al CHANGELOG
+(24 Ago 2026).*
 
 ---
 
@@ -415,5 +419,5 @@ hacia el CHANGELOG.
 
 ---
 
-*Última actualización: 20 Agosto 2026 — Notificaciones FCM duplicadas cerrada
-(ver CHANGELOG).*
+*Última actualización: 24 Agosto 2026 — UI optimista en acciones de vueltas/domicilios
+(moto.html) cerrada (ver CHANGELOG).*

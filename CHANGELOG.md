@@ -13,6 +13,22 @@
 
 ## Sesiones y módulos
 
+### Sesión Motorista — UI optimista en acciones de vueltas/domicilios — 24 Ago 2026 *(moto.html)*
+
+**fix(moto): UI optimista en acciones de vueltas/domicilios** *(commit 0e1b6e7)*
+Las 7 acciones de motorista (`irEnCamino`, `completarVuelta`, `salirDomicilio`, `acabeDomicilio`,
+`confirmarNoEntrega`, `revertirVuelta`, `reintentarEntrega`) pasan de `await` bloqueante + botón
+deshabilitado con texto "⏳ Guardando…" a un patrón optimista: actualizan `cachedList`/
+`cachedDomicilios` y llaman `renderCombined()` de inmediato, escriben en Firestore en segundo
+plano (`.then/.catch`), y si falla revierten el estado local guardado en `prev` con un `alert()`.
+Pensado para bodega/moto con señal inestable: el motorista ve el check al instante en vez de un
+botón congelado esperando red. También corrige que `window.open(wa.me/...)` en `acabeDomicilio`
+y `confirmarNoEntrega` se dispare **antes** de cualquier `await`, ya que el navegador móvil
+bloquea el popup si sale del gesto de click del usuario. Sesión iniciada retomando un refactor
+local sin commitear que quedó a medias tras un reinicio del equipo; validado con `node --check`
+sobre los `<script>` inline (no hay `node --check` nativo de HTML). Desplegado: hosting
+(`moto.html`; sin bump de `APP_VERSION`, esa regla aplica solo a `index.html`).
+
 ### Sesión Push — Notificaciones FCM duplicadas — 20 Ago 2026 *(functions/index.js, index.html, moto.html)*
 
 **fix(fcm): tokens push por dispositivo — elimina duplicados** *(commit 29c137e)*
