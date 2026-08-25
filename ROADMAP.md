@@ -188,6 +188,14 @@ timestamp: number, cargadoPor: string, totalProductos: number
 productos: { [code]: { [sucId]: qty } }   ← solo sucursales (SNAP_SUCS), omite ceros
 ← retrato del stock por sucursal cada vez que se carga el Gerencial (reposicion.html);
   base del Radar de Reposición (A3). Solo super escribe.
+sales_snapshots/{rango}
+rangoInicio, rangoFin: string   ← YYYY-MM-DD (doc id = "{rangoInicio}_{rangoFin}")
+dias: number, timestamp: number, cargadoPor: string
+totalProductos: number, sinGerencial: string[]   ← códigos del reporte no encontrados en repProductMap
+ventas: { [code]: { [sucId]: unidadesEnLaVentana } }   ← TOTALES, no normalizado; se
+  divide por `dias` al leer para obtener unidades/día
+← reporte "ProductoPorSucursal" cargado a demanda (botón 📈 Recalibrar en el Radar A3);
+  recalibra el consumo al instante. Solo super escribe.
 
 ---
 
@@ -244,9 +252,9 @@ Dos fuentes de consumo que se complementan:
   el consumo al instante y bootstrapea desde el día 1. Formato confirmado:
   *ProductoPorSucursal* (todas las sucursales) — un solo archivo, producto → filas por
   sucursal, con su rango de fechas embebido (→ normaliza a unidades/día). Reusa el
-  patrón de parseo `CÓDIGO - NOMBRE` del modo Compra. ⚠️ Verificar en F2 el cruce de
-  código del reporte (códigos de barra) contra el Gerencial (`repProductMap`), mostrando
-  cuántos quedan "sin Gerencial" como ya hace Compra.
+  patrón de parseo `CÓDIGO - NOMBRE` del modo Compra. Implementado en F2: cruza contra
+  el Gerencial (`repProductMap`) y reporta cuántos códigos quedan "sin Gerencial" (mismo
+  patrón que Compra) — pendiente de validar contra el reporte real en producción.
 
 La vista Radar (screen `s-radar`, 4º botón del home): lista por sucursal que combina
 🟠 **ya toca** (frecuencia) · 🔴 **se está agotando** (consumo) · ⚫ **estancado**
@@ -260,13 +268,13 @@ fuente de verdad para el XLS.
   (`stock_snapshots/{fecha}`, silenciosa, arranca el reloj de datos) + F1b vista Radar
   por frecuencia (última vez / cadencia) + stock actual + última cantidad enviada.
   Umbral sin cadencia = 15 días; muestra solo los "ya tocan" (toggle ver todos).
-- **F2 (siguiente):** parser del reporte *ProductoPorSucursal* + verificación del cruce
-  de códigos; encender consumo y estancado en el Radar. Motivo: F1 sobre-marca (≈800
-  "ya tocan" por sucursal, sin distinguir stock ni rotación); el consumo lo colapsa a la
-  lista corta accionable.
-- **F3:** cantidad sugerida calculada por consumo (cubrir hasta la próxima vuelta sin
-  sobreabastecer) + botón "pasar a reposición" que pre-llena la tabla con las cantidades
-  sugeridas, para exportar/despachar con las validaciones intactas.
+- **F2 ✅ (24 Ago 2026, implementado — ver CHANGELOG; pendiente deploy):** parser del
+  reporte *ProductoPorSucursal* + persistencia (`sales_snapshots/{rango}`) + consumo por
+  deltas de 2 snapshots consecutivos (sin depender de subir nada) + coalesce
+  ventas→snapshot + señal 🔴 crítico / 🟠 ya toca / ⚫ estancado en el Radar.
+- **F3 (siguiente):** cantidad sugerida calculada por consumo (cubrir hasta la próxima
+  vuelta sin sobreabastecer) + botón "pasar a reposición" que pre-llena la tabla con las
+  cantidades sugeridas, para exportar/despachar con las validaciones intactas.
 
 *Ciclos previos cerrados — historial: "Conteos asignables al colaborador" (fases 1, 1.1, 2)
 cerrado, desplegado y movido al CHANGELOG (30 Jul 2026); filtro de asignables por rol
@@ -456,6 +464,7 @@ hacia el CHANGELOG.
 
 ---
 
-*Última actualización: 25 Agosto 2026 — A3 Radar de Reposición promovido a frente activo;
-F1 (F1a captura de snapshots + F1b vista Radar por frecuencia) cerrada y desplegada (ver
-CHANGELOG). Agregado esquema `stock_snapshots`. Sigue F2 (consumo/estancado).*
+*Última actualización: 24 Agosto 2026 — A3 Radar de Reposición F2 (consumo por deltas de
+snapshot + parser/carga del reporte de ventas *ProductoPorSucursal* + señal 🔴/🟠/⚫)
+implementada (ver CHANGELOG); pendiente commit + deploy y validación en producción.
+Agregado esquema `sales_snapshots`. Sigue F3 (cantidad sugerida + puente a la tabla).*

@@ -13,6 +13,50 @@
 
 ## Sesiones y módulos
 
+### Sesión Reposición — Radar A3 (F2): consumo por deltas de snapshot + reporte de ventas — 24 Ago 2026 *(reposicion.html, firestore.rules)*
+
+Segunda fase de A3: enciende la señal de **consumo real** que F1 dejó pendiente, colapsando
+el sobre-marcado de F1 (frecuencia sola) a una lista corta accionable con 🔴 crítico /
+🟠 ya toca / ⚫ estancado.
+
+**feat(reposicion): consumo por deltas de snapshot (sin depender de reporte de ventas)**
+`computeSnapshotConsumoMap()`: cruza los 2 últimos `stock_snapshots` + lo despachado
+(`reposiciones`) entre ambas fechas → `consumo = stock(T-1) + despachado(T-1→T) − stock(T)`,
+normalizado a unidades/día. Funciona desde el segundo snapshot cargado, sin subir nada.
+Fix aplicado en la misma sesión: un delta exactamente en 0 (stock sin cambio) solo cuenta
+como "estancado confiable" si la ventana entre snapshots es ≥ `RADAR_PRONTO_DIAS` (7 días)
+y hay stock > 0 — evita marcar estancado con ventanas cortas donde 0 movimiento todavía no
+es significativo.
+
+**feat(reposicion): parser + carga del reporte de ventas "ProductoPorSucursal" — botón
+📈 Recalibrar** `parseVentasReporteXLS()` reusa el patrón `CÓDIGO - NOMBRE` del modo Compra;
+extrae el rango de fechas embebido → normaliza a unidades/día por sucursal.
+`handleRadarSalesFile()` sube el XLS, cruza contra el Gerencial cargado en sesión
+(`repProductMap`) para reportar cuántos códigos quedan "sin Gerencial" (mismo patrón que
+Compra), y persiste en la colección nueva `sales_snapshots/{rango}` (solo super). El consumo
+por ventas frescas (≤ `RADAR_VENTAS_FRESCAS_DIAS` = 21 días) manda sobre el de snapshot
+cuando ambos están disponibles (coalesce); si el reporte envejece, el Radar vuelve a
+apoyarse en deltas de snapshot.
+
+**Señal combinada en `computeRadar()` / `renderRadar()`:** 🔴 crítico (cobertura ≤
+`RADAR_CRIT_DIAS`=3 y ventas mínimas `RADAR_VENTA_MIN`=2 en la ventana) · 🟠 ya toca
+(cobertura ≤ `RADAR_PRONTO_DIAS`=7, o fallback a frecuencia de F1 si no hay señal de
+consumo) · ⚫ estancado (consumo ≈0 con stock > 0). Cada card ahora muestra ventas/día y
+cobertura en días; el header del Radar indica la fecha del snapshot y el rango/frescura
+del reporte de ventas cargado.
+
+`firestore.rules`: colección nueva `sales_snapshots/{rango}` — read auth / write super
+(mismo criterio que `stock_snapshots`).
+
+Cambios quirúrgicos por anclas de texto (5 edits acordados en sesión). Validado con un
+script de verificación Playwright ad-hoc contra el Firebase Emulator Suite (no incorporado
+a `test:e2e` — se corrió y se borró): confirma 🔴 por deltas sin ventas cargadas, el parser
++ persistencia de `sales_snapshots` al subir un XLS sintético, el coalesce ventas→snapshot,
+y el fix de estancado-por-deltas con ventana ≥7 días. **Pendiente:** commit + `firebase
+deploy --only hosting,firestore:rules` (no desplegado todavía) y validación en producción
+con el reporte de ventas real. F3 (cantidad sugerida + botón "pasar a reposición") sigue
+como frente activo.
+
 ### Sesión Reposición — Radar A3 (F1): captura de snapshots + vista Radar por frecuencia — 25 Ago 2026 *(reposicion.html, firestore.rules)*
 
 Arranque del feature A3 "Radar de Reposición" (sistematizar el criterio de qué/cuánto

@@ -867,10 +867,15 @@ body.inv-collab #inv-btn-reasignar { display: none !important; }
   <div class="topbar">
     <div class="topbar-title">🎯 Radar</div>
     <div class="topbar-actions">
+      <button class="btn btn-ghost" style="font-size:.65rem"
+        title="Subí el reporte de ventas (ProductoPorSucursal) para recalibrar el consumo"
+        onclick="document.getElementById('radar-sales-input').click()">📈 Recalibrar</button>
       <button class="btn btn-ghost" style="font-size:.65rem" onclick="loadRadar()">↻ Actualizar</button>
       <button class="btn btn-ghost" style="font-size:.65rem" onclick="goBackFromRadar()">← Volver</button>
     </div>
   </div>
+  <input type="file" id="radar-sales-input" accept=".xls,.xlsx" style="display:none"
+    onchange="handleRadarSalesFile(this)"/>
   <div class="rep-tabs" id="radar-tabs"></div>
   <div id="radar-list" style="padding:.75rem .875rem 5rem"></div>
 </div>
@@ -4152,10 +4157,19 @@ window.toggleProyDetail = (id) => {
    calculada llegan en F2/F3.
 ═══════════════════════════════════ */
 const RADAR_SINGLE_THRESHOLD = 15;   // días para marcar "ya toca" sin cadencia (1 solo envío)
+// ── F2: umbrales de consumo (tunables; se pueden mover a config/radar más adelante) ──
+const RADAR_CRIT_DIAS   = 3;   // cobertura ≤ N días → 🔴 crítico
+const RADAR_PRONTO_DIAS = 7;   // cobertura ≤ N días → 🟠 ya toca
+const RADAR_VENTA_MIN   = 2;   // uds mínimas en la ventana para 🔴 (filtra la cola de 1-unidad)
+const RADAR_VENTAS_FRESCAS_DIAS = 21;   // ventana de validez del reporte de ventas cargado
 let radarActiveTab    = 'M01';
 let radarReposiciones = [];
 let radarSnapshot     = null;
 let radarSnapFecha    = null;
+let radarSnapshotPrev = null;   // F2: penúltimo snapshot (consumo por deltas)
+let radarSnapPrevFecha= null;
+let radarSales        = null;   // F2: { code: { suc: unidadesPorDia } } del reporte de ventas
+let radarSalesMeta    = null;   // F2: { rangoInicio, rangoFin, dias, timestamp, sinGerencial, fresh }
 let radarData         = {};
 let radarShowAll      = false;
 
@@ -4171,11 +4185,16 @@ async function loadRadar() {
   try {
     const { collection, getDocs, query, orderBy, limit } = fbMod;
     const rq = query(collection(db, 'reposiciones'), orderBy('timestamp', 'desc'), limit(600));
-    const sq = query(collection(db, 'stock_snapshots'), orderBy('fecha', 'desc'), limit(1));
-    const [rsnap, ssnap] = await Promise.all([getDocs(rq), getDocs(sq)]);
+    const sq = query(collection(db, 'stock_snapshots'), orderBy('fecha', 'desc'), limit(2));
+    const vq = query(collection(db, 'sales_snapshots'), orderBy('timestamp', 'desc'), limit(1));
+    const [rsnap, ssnap, vsnap] = await Promise.all([getDocs(rq), getDocs(sq), getDocs(vq)]);
     radarReposiciones = rsnap.docs.map(d => d.data());
-    if (ssnap.empty) { radarSnapshot = null; radarSnapFecha = null; }
-    else { const sd = ssnap.docs[0].data(); radarSnapshot = sd.productos || {}; radarSnapFecha = sd.fecha || null; }
+    const sdocs = ssnap.docs.map(d => d.data());
+    if (!sdocs.length) { radarSnapshot = null; radarSnapFecha = null; }
+    else { radarSnapshot = sdocs[0].productos || {}; radarSnapFecha = sdocs[0].fecha || null; }
+    if (sdocs.length >= 2) { radarSnapshotPrev = sdocs[1].productos || {}; radarSnapPrevFecha = sdocs[1].fecha || null; }
+    else { radarSnapshotPrev = null; radarSnapPrevFecha = null; }
+    loadRadarSalesFromSnapshot(vsnap.empty ? null : vsnap.docs[0].data());
     computeRadar();
     renderRadar();
   } catch (e) {
@@ -4184,14 +4203,181 @@ async function loadRadar() {
   }
 }
 
-// Por sucursal destino, arma la lista de productos con frecuencia (último envío,
-// cadencia promedio) + stock actual del snapshot. Nombre sale de reposiciones.
-function computeRadar() {
-  const now = Date.now(), DAY = 86400000;
-  const acc = {};   // suc -> code -> { envios:[{ts,cant}], nombre }
+// ── F2: parser del reporte "ProductoPorSucursal" (todas las sucursales) ──
+// Cabecera de producto: col[1]="CÓDIGO - NOMBRE" (col[2] vacío). Filas debajo:
+// col[1]=nombre de sucursal (cruza REP_SNAMES), col[2]=unidades vendidas. Ignora
+// subtotales (col[1] vacío), encabezados de página repetidos y basura de número
+// de página. Suma duplicados (code,suc). Extrae el rango embebido → días.
+function matchSucVentas(v) {
+  const u = String(v).toUpperCase().replace(/\s+/g, ' ').trim();
+  for (const [name, id] of Object.entries(REP_SNAMES)) {
+    if (u === name || u.includes(name)) return id;
+  }
+  return null;
+}
+function parseVentasReporteXLS(workbook) {
+  const ventas = {};
+  let rangoInicio = '', rangoFin = '', dias = 7;
+  workbook.SheetNames.forEach(sheetName => {
+    const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: '' });
+    let cur = null;
+    for (const row of rows) {
+      const c1 = String(row[1] == null ? '' : row[1]).trim();
+      const c2 = String(row[2] == null ? '' : row[2]).trim();
+      if (!c1) continue;
+      const mr = c1.match(/Rango:\s*(\d{4}\/\d{2}\/\d{2})\s*-\s*(\d{4}\/\d{2}\/\d{2})/);
+      if (mr) {
+        rangoInicio = mr[1].replace(/\//g, '-');
+        rangoFin    = mr[2].replace(/\//g, '-');
+        const di = new Date(rangoInicio + 'T00:00:00');
+        const df = new Date(rangoFin + 'T00:00:00');
+        const d  = Math.round((df - di) / 86400000) + 1;   // inclusivo ambos extremos
+        if (d > 0) dias = d;
+        continue;
+      }
+      if (/^Reporte de Salidas/i.test(c1) || /^Sucursal:/i.test(c1) || c1 === 'Producto') continue;
+      if (/^\d+$/.test(c1)) continue;   // número de página suelto
+      if (c1.includes(' - ') && !c2) {  // cabecera de producto (mismo patrón que Compra)
+        const code = c1.slice(0, c1.indexOf(' - ')).trim();
+        if (/^[A-Za-z0-9]{3,}$/.test(code)) { cur = code; if (!ventas[cur]) ventas[cur] = {}; }
+        else cur = null;
+        continue;
+      }
+      if (cur) {                        // fila de sucursal
+        const sid = matchSucVentas(c1);
+        if (sid && REP_DESTS.includes(sid)) {
+          const u = parseFloat(c2.replace(',', '.')) || 0;
+          if (u > 0) ventas[cur][sid] = (ventas[cur][sid] || 0) + u;   // suma duplicados
+        }
+      }
+    }
+  });
+  for (const code of Object.keys(ventas)) if (!Object.keys(ventas[code]).length) delete ventas[code];
+  return { ventas, dias, rangoInicio, rangoFin, totalProductos: Object.keys(ventas).length };
+}
+
+// Persiste el reporte de ventas parseado (TOTALES por code/suc; se normaliza al leer).
+// Doc id = rango. Solo super (regla en firestore.rules).
+async function saveSalesSnapshot(parsed, sinGerencial) {
+  if (!db || !fbMod) return;
+  if (currentUser?.role !== 'super') return;
+  const rango = `${parsed.rangoInicio || 'x'}_${parsed.rangoFin || 'x'}`;
+  await fbMod.setDoc(fbMod.doc(db, 'sales_snapshots', rango), {
+    rangoInicio: parsed.rangoInicio || null,
+    rangoFin:    parsed.rangoFin || null,
+    dias:        parsed.dias,
+    timestamp:   Date.now(),
+    cargadoPor:  currentUser?.name || 'ops',
+    totalProductos: parsed.totalProductos,
+    sinGerencial:   sinGerencial,
+    ventas:         parsed.ventas,
+  });
+}
+
+// Normaliza el doc de ventas a unidades/día y sella frescura.
+function loadRadarSalesFromSnapshot(sd) {
+  if (!sd || !sd.ventas) { radarSales = null; radarSalesMeta = null; return; }
+  const dias = sd.dias || 7;
+  const perDay = {};
+  for (const code of Object.keys(sd.ventas)) {
+    const row = {};
+    for (const sid of Object.keys(sd.ventas[code])) row[sid] = (sd.ventas[code][sid] || 0) / dias;
+    perDay[code] = row;
+  }
+  radarSales = perDay;
+  const ageDias = sd.timestamp ? (Date.now() - sd.timestamp) / 86400000 : 999;
+  radarSalesMeta = {
+    rangoInicio: sd.rangoInicio, rangoFin: sd.rangoFin, dias,
+    timestamp: sd.timestamp, sinGerencial: (sd.sinGerencial || []).length,
+    fresh: ageDias <= RADAR_VENTAS_FRESCAS_DIAS,
+  };
+}
+
+// Sube el reporte de ventas: parsea → cruza contra el Gerencial (repProductMap) →
+// persiste → recarga el Radar. La verificación del cruce necesita el Gerencial
+// cargado en la sesión (se intenta restaurar de sessionStorage si no está).
+window.handleRadarSalesFile = async (inputEl) => {
+  if (typeof XLSX === 'undefined') { await alertModal({ msg: 'SheetJS no cargado. Recargá la página.', danger: true }); return; }
+  const file = inputEl.files && inputEl.files[0];
+  inputEl.value = '';
+  if (!file) return;
+  const list = $('radar-list');
+  if (list) list.innerHTML = '<div style="text-align:center;padding:3rem 1rem"><span class="spin"></span>'
+    + '<span style="font-size:.72rem;color:var(--muted);margin-left:8px">Procesando reporte de ventas…</span></div>';
+  try {
+    const buf = await file.arrayBuffer();
+    const wb  = XLSX.read(buf, { type: 'array' });
+    const parsed = parseVentasReporteXLS(wb);
+    if (!parsed.totalProductos) { await alertModal('No se reconocieron productos. ¿Es el reporte "ProductoPorSucursal"?'); await loadRadar(); return; }
+    if (!repProductMap.size) loadRepSession();   // restaura el Gerencial de la sesión si está
+    const gerLoaded = repProductMap.size > 0;
+    const sinGerencial = gerLoaded ? Object.keys(parsed.ventas).filter(code => !repProductMap.has(code)) : [];
+    await saveSalesSnapshot(parsed, sinGerencial);
+    const pct = gerLoaded && parsed.totalProductos
+      ? Math.round(100 * (parsed.totalProductos - sinGerencial.length) / parsed.totalProductos) : null;
+    await alertModal({
+      title: '✓ Consumo recalibrado',
+      msg: `Reporte ${parsed.rangoInicio || ''} → ${parsed.rangoFin || ''} (${parsed.dias} d).<br>`
+         + `<strong>${parsed.totalProductos}</strong> productos con ventas.<br>`
+         + (gerLoaded
+             ? `<strong>${pct}%</strong> cruzan con el Gerencial`
+               + (sinGerencial.length ? ` · <span style="color:var(--warn-tx)">◆ ${sinGerencial.length} sin Gerencial</span>` : '')
+             : `<span style="color:var(--warn-tx)">⚠ Cargá el Gerencial en Reposición para verificar el cruce de códigos.</span>`),
+    });
+    await loadRadar();
+  } catch (e) {
+    await alertModal({ msg: 'Error al procesar el reporte: ' + e.message, danger: true });
+    await loadRadar();
+  }
+};
+
+// Consumo por deltas de snapshots. Necesita 2 snapshots de stock; devuelve
+// { code: { suc: unidadesPorDia } } o null. consumo = stock(prev) + despachado − stock(act).
+function computeSnapshotConsumoMap() {
+  if (!radarSnapshot || !radarSnapshotPrev || !radarSnapPrevFecha || !radarSnapFecha) return null;
+  const d0 = new Date(radarSnapPrevFecha + 'T00:00:00');
+  const d1 = new Date(radarSnapFecha + 'T00:00:00');
+  const dias = Math.max(1, Math.round((d1 - d0) / 86400000));
+  const t0 = d0.getTime(), t1 = d1.getTime() + 86400000;
+  const desp = {};
   for (const r of radarReposiciones) {
     const suc = r.destino;
-    if (!REP_DESTS.includes(suc)) continue;          // solo sucursales
+    if (!REP_DESTS.includes(suc)) continue;
+    const ts = r.timestamp || 0;
+    if (ts < t0 || ts > t1) continue;
+    for (const p of (r.productos || [])) {
+      if (!p.codigo) continue;
+      (desp[p.codigo] = desp[p.codigo] || {});
+      desp[p.codigo][suc] = (desp[p.codigo][suc] || 0) + (p.cantidad || 0);
+    }
+  }
+  const map = {};
+  const codes = new Set([...Object.keys(radarSnapshot), ...Object.keys(radarSnapshotPrev)]);
+  for (const code of codes) {
+    const cur = radarSnapshot[code] || {}, prev = radarSnapshotPrev[code] || {};
+    for (const suc of REP_DESTS) {
+      const consumo = (prev[suc] || 0) + ((desp[code] && desp[code][suc]) || 0) - (cur[suc] || 0);
+      if (consumo > 0) {
+        (map[code] = map[code] || {}); map[code][suc] = consumo / dias;
+      } else if (consumo === 0 && dias >= RADAR_PRONTO_DIAS && (cur[suc] || 0) > 0) {
+        // F2: estancado confiable por deltas — ventana ≥ RADAR_PRONTO_DIAS, hay stock, no bajó.
+        (map[code] = map[code] || {}); map[code][suc] = 0;
+      }
+    }
+  }
+  return map;
+}
+
+// Por sucursal destino: frecuencia (F1) + consumo (F2, coalesce ventas→snapshot)
+// → cobertura y señal primaria (🔴 crítico / 🟠 ya toca / ⚫ estancado / ok).
+function computeRadar() {
+  const now = Date.now(), DAY = 86400000;
+  const snapConsumo = computeSnapshotConsumoMap();               // null si <2 snapshots
+  const salesFresh  = !!(radarSales && radarSalesMeta && radarSalesMeta.fresh);
+  const acc = {};
+  for (const r of radarReposiciones) {
+    const suc = r.destino;
+    if (!REP_DESTS.includes(suc)) continue;
     const ts = r.timestamp || 0;
     for (const p of (r.productos || [])) {
       const code = p.codigo;
@@ -4220,16 +4406,48 @@ function computeRadar() {
       }
       const stockHoy = (radarSnapshot && radarSnapshot[code] && radarSnapshot[code][suc]) || 0;
       const umbral   = cadencia != null ? cadencia : RADAR_SINGLE_THRESHOLD;
-      const vencido  = diasDesde >= umbral;
-      items.push({ code, nombre: codes[code].nombre, stockHoy, diasDesde,
-                   cadencia, ultCant, vencido, score: diasDesde - umbral });
+      const vencidoFreq = diasDesde >= umbral;
+
+      // Coalesce: ventas (directas) mandan si el reporte está fresco; si no, snapshot.
+      const salesPD = (radarSales && radarSales[code]) ? radarSales[code][suc] : undefined;
+      const snapPD  = (snapConsumo && snapConsumo[code]) ? snapConsumo[code][suc] : undefined;
+      let consumoDia = null;
+      if (salesFresh)            consumoDia = (salesPD !== undefined) ? salesPD : (snapPD !== undefined ? snapPD : 0);
+      else if (snapPD !== undefined) consumoDia = snapPD;
+      else if (salesPD !== undefined) consumoDia = salesPD;
+      const hasConsumo    = consumoDia !== null;
+      const ventasVentana = (salesPD !== undefined && radarSalesMeta) ? salesPD * radarSalesMeta.dias : null;
+      const cobertura     = hasConsumo ? (consumoDia > 0 ? stockHoy / consumoDia : Infinity) : null;
+
+      let sig;   // 'critico' | 'yatoca' | 'estancado' | 'ok'
+      if (hasConsumo) {
+        const ventaOk = ventasVentana == null
+          ? consumoDia * RADAR_PRONTO_DIAS >= RADAR_VENTA_MIN
+          : ventasVentana >= RADAR_VENTA_MIN;
+        if (consumoDia <= 0 && stockHoy > 0)                               sig = 'estancado';
+        else if (consumoDia > 0 && cobertura <= RADAR_CRIT_DIAS && ventaOk) sig = 'critico';
+        else if (consumoDia > 0 && cobertura <= RADAR_PRONTO_DIAS)          sig = 'yatoca';
+        else                                                               sig = 'ok';
+      } else {
+        sig = vencidoFreq ? 'yatoca' : 'ok';   // sin consumo → cae a frecuencia (F1)
+      }
+      const activo = sig === 'critico' || sig === 'yatoca';
+
+      let score;
+      if (sig === 'critico')        score = 30000 - (cobertura === Infinity ? 0 : cobertura);
+      else if (sig === 'yatoca')    score = 20000 - (cobertura != null && cobertura !== Infinity ? cobertura : -(diasDesde - umbral));
+      else if (sig === 'estancado') score = 10000 - diasDesde;
+      else                          score = -diasDesde;
+
+      items.push({ code, nombre: codes[code].nombre, stockHoy, diasDesde, cadencia, ultCant,
+                   consumoDia, cobertura, ventasVentana, sig, activo, vencido: activo, score });
     }
     items.sort((a, b) => b.score - a.score);
     radarData[suc] = items;
   }
 }
 
-function radarCount(suc) { return (radarData[suc] || []).filter(it => it.vencido).length; }
+function radarCount(suc) { return (radarData[suc] || []).filter(it => it.activo).length; }
 
 function renderRadar() {
   const tabsEl = $('radar-tabs');
@@ -4242,20 +4460,28 @@ function renderRadar() {
 
   const suc   = radarActiveTab;
   const all   = radarData[suc] || [];
-  const items = radarShowAll ? all : all.filter(it => it.vencido);
+  const items = radarShowAll ? all : all.filter(it => it.activo);
   const count = radarCount(suc);
-  const snapLine = radarSnapFecha ? `stock al ${radarSnapFecha}` : 'sin snapshot de stock aún';
+  const nCrit = all.filter(it => it.sig === 'critico').length;
+  const nEst  = all.filter(it => it.sig === 'estancado').length;
+  const snapLine  = radarSnapFecha ? `stock al ${radarSnapFecha}` : 'sin snapshot de stock aún';
+  const salesLine = radarSalesMeta
+    ? `ventas ${radarSalesMeta.rangoInicio || ''}→${radarSalesMeta.rangoFin || ''}${radarSalesMeta.fresh ? '' : ' (viejo)'}`
+    : 'sin reporte de ventas — usá 📈 Recalibrar';
 
   const head = `
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;padding:.5rem .25rem .75rem">
-      <div style="font-size:.72rem;color:var(--text2)">
-        <strong style="color:var(--warn-tx)">${count}</strong> ${count === 1 ? 'producto ya toca' : 'productos ya tocan'}
-        en ${REP_LBLS[suc]} · <span style="color:var(--muted)">${snapLine}</span>
+    <div style="padding:.5rem .25rem .75rem">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+        <div style="font-size:.72rem;color:var(--text2)">
+          <strong style="color:var(--warn-tx)">${count}</strong> ${count === 1 ? 'accionable' : 'accionables'}
+          en ${REP_LBLS[suc]}${nCrit ? ` · <span style="color:var(--err-tx)">🔴 ${nCrit}</span>` : ''}${nEst ? ` · <span style="color:var(--muted)">⚫ ${nEst} estancado${nEst!==1?'s':''}</span>` : ''}
+        </div>
+        <label style="display:flex;align-items:center;gap:5px;font-size:.62rem;color:var(--text2);cursor:pointer">
+          <input type="checkbox" ${radarShowAll ? 'checked' : ''} onchange="toggleRadarShowAll(this)"
+            style="accent-color:var(--accent);width:13px;height:13px"/> Ver todos
+        </label>
       </div>
-      <label style="display:flex;align-items:center;gap:5px;font-size:.62rem;color:var(--text2);cursor:pointer">
-        <input type="checkbox" ${radarShowAll ? 'checked' : ''} onchange="toggleRadarShowAll(this)"
-          style="accent-color:var(--accent);width:13px;height:13px"/> Ver todos
-      </label>
+      <div style="font-size:.58rem;color:var(--muted);margin-top:3px">${snapLine} · ${salesLine}</div>
     </div>`;
 
   if (!radarReposiciones.length) {
@@ -4265,18 +4491,22 @@ function renderRadar() {
   if (!items.length) {
     $('radar-list').innerHTML = head + `<div class="empty-state">
       <div style="font-size:1.5rem;margin-bottom:.35rem">✓</div>
-      Nada que ya toque en ${REP_LBLS[suc]}.</div>`;
+      Nada accionable en ${REP_LBLS[suc]}.</div>`;
     return;
   }
 
   const rows = items.map(it => {
     const cad = it.cadencia != null ? `~cada ${Math.round(it.cadencia)} d` : `1er envío`;
     const stkC = it.stockHoy < 3 ? 'stk-low' : 'stk-ok';
-    const badge = it.vencido
-      ? `<span class="sug-badge">🟠 Ya toca</span>`
-      : `<span style="font-size:.58rem;color:var(--muted)">—</span>`;
+    let badge;
+    if (it.sig === 'critico')        badge = `<span class="sug-badge" style="background:var(--err-bg);color:var(--err-tx);border-color:var(--err-bd)">🔴 Se agota</span>`;
+    else if (it.sig === 'yatoca')    badge = `<span class="sug-badge">🟠 Ya toca</span>`;
+    else if (it.sig === 'estancado') badge = `<span class="sug-badge" style="background:var(--surface2);color:var(--muted);border-color:var(--border2)">⚫ Estancado</span>`;
+    else                             badge = `<span style="font-size:.58rem;color:var(--muted)">—</span>`;
+    const vpd = it.consumoDia != null ? (it.consumoDia > 0 ? it.consumoDia.toFixed(1) : '0') : '—';
+    const cob = it.cobertura == null ? '—' : (it.cobertura === Infinity ? '∞' : `${Math.round(it.cobertura)} d`);
     return `
-    <div class="traz-card" style="padding:.6rem .8rem;margin-bottom:.5rem">
+    <div class="traz-card" style="padding:.6rem .8rem;margin-bottom:.5rem${it.sig==='estancado'?';opacity:.6':''}">
       <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">
         <div style="min-width:0">
           <div style="font-size:.74rem;font-weight:600;line-height:1.3">${escHtml(it.nombre)}</div>
@@ -4286,6 +4516,8 @@ function renderRadar() {
       </div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:.45rem;font-size:.63rem;color:var(--text2)">
         <span>Stock hoy: <strong class="${stkC}">${it.stockHoy}</strong></span>
+        <span>Ventas/día: <strong>${vpd}</strong></span>
+        <span>Cobertura: <strong>${cob}</strong></span>
         <span>Últ. envío: <strong>hace ${it.diasDesde} d</strong></span>
         <span style="color:var(--muted)">${cad}</span>
         <span>Últ. cant.: <strong>${it.ultCant}</strong></span>

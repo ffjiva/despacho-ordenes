@@ -67,6 +67,12 @@ service cloud.firestore {
       allow write: if isSuper();
     }
 
+    // ── sales_snapshots/{rango} — reporte de ventas cargado (Radar A3 F2) ──
+    match /sales_snapshots/{rango} {
+      allow read:  if isAuth();
+      allow write: if isSuper();
+    }
+
     // ── vueltas y domicilios: requieren sesión (moto.html ya usa Auth) ──
     match /vueltas/{id} {
       allow read, write: if isAuth();
