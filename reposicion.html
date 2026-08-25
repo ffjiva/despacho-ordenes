@@ -4449,6 +4449,20 @@ function computeRadar() {
 
 function radarCount(suc) { return (radarData[suc] || []).filter(it => it.activo).length; }
 
+// ═══ F3 — Cantidad sugerida por consumo + pasar a reposición ═══
+const RADAR_HORIZONTE_DIAS = 14;   // días de cobertura objetivo (configurable)
+
+// Cantidad a reponer por consumo: cubre el horizonte sin pasar el tope de la sucursal.
+// sugerido = ceil(consumoDia × horizonte) − stockHoy, con piso 0 y techo REP_MAXIMUMS.
+// Solo para señales accionables (🔴/🟠); ⚫ estancado y ok → 0.
+function radarSugerido(it, suc) {
+  if (!it || it.consumoDia == null || it.consumoDia <= 0) return 0;
+  if (it.sig !== 'critico' && it.sig !== 'yatoca') return 0;
+  const raw  = Math.ceil(it.consumoDia * RADAR_HORIZONTE_DIAS) - (it.stockHoy || 0);
+  const tope = (REP_MAXIMUMS[suc] || 999) - (it.stockHoy || 0);
+  return Math.max(0, Math.min(raw, tope));
+}
+
 function renderRadar() {
   const tabsEl = $('radar-tabs');
   if (tabsEl) tabsEl.innerHTML = REP_DESTS.map(id => {
@@ -4469,6 +4483,15 @@ function renderRadar() {
     ? `ventas ${radarSalesMeta.rangoInicio || ''}→${radarSalesMeta.rangoFin || ''}${radarSalesMeta.fresh ? '' : ' (viejo)'}`
     : 'sin reporte de ventas — usá 📈 Recalibrar';
 
+  // Total de sugerencias por consumo en TODAS las sucursales (habilita el botón "Pasar")
+  let totLineas = 0;
+  for (const s of REP_DESTS) for (const it of (radarData[s] || [])) if (radarSugerido(it, s) > 0) totLineas++;
+  const pasarBtn = `
+    <button class="btn btn-dark btn-full" style="margin-top:.5rem;font-size:.68rem"
+      onclick="pasarRadarAReposicion()" ${totLineas ? '' : 'disabled'}>
+      ➡ Pasar sugerencias a Reposición (todas · ${totLineas} líneas)
+    </button>`;
+
   const head = `
     <div style="padding:.5rem .25rem .75rem">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
@@ -4482,6 +4505,7 @@ function renderRadar() {
         </label>
       </div>
       <div style="font-size:.58rem;color:var(--muted);margin-top:3px">${snapLine} · ${salesLine}</div>
+      ${pasarBtn}
     </div>`;
 
   if (!radarReposiciones.length) {
@@ -4505,6 +4529,8 @@ function renderRadar() {
     else                             badge = `<span style="font-size:.58rem;color:var(--muted)">—</span>`;
     const vpd = it.consumoDia != null ? (it.consumoDia > 0 ? it.consumoDia.toFixed(1) : '0') : '—';
     const cob = it.cobertura == null ? '—' : (it.cobertura === Infinity ? '∞' : `${Math.round(it.cobertura)} d`);
+    const sug = radarSugerido(it, suc);
+    const sugSpan = sug > 0 ? `<span>Sugerido: <strong style="color:var(--done-tx)">${sug}</strong></span>` : '';
     return `
     <div class="traz-card" style="padding:.6rem .8rem;margin-bottom:.5rem${it.sig==='estancado'?';opacity:.6':''}">
       <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">
@@ -4518,6 +4544,7 @@ function renderRadar() {
         <span>Stock hoy: <strong class="${stkC}">${it.stockHoy}</strong></span>
         <span>Ventas/día: <strong>${vpd}</strong></span>
         <span>Cobertura: <strong>${cob}</strong></span>
+        ${sugSpan}
         <span>Últ. envío: <strong>hace ${it.diasDesde} d</strong></span>
         <span style="color:var(--muted)">${cad}</span>
         <span>Últ. cant.: <strong>${it.ultCant}</strong></span>
@@ -4527,6 +4554,62 @@ function renderRadar() {
 
   $('radar-list').innerHTML = head + rows;
 }
+
+// Pre-llena repSendData de TODAS las sucursales con la cantidad sugerida por consumo,
+// reemplazando lo que hubiera, y abre la tabla de reposición. La tabla sigue siendo
+// dueña del despacho seguro: repClampAll recorta al pool y el preflight valida al exportar.
+window.pasarRadarAReposicion = async () => {
+  if (!repProductMap.size) loadRepSession();   // restaura el Gerencial de la sesión si está
+  if (!repProductMap.size) {
+    await alertModal('Cargá primero el Gerencial en Reposición: se necesita el stock de bodega para pasar las cantidades.');
+    return;
+  }
+  // Plan por sucursal (solo códigos que existen en el Gerencial)
+  const plan = {};
+  let lineas = 0, uds = 0, sucConDatos = 0;
+  for (const suc of REP_DESTS) {
+    const m = {};
+    for (const it of (radarData[suc] || [])) {
+      const q = radarSugerido(it, suc);
+      if (q > 0 && repProductMap.has(it.code)) { m[it.code] = q; lineas++; uds += q; }
+    }
+    plan[suc] = m;
+    if (Object.keys(m).length) sucConDatos++;
+  }
+  if (!lineas) {
+    await alertModal('No hay sugerencias por consumo para pasar. Cargá el reporte de ventas (📈 Recalibrar) para calcular cantidades.');
+    return;
+  }
+  const ok = await confirmModal({
+    title: 'Pasar a Reposición',
+    msg: `Se van a <strong>reemplazar</strong> las cantidades de <strong>${sucConDatos} sucursal(es)</strong> `
+       + `con las sugerencias por consumo del Radar:<br><strong>${lineas} líneas · ${uds} uds</strong> `
+       + `(horizonte ${RADAR_HORIZONTE_DIAS} d, tope por sucursal respetado).<br><br>`
+       + `La tabla recorta al pool de bodega y valida antes de exportar, como siempre.`,
+    okText: 'Pasar y abrir tabla', danger: false
+  });
+  if (!ok) return;
+
+  // Aplicar: limpia los destinos del origen actual y setea el plan del Radar
+  repTargets().forEach(s => { repSendData[s] = {}; });
+  REP_DESTS.forEach(s => { repSendData[s] = plan[s]; });
+  repZeroedSucs.clear();
+  repMode = 'stock';
+  const trimmed = repClampAll();
+
+  // Navegar a la tabla en estado stock (desactiva paneles compra/redist si estaban)
+  const cp = $('rep-compra-panel'); if (cp) cp.style.display = 'none';
+  const rp = $('rep-redist-panel'); if (rp) rp.style.display = 'none';
+  const bc = $('btn-compra-mode');  if (bc) bc.style.display = '';
+  const br = $('btn-redist-mode');  if (br) br.style.display = '';
+  const ai = $('btn-ai-rep');       if (ai) ai.style.display = '';
+  showScreen('s-reposicion');
+  showRepState('data');
+  repActiveTab = REP_DESTS.find(s => Object.keys(repSendData[s] || {}).length) || 'M01';
+  renderRepFull();
+  saveRepSession();
+  if (trimmed > 0) await alertModal(`Listo en la tabla. ⚠ ${trimmed} código(s) se recortaron al pool de B01+B02.`);
+};
 
 window.switchRadarTab   = (id)  => { radarActiveTab = id; renderRadar(); };
 window.toggleRadarShowAll = (chk) => { radarShowAll = chk.checked; renderRadar(); };
