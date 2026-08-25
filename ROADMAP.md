@@ -268,7 +268,7 @@ fuente de verdad para el XLS.
   (`stock_snapshots/{fecha}`, silenciosa, arranca el reloj de datos) + F1b vista Radar
   por frecuencia (última vez / cadencia) + stock actual + última cantidad enviada.
   Umbral sin cadencia = 15 días; muestra solo los "ya tocan" (toggle ver todos).
-- **F2 ✅ (24 Ago 2026, implementado — ver CHANGELOG; pendiente deploy):** parser del
+- **F2 ✅ (24 Ago 2026, desplegado — ver CHANGELOG):** parser del
   reporte *ProductoPorSucursal* + persistencia (`sales_snapshots/{rango}`) + consumo por
   deltas de 2 snapshots consecutivos (sin depender de subir nada) + coalesce
   ventas→snapshot + señal 🔴 crítico / 🟠 ya toca / ⚫ estancado en el Radar.
@@ -466,5 +466,6 @@ hacia el CHANGELOG.
 
 *Última actualización: 24 Agosto 2026 — A3 Radar de Reposición F2 (consumo por deltas de
 snapshot + parser/carga del reporte de ventas *ProductoPorSucursal* + señal 🔴/🟠/⚫)
-implementada (ver CHANGELOG); pendiente commit + deploy y validación en producción.
-Agregado esquema `sales_snapshots`. Sigue F3 (cantidad sugerida + puente a la tabla).*
+cerrada, desplegada a producción (ver CHANGELOG); pendiente validar con el reporte de
+ventas real. Agregado esquema `sales_snapshots`. Sigue F3 (cantidad sugerida + puente
+a la tabla).*

@@ -52,10 +52,10 @@ Cambios quirúrgicos por anclas de texto (5 edits acordados en sesión). Validad
 script de verificación Playwright ad-hoc contra el Firebase Emulator Suite (no incorporado
 a `test:e2e` — se corrió y se borró): confirma 🔴 por deltas sin ventas cargadas, el parser
 + persistencia de `sales_snapshots` al subir un XLS sintético, el coalesce ventas→snapshot,
-y el fix de estancado-por-deltas con ventana ≥7 días. **Pendiente:** commit + `firebase
-deploy --only hosting,firestore:rules` (no desplegado todavía) y validación en producción
-con el reporte de ventas real. F3 (cantidad sugerida + botón "pasar a reposición") sigue
-como frente activo.
+y el fix de estancado-por-deltas con ventana ≥7 días. Commiteado (`4025c4a`) y desplegado
+a producción (`firebase deploy --only hosting,firestore:rules`). **Pendiente:** validar en
+producción con el reporte de ventas real (cruce de códigos contra el Gerencial). F3
+(cantidad sugerida + botón "pasar a reposición") sigue como frente activo.
 
 ### Sesión Reposición — Radar A3 (F1): captura de snapshots + vista Radar por frecuencia — 25 Ago 2026 *(reposicion.html, firestore.rules)*
 
