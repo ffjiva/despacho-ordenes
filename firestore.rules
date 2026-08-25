@@ -61,6 +61,12 @@ service cloud.firestore {
       allow write: if isSuper();
     }
 
+    // ── stock_snapshots/{fecha} — histórico de stock por sucursal (Radar A3) ──
+    match /stock_snapshots/{fecha} {
+      allow read:  if isAuth();
+      allow write: if isSuper();
+    }
+
     // ── vueltas y domicilios: requieren sesión (moto.html ya usa Auth) ──
     match /vueltas/{id} {
       allow read, write: if isAuth();

@@ -1616,6 +1616,7 @@ window.handleRepFiles = async inputEl => {
       repLoadedFiles.push({ name: file.name, brand: brand || '', added, enriched });
     }
     repLoadedAt = Date.now();   // snapshot de stock fresco a esta hora
+    saveStockSnapshot();        // F1a — persistir snapshot histórico (silencioso)
     const clamped = repClampAll();
     computeRepSuggestions(true);   // carga = solo mínimos (el excedente queda para el botón IA)
     showRepState('data');
@@ -3119,6 +3120,43 @@ async function saveReposicionRecord(origen, destino, sendMap, fecha, extra) {
   } catch (e) {
     console.warn('saveReposicionRecord:', e);
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// F1a — SNAPSHOT HISTÓRICO DE STOCK POR SUCURSAL (Radar de reposición)
+// Guarda un retrato del stock de sucursales cada vez que se carga el
+// Gerencial. Doc id = fecha SV (YYYY-MM-DD): una foto por día, la última
+// carga del día gana. Solo super escribe (regla en firestore.rules).
+// Silencioso: nunca rompe la carga del Gerencial. Base para F1b/F2 (consumo).
+// Nota de escala: se omiten sucursales en 0 y productos sin stock de sucursal,
+// así el doc queda muy por debajo del límite de 1 MB de Firestore. Si el
+// catálogo creciera al punto de acercarse a 1 MB, migrar a subcolección.
+// ═══════════════════════════════════════════════════════════════════
+const SNAP_SUCS = ['M01','S02','S03','S04','S06','S07','B03'];
+async function saveStockSnapshot() {
+  if (!db || !fbMod) return;
+  if (currentUser?.role !== 'super') return;
+  try {
+    const productos = {};
+    for (const p of repProducts) {
+      const row = {};
+      let any = false;
+      for (const s of SNAP_SUCS) {
+        const q = p.stock[s] || 0;
+        if (q > 0) { row[s] = q; any = true; }
+      }
+      if (any) productos[p.code] = row;
+    }
+    if (!Object.keys(productos).length) return;
+    const fecha = getTodaySV();
+    await fbMod.setDoc(fbMod.doc(db, 'stock_snapshots', fecha), {
+      fecha,
+      timestamp: Date.now(),
+      cargadoPor: currentUser?.name || 'ops',
+      totalProductos: Object.keys(productos).length,
+      productos,
+    });
+  } catch (e) { console.warn('saveStockSnapshot:', e); }
 }
 
 // ── MODO COMPRA ──────────────────────────────────────────────────────────────
