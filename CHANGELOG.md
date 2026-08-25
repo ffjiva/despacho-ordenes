@@ -13,6 +13,48 @@
 
 ## Sesiones y módulos
 
+### Sesión Reposición — Radar A3 (F1): captura de snapshots + vista Radar por frecuencia — 25 Ago 2026 *(reposicion.html, firestore.rules)*
+
+Arranque del feature A3 "Radar de Reposición" (sistematizar el criterio de qué/cuánto
+reponer por sucursal). Fase 1 completa y desplegada; F2 (consumo/estancado) y F3
+(cantidad sugerida + puente a la tabla) quedan como frente activo en ROADMAP.md.
+
+**feat(reposicion): snapshot histórico de stock por sucursal — F1a** *(commit ed2b20c)*
+Cada carga del Gerencial (`handleRepFiles`) ahora persiste un retrato del stock de
+sucursales en la colección nueva `stock_snapshots/{YYYY-MM-DD}` (doc id = fecha SV → una
+foto por día, la última carga del día gana). Función `saveStockSnapshot()`: guarda solo
+stock de sucursales (`SNAP_SUCS = [M01,S02,S03,S04,S06,S07,B03]`), omite ceros y
+productos sin stock de sucursal → el doc queda muy por debajo del límite de 1 MB de
+Firestore (validado: primer snapshot con 2.761 productos ≈ 111 KB). Fire-and-forget y
+silencioso (try/catch + `console.warn`): nunca rompe la carga del Gerencial. Solo super
+escribe. Objetivo: acumular la serie de tiempo que alimenta el consumo real en F2, sin
+trabajo extra (el Gerencial ya se carga en cada distribución). `firestore.rules`:
+colección `stock_snapshots/{fecha}` con read auth / write super. Desplegado: hosting +
+`firestore:rules`. Validado en producción (doc `stock_snapshots/2026-08-24` correcto).
+
+**feat(reposicion): vista Radar — "qué ya toca reponer" por sucursal — F1b** *(commit 4e2c1ef)*
+Cuarto botón "🎯 Radar" en el home + pantalla nueva `s-radar`. Detección por frecuencia
+(sin costo de arranque, funciona día 1): lee las últimas 600 `reposiciones` + el último
+`stock_snapshots`, y por sucursal destino calcula, por producto, el último envío (días
+desde), la cadencia promedio (días entre envíos consecutivos, si hay ≥2), el stock
+actual del snapshot y la última cantidad enviada. Marca 🟠 "Ya toca" cuando los días
+desde el último envío ≥ la cadencia (o ≥ 15 días si aún no hay cadencia, para productos
+con un solo envío). Pestañas por sucursal con contador, lista ordenada por más vencido,
+muestra por defecto solo los que ya tocan (toggle "Ver todos"), botón "↻ Actualizar".
+Reusa clases CSS existentes (`rep-tabs`, `rtab`, `traz-card`, `sug-badge`, `stk-*`), sin
+CSS nuevo. Nombre del producto sale de `reposiciones` (no requiere Gerencial cargado).
+Solo super (la vista vive en el home).
+
+Observación de campo (motiva F2): con solo frecuencia el Radar sobre-marca (≈800 "ya
+tocan" por sucursal en el primer uso: básicamente todo lo que se envió alguna vez y no
+se repitió hace rato, aunque tenga stock o ya no rote). Es esperado — es justo lo que el
+consumo + stock actual de F2 van a colapsar a la lista corta accionable.
+
+Cambios quirúrgicos por anclas de texto (sin `node --check` nativo de HTML; validado por
+smoke test Playwright contra el Firebase Emulator Suite — pestañas, producto vencido vs.
+no vencido, toggle, botón Actualizar, navegación — y por smoke test en producción:
+snapshot en Firestore + Radar funcional en las 6 sucursales).
+
 ### Sesión Motorista — UI optimista en acciones de vueltas/domicilios — 24 Ago 2026 *(moto.html)*
 
 **fix(moto): UI optimista en acciones de vueltas/domicilios** *(commit 0e1b6e7)*

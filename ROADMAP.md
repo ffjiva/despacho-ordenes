@@ -182,6 +182,12 @@ code, name, url, source: 'upload'|'link'
 updatedAt: number, updatedBy, updatedByName, updatedByRole
 ← catálogo compartido de fotos de producto para picking (index.html);
   cualquier autenticado crea, solo super reemplaza/borra
+stock_snapshots/{fecha}
+fecha: string   ← YYYY-MM-DD (fecha SV, doc id) — una foto por día, la última carga gana
+timestamp: number, cargadoPor: string, totalProductos: number
+productos: { [code]: { [sucId]: qty } }   ← solo sucursales (SNAP_SUCS), omite ceros
+← retrato del stock por sucursal cada vez que se carga el Gerencial (reposicion.html);
+  base del Radar de Reposición (A3). Solo super escribe.
 
 ---
 
@@ -224,7 +230,45 @@ updatedAt: number, updatedBy, updatedByName, updatedByRole
 
 ## 🎯 Frente activo
 
-*Sin frente activo en curso. Ciclo "Conteos asignables al colaborador" (fases 1, 1.1, 2)
+**A3 — Radar de Reposición** *(reposicion.html)* — sistematizar tu criterio de qué y cuánto
+reponer por sucursal, para no depender solo de la memoria/experiencia y, a futuro, poder
+delegar. Diseño acordado en sesión (24–25 Ago 2026).
+
+Dos fuentes de consumo que se complementan:
+
+- **Snapshots del Gerencial (pasivo):** cada carga guarda el stock por sucursal
+  (`stock_snapshots/{fecha}`). La comparación entre snapshots + lo despachado
+  (`reposiciones`) = consumo real, sin reporte de ventas.
+  Fórmula: `consumo = stock(T-1) + despachado(T-1→T) − stock(T)`.
+- **Reporte de ventas por producto (activo, cargable en cualquier momento):** recalibra
+  el consumo al instante y bootstrapea desde el día 1. Formato confirmado:
+  *ProductoPorSucursal* (todas las sucursales) — un solo archivo, producto → filas por
+  sucursal, con su rango de fechas embebido (→ normaliza a unidades/día). Reusa el
+  patrón de parseo `CÓDIGO - NOMBRE` del modo Compra. ⚠️ Verificar en F2 el cruce de
+  código del reporte (códigos de barra) contra el Gerencial (`repProductMap`), mostrando
+  cuántos quedan "sin Gerencial" como ya hace Compra.
+
+La vista Radar (screen `s-radar`, 4º botón del home): lista por sucursal que combina
+🟠 **ya toca** (frecuencia) · 🔴 **se está agotando** (consumo) · ⚫ **estancado**
+(ciudadano de primera clase — "mandaste 10 hace 20 días, sigue en 10, no reponer"). El
+Radar decide **qué y cuánto**; la tabla de reposición sigue siendo la dueña de **cómo
+despachar seguro** (pool/tope, `assignOrigins`, proyección, trazabilidad). Una sola
+fuente de verdad para el XLS.
+
+**Fases:**
+- **F1 ✅ (25 Ago 2026, desplegado — ver CHANGELOG):** F1a captura de snapshots
+  (`stock_snapshots/{fecha}`, silenciosa, arranca el reloj de datos) + F1b vista Radar
+  por frecuencia (última vez / cadencia) + stock actual + última cantidad enviada.
+  Umbral sin cadencia = 15 días; muestra solo los "ya tocan" (toggle ver todos).
+- **F2 (siguiente):** parser del reporte *ProductoPorSucursal* + verificación del cruce
+  de códigos; encender consumo y estancado en el Radar. Motivo: F1 sobre-marca (≈800
+  "ya tocan" por sucursal, sin distinguir stock ni rotación); el consumo lo colapsa a la
+  lista corta accionable.
+- **F3:** cantidad sugerida calculada por consumo (cubrir hasta la próxima vuelta sin
+  sobreabastecer) + botón "pasar a reposición" que pre-llena la tabla con las cantidades
+  sugeridas, para exportar/despachar con las validaciones intactas.
+
+*Ciclos previos cerrados — historial: "Conteos asignables al colaborador" (fases 1, 1.1, 2)
 cerrado, desplegado y movido al CHANGELOG (30 Jul 2026); filtro de asignables por rol
 + etiqueta también cerrado y movido al CHANGELOG (30 Jul 2026); SSO (unificación del nombre
 de instancia Firebase App a `despacho-main` en las 4 apps) cerrado, desplegado y validado en
@@ -278,13 +322,6 @@ del Ensamblador al proyecto de Despacho; (2) re-sembrar `catalogo`/`parametros`/
 en su `AuthScreen`/`AdminPanel`. Los permisos ya se pueden pre-cargar desde ahora.
 
 ### 🟡 Soporte
-
-**Reposición — Sugerencias basadas en historial** *(reposicion.html — A3)*
-Sin código aún — los "Historial" que hoy existen en reposicion.html son la trazabilidad e
-inventario, no sugerencias por consumo. Usar la colección `reposiciones` de Firestore para
-aprender la frecuencia de reposición y, eventualmente, la velocidad de consumo a partir de
-snapshots del Gerencial. Plantear en tres fases. Prerrequisito completado: reposición
-extraída a `reposicion.html` (F0–F4, Jun 2026).
 
 - Geocodificar dirección del XLS de envíos → ubicación en la ficha de moto,
   para que Anderson tenga mejor referencia. *(moto.html)* ⚠️ Bandera de costo:
@@ -419,5 +456,6 @@ hacia el CHANGELOG.
 
 ---
 
-*Última actualización: 24 Agosto 2026 — UI optimista en acciones de vueltas/domicilios
-(moto.html) cerrada (ver CHANGELOG).*
+*Última actualización: 25 Agosto 2026 — A3 Radar de Reposición promovido a frente activo;
+F1 (F1a captura de snapshots + F1b vista Radar por frecuencia) cerrada y desplegada (ver
+CHANGELOG). Agregado esquema `stock_snapshots`. Sigue F2 (consumo/estancado).*
