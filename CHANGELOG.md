@@ -13,6 +13,39 @@
 
 ## Sesiones y módulos
 
+### Sesión Reposición — Radar A3 (F3): cantidad sugerida + "pasar a reposición" — 24 Ago 2026 *(reposicion.html)*
+
+Cierra las 3 fases de A3: el Radar ahora completa el ciclo de qué / cuánto / cómo.
+
+**feat(reposicion): cantidad sugerida por consumo (`radarSugerido()`)** *(commit 9b3d7ba)*
+Cubre un horizonte fijo de `RADAR_HORIZONTE_DIAS` = 14 días desde el consumo diario
+(`consumoDia`), recortado al tope `REP_MAXIMUMS` de cada sucursal —
+`sugerido = min(ceil(consumoDia × 14) − stockHoy, tope − stockHoy)`, piso 0. Solo aplica
+a señales accionables (🔴 crítico / 🟠 ya toca); ⚫ estancado y "ok" quedan en 0. Cada
+card del Radar muestra "Sugerido: N" cuando corresponde.
+
+**feat(reposicion): botón "➡ Pasar sugerencias a Reposición"**
+El header del Radar suma un botón (deshabilitado si no hay líneas con sugerido > 0) que
+arma un plan por TODAS las sucursales, pide confirmación (líneas/uds/horizonte) y
+pre-llena `repSendData` reemplazando lo que hubiera, respetando `repClampAll()` (recorta
+al pool de B01+B02 si el sugerido total excede el stock disponible) — la tabla de
+reposición sigue siendo la dueña del despacho seguro (preflight, trazabilidad, export).
+Requiere el Gerencial cargado en sesión (si no, avisa y no hace nada); navega a la
+pantalla de la tabla ya con las cantidades aplicadas.
+
+Cambio quirúrgico por ancla de texto (1 edit). Validado con un script Playwright ad-hoc
+contra el Firebase Emulator Suite (corrido y descartado, no incorporado a `test:e2e`):
+confirma el cálculo del sugerido con el tope respetado, el botón habilitado/deshabilitado
+según haya líneas, el `confirmModal`, y que la tabla de Reposición termina con la
+cantidad correcta en el input real tras "pasar" — probado subiendo un Gerencial real vía
+`handleRepFiles` (no mockeado). Commiteado (`9b3d7ba`) y desplegado a producción
+(`firebase deploy --only hosting`).
+
+Con esto, **A3 — Radar de Reposición queda cerrado en sus 3 fases** (F1 frecuencia, F2
+consumo, F3 sugerido + puente a la tabla). **Pendiente:** validar en producción con datos
+reales de una sucursal, incluyendo el reporte de ventas real de F2 (esa validación
+seguía pendiente).
+
 ### Sesión Reposición — Radar A3 (F2): consumo por deltas de snapshot + reporte de ventas — 24 Ago 2026 *(reposicion.html, firestore.rules)*
 
 Segunda fase de A3: enciende la señal de **consumo real** que F1 dejó pendiente, colapsando

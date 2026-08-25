@@ -238,43 +238,10 @@ ventas: { [code]: { [sucId]: unidadesEnLaVentana } }   ← TOTALES, no normaliza
 
 ## 🎯 Frente activo
 
-**A3 — Radar de Reposición** *(reposicion.html)* — sistematizar tu criterio de qué y cuánto
-reponer por sucursal, para no depender solo de la memoria/experiencia y, a futuro, poder
-delegar. Diseño acordado en sesión (24–25 Ago 2026).
-
-Dos fuentes de consumo que se complementan:
-
-- **Snapshots del Gerencial (pasivo):** cada carga guarda el stock por sucursal
-  (`stock_snapshots/{fecha}`). La comparación entre snapshots + lo despachado
-  (`reposiciones`) = consumo real, sin reporte de ventas.
-  Fórmula: `consumo = stock(T-1) + despachado(T-1→T) − stock(T)`.
-- **Reporte de ventas por producto (activo, cargable en cualquier momento):** recalibra
-  el consumo al instante y bootstrapea desde el día 1. Formato confirmado:
-  *ProductoPorSucursal* (todas las sucursales) — un solo archivo, producto → filas por
-  sucursal, con su rango de fechas embebido (→ normaliza a unidades/día). Reusa el
-  patrón de parseo `CÓDIGO - NOMBRE` del modo Compra. Implementado en F2: cruza contra
-  el Gerencial (`repProductMap`) y reporta cuántos códigos quedan "sin Gerencial" (mismo
-  patrón que Compra) — pendiente de validar contra el reporte real en producción.
-
-La vista Radar (screen `s-radar`, 4º botón del home): lista por sucursal que combina
-🟠 **ya toca** (frecuencia) · 🔴 **se está agotando** (consumo) · ⚫ **estancado**
-(ciudadano de primera clase — "mandaste 10 hace 20 días, sigue en 10, no reponer"). El
-Radar decide **qué y cuánto**; la tabla de reposición sigue siendo la dueña de **cómo
-despachar seguro** (pool/tope, `assignOrigins`, proyección, trazabilidad). Una sola
-fuente de verdad para el XLS.
-
-**Fases:**
-- **F1 ✅ (25 Ago 2026, desplegado — ver CHANGELOG):** F1a captura de snapshots
-  (`stock_snapshots/{fecha}`, silenciosa, arranca el reloj de datos) + F1b vista Radar
-  por frecuencia (última vez / cadencia) + stock actual + última cantidad enviada.
-  Umbral sin cadencia = 15 días; muestra solo los "ya tocan" (toggle ver todos).
-- **F2 ✅ (24 Ago 2026, desplegado — ver CHANGELOG):** parser del
-  reporte *ProductoPorSucursal* + persistencia (`sales_snapshots/{rango}`) + consumo por
-  deltas de 2 snapshots consecutivos (sin depender de subir nada) + coalesce
-  ventas→snapshot + señal 🔴 crítico / 🟠 ya toca / ⚫ estancado en el Radar.
-- **F3 (siguiente):** cantidad sugerida calculada por consumo (cubrir hasta la próxima
-  vuelta sin sobreabastecer) + botón "pasar a reposición" que pre-llena la tabla con las
-  cantidades sugeridas, para exportar/despachar con las validaciones intactas.
+*(sin frente activo definido — A3 Radar de Reposición se cerró completo en sus 3 fases
+el 24 Ago 2026, ver CHANGELOG. Candidatos en "🔲 Pendientes" más abajo: retomar
+"Conectar el Ensamblador-ZD", o diseñar "Recepción en sucursal destino — cotejo de
+despacho". A definir con Fernando en la próxima sesión.)*
 
 *Ciclos previos cerrados — historial: "Conteos asignables al colaborador" (fases 1, 1.1, 2)
 cerrado, desplegado y movido al CHANGELOG (30 Jul 2026); filtro de asignables por rol
@@ -315,7 +282,16 @@ al CHANGELOG (20 Ago 2026); UI optimista en las acciones de vueltas y domicilios
 `completarVuelta`, `salirDomicilio`, `acabeDomicilio`, `confirmarNoEntrega`, `revertirVuelta`,
 `reintentarEntrega`; ítem ad-hoc, continuación de un refactor local interrumpido por un
 reinicio del equipo) en moto.html cerrada, desplegada en producción y movida al CHANGELOG
-(24 Ago 2026).*
+(24 Ago 2026); A3 — Radar de Reposición (`reposicion.html`, `firestore.rules`) cerrado
+completo en sus 3 fases y desplegado a producción (24 Ago 2026, ver CHANGELOG): F1
+captura de snapshots (`stock_snapshots/{fecha}`) + vista Radar por frecuencia; F2
+consumo por deltas de 2 snapshots + parser/carga del reporte de ventas
+*ProductoPorSucursal* (`sales_snapshots/{rango}`) + señal 🔴 crítico / 🟠 ya toca /
+⚫ estancado; F3 cantidad sugerida por consumo (`radarSugerido()`, horizonte 14 días,
+tope por sucursal) + botón "pasar a reposición" que pre-llena la tabla respetando el
+pool de bodega. Pendiente de esta sesión: validar en producción con datos reales de una
+sucursal (incluye el reporte de ventas real de F2, que seguía sin probarse con datos
+de verdad).*
 
 ---
 
@@ -464,8 +440,7 @@ hacia el CHANGELOG.
 
 ---
 
-*Última actualización: 24 Agosto 2026 — A3 Radar de Reposición F2 (consumo por deltas de
-snapshot + parser/carga del reporte de ventas *ProductoPorSucursal* + señal 🔴/🟠/⚫)
-cerrada, desplegada a producción (ver CHANGELOG); pendiente validar con el reporte de
-ventas real. Agregado esquema `sales_snapshots`. Sigue F3 (cantidad sugerida + puente
-a la tabla).*
+*Última actualización: 24 Agosto 2026 — A3 Radar de Reposición cerrado completo en sus
+3 fases (F1 frecuencia, F2 consumo, F3 cantidad sugerida + botón "pasar a reposición"),
+desplegado a producción (ver CHANGELOG); pendiente validar en real con datos de una
+sucursal. Sin frente activo definido para la próxima sesión.*
