@@ -619,6 +619,11 @@ body.inv-collab #inv-btn-reasignar { display: none !important; }
       <span class="rh-lbl">Trazabilidad</span>
       <span class="rh-sub">Historial de reposiciones</span>
     </button>
+    <button class="rh-card" onclick="goRadar()">
+      <span class="rh-ico">🎯</span>
+      <span class="rh-lbl">Radar</span>
+      <span class="rh-sub">Qué ya toca reponer por sucursal</span>
+    </button>
   </div>
 </div>
 
@@ -857,6 +862,18 @@ body.inv-collab #inv-btn-reasignar { display: none !important; }
   <div id="traz-list" style="padding:.75rem .875rem 5rem"></div>
 </div>
 
+
+<div id="s-radar" class="scr">
+  <div class="topbar">
+    <div class="topbar-title">🎯 Radar</div>
+    <div class="topbar-actions">
+      <button class="btn btn-ghost" style="font-size:.65rem" onclick="loadRadar()">↻ Actualizar</button>
+      <button class="btn btn-ghost" style="font-size:.65rem" onclick="goBackFromRadar()">← Volver</button>
+    </div>
+  </div>
+  <div class="rep-tabs" id="radar-tabs"></div>
+  <div id="radar-list" style="padding:.75rem .875rem 5rem"></div>
+</div>
 
 <div id="s-inventario" class="scr">
   <div class="topbar">
@@ -4127,6 +4144,160 @@ window.toggleProyDetail = (id) => {
   const el = $(`proy-detail-${id}`);
   if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
 };
+
+/* ═══════════════════════════════════
+   RADAR DE REPOSICIÓN (A3 — F1b)
+   "Qué ya toca reponer" por sucursal: frecuencia (reposiciones) + stock
+   actual (último stock_snapshots). Consumo/estancado y cantidad sugerida
+   calculada llegan en F2/F3.
+═══════════════════════════════════ */
+const RADAR_SINGLE_THRESHOLD = 15;   // días para marcar "ya toca" sin cadencia (1 solo envío)
+let radarActiveTab    = 'M01';
+let radarReposiciones = [];
+let radarSnapshot     = null;
+let radarSnapFecha    = null;
+let radarData         = {};
+let radarShowAll      = false;
+
+window.goRadar = () => { showScreen('s-radar'); loadRadar(); };
+window.goBackFromRadar = () => { showScreen('s-home'); };
+
+window.loadRadar = loadRadar;
+async function loadRadar() {
+  const list = $('radar-list');
+  if (list) list.innerHTML = '<div style="text-align:center;padding:3rem 1rem"><span class="spin"></span>'
+    + '<span style="font-size:.72rem;color:var(--muted);margin-left:8px">Cargando…</span></div>';
+  if (!db || !fbMod) return;
+  try {
+    const { collection, getDocs, query, orderBy, limit } = fbMod;
+    const rq = query(collection(db, 'reposiciones'), orderBy('timestamp', 'desc'), limit(600));
+    const sq = query(collection(db, 'stock_snapshots'), orderBy('fecha', 'desc'), limit(1));
+    const [rsnap, ssnap] = await Promise.all([getDocs(rq), getDocs(sq)]);
+    radarReposiciones = rsnap.docs.map(d => d.data());
+    if (ssnap.empty) { radarSnapshot = null; radarSnapFecha = null; }
+    else { const sd = ssnap.docs[0].data(); radarSnapshot = sd.productos || {}; radarSnapFecha = sd.fecha || null; }
+    computeRadar();
+    renderRadar();
+  } catch (e) {
+    if (list) list.innerHTML = `<div class="empty-state">Error al cargar: ${escHtml(e.message)}</div>`;
+    console.error('loadRadar:', e);
+  }
+}
+
+// Por sucursal destino, arma la lista de productos con frecuencia (último envío,
+// cadencia promedio) + stock actual del snapshot. Nombre sale de reposiciones.
+function computeRadar() {
+  const now = Date.now(), DAY = 86400000;
+  const acc = {};   // suc -> code -> { envios:[{ts,cant}], nombre }
+  for (const r of radarReposiciones) {
+    const suc = r.destino;
+    if (!REP_DESTS.includes(suc)) continue;          // solo sucursales
+    const ts = r.timestamp || 0;
+    for (const p of (r.productos || [])) {
+      const code = p.codigo;
+      if (!code) continue;
+      if (!acc[suc]) acc[suc] = {};
+      if (!acc[suc][code]) acc[suc][code] = { envios: [], nombre: p.nombre || code };
+      acc[suc][code].envios.push({ ts, cant: p.cantidad || 0 });
+    }
+  }
+  radarData = {};
+  for (const suc of REP_DESTS) {
+    const items = [];
+    const codes = acc[suc] || {};
+    for (const code of Object.keys(codes)) {
+      const envios = codes[code].envios.sort((a, b) => b.ts - a.ts);
+      const ultTs = envios[0].ts, ultCant = envios[0].cant;
+      const diasDesde = Math.floor((now - ultTs) / DAY);
+      let cadencia = null;
+      if (envios.length >= 2) {
+        let sum = 0, n = 0;
+        for (let i = 0; i < envios.length - 1; i++) {
+          const gap = (envios[i].ts - envios[i + 1].ts) / DAY;
+          if (gap > 0) { sum += gap; n++; }
+        }
+        if (n > 0) cadencia = sum / n;
+      }
+      const stockHoy = (radarSnapshot && radarSnapshot[code] && radarSnapshot[code][suc]) || 0;
+      const umbral   = cadencia != null ? cadencia : RADAR_SINGLE_THRESHOLD;
+      const vencido  = diasDesde >= umbral;
+      items.push({ code, nombre: codes[code].nombre, stockHoy, diasDesde,
+                   cadencia, ultCant, vencido, score: diasDesde - umbral });
+    }
+    items.sort((a, b) => b.score - a.score);
+    radarData[suc] = items;
+  }
+}
+
+function radarCount(suc) { return (radarData[suc] || []).filter(it => it.vencido).length; }
+
+function renderRadar() {
+  const tabsEl = $('radar-tabs');
+  if (tabsEl) tabsEl.innerHTML = REP_DESTS.map(id => {
+    const n = radarCount(id);
+    const badge = n ? `<span class="rtab-badge">${n}</span>` : '';
+    return `<button class="rtab${id === radarActiveTab ? ' on' : ''}" id="radar-tab-${id}"
+      onclick="switchRadarTab('${id}')">${REP_LBLS[id]}${badge}</button>`;
+  }).join('');
+
+  const suc   = radarActiveTab;
+  const all   = radarData[suc] || [];
+  const items = radarShowAll ? all : all.filter(it => it.vencido);
+  const count = radarCount(suc);
+  const snapLine = radarSnapFecha ? `stock al ${radarSnapFecha}` : 'sin snapshot de stock aún';
+
+  const head = `
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;padding:.5rem .25rem .75rem">
+      <div style="font-size:.72rem;color:var(--text2)">
+        <strong style="color:var(--warn-tx)">${count}</strong> ${count === 1 ? 'producto ya toca' : 'productos ya tocan'}
+        en ${REP_LBLS[suc]} · <span style="color:var(--muted)">${snapLine}</span>
+      </div>
+      <label style="display:flex;align-items:center;gap:5px;font-size:.62rem;color:var(--text2);cursor:pointer">
+        <input type="checkbox" ${radarShowAll ? 'checked' : ''} onchange="toggleRadarShowAll(this)"
+          style="accent-color:var(--accent);width:13px;height:13px"/> Ver todos
+      </label>
+    </div>`;
+
+  if (!radarReposiciones.length) {
+    $('radar-list').innerHTML = head + `<div class="empty-state">Sin envíos registrados todavía.</div>`;
+    return;
+  }
+  if (!items.length) {
+    $('radar-list').innerHTML = head + `<div class="empty-state">
+      <div style="font-size:1.5rem;margin-bottom:.35rem">✓</div>
+      Nada que ya toque en ${REP_LBLS[suc]}.</div>`;
+    return;
+  }
+
+  const rows = items.map(it => {
+    const cad = it.cadencia != null ? `~cada ${Math.round(it.cadencia)} d` : `1er envío`;
+    const stkC = it.stockHoy < 3 ? 'stk-low' : 'stk-ok';
+    const badge = it.vencido
+      ? `<span class="sug-badge">🟠 Ya toca</span>`
+      : `<span style="font-size:.58rem;color:var(--muted)">—</span>`;
+    return `
+    <div class="traz-card" style="padding:.6rem .8rem;margin-bottom:.5rem">
+      <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">
+        <div style="min-width:0">
+          <div style="font-size:.74rem;font-weight:600;line-height:1.3">${escHtml(it.nombre)}</div>
+          <div style="font-size:.6rem;color:var(--muted);margin-top:1px">${escHtml(it.code)}</div>
+        </div>
+        <div style="flex-shrink:0">${badge}</div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:.45rem;font-size:.63rem;color:var(--text2)">
+        <span>Stock hoy: <strong class="${stkC}">${it.stockHoy}</strong></span>
+        <span>Últ. envío: <strong>hace ${it.diasDesde} d</strong></span>
+        <span style="color:var(--muted)">${cad}</span>
+        <span>Últ. cant.: <strong>${it.ultCant}</strong></span>
+      </div>
+    </div>`;
+  }).join('');
+
+  $('radar-list').innerHTML = head + rows;
+}
+
+window.switchRadarTab   = (id)  => { radarActiveTab = id; renderRadar(); };
+window.toggleRadarShowAll = (chk) => { radarShowAll = chk.checked; renderRadar(); };
 
 
 /* ═══════════════════════════════════
