@@ -339,6 +339,50 @@ async function main() {
     await mCardMoto.locator('.mcard-done-time').waitFor({ timeout: 8000 });
     check('vuelta marcada como completada desde moto.html', await mCardMoto.locator('.mcard-done-time').count() === 1);
 
+    // ── 14. moto.html: domicilio — ACABÉ ofrece WhatsApp en modal, no lo dispara solo ──
+    // Regresión del bug reportado 03 Sep 2026: saltar directo a wa.me antes del updateDoc
+    // dejaba el status pegado en "en camino" al fondearse la pestaña. Ahora el guardado va
+    // primero y el envío por WhatsApp queda en un modal aparte (Ahora no / Enviar por WhatsApp).
+    console.log('\n▶ moto.html — domicilio (ACABÉ → modal WhatsApp, sin disparo automático)');
+    const domCardAcabe = page.locator('.mcard', { hasText: 'CLIENTE PILOTO ACABÉ' });
+    check('domicilio piloto (ACABÉ) aparece en el portal del motorista', await domCardAcabe.count() === 1);
+    await domCardAcabe.locator('button:has-text("Salir")').click();
+    await domCardAcabe.locator('button:has-text("ACABÉ")').waitFor({ timeout: 8000 });
+    await domCardAcabe.locator('button:has-text("ACABÉ")').click();
+    await page.locator('#modal-wa-confirm').waitFor({ state: 'visible', timeout: 8000 });
+    check('modal de WhatsApp aparece al tocar ACABÉ (no salta directo)',
+      await page.locator('#modal-wa-confirm').isVisible());
+    check('modal de WhatsApp menciona al cliente',
+      (await page.locator('#wa-confirm-text').textContent() || '').includes('Cliente Piloto Acabé'));
+    check('badge ya muestra "Entregado" con el modal aún abierto (el guardado no depende de WhatsApp)',
+      await domCardAcabe.locator('.dmbadge-entregado').count() === 1);
+    await page.locator('#modal-wa-confirm button:has-text("Ahora no")').click();
+    await page.locator('#modal-wa-confirm').waitFor({ state: 'hidden', timeout: 8000 });
+    check('modal se cierra con "Ahora no" sin abrir WhatsApp', !(await page.locator('#modal-wa-confirm').isVisible()));
+    await page.reload();
+    await page.waitForSelector('.mcard', { timeout: 10000 });
+    check('el status "entregado" persistió en Firestore tras recargar (no dependía del envío por WhatsApp)',
+      await page.locator('.mcard', { hasText: 'CLIENTE PILOTO ACABÉ' }).locator('.dmbadge-entregado').count() === 1);
+
+    // ── 15. moto.html: domicilio — "No pude" también ofrece WhatsApp en modal ──
+    console.log('\n▶ moto.html — domicilio (No pude → modal WhatsApp)');
+    const domCardNoEnt = page.locator('.mcard', { hasText: 'CLIENTE PILOTO NO ENTREGA' });
+    check('domicilio piloto (No entrega) aparece en el portal del motorista', await domCardNoEnt.count() === 1);
+    await domCardNoEnt.locator('button:has-text("Salir")').click();
+    await domCardNoEnt.locator('button:has-text("No pude")').waitFor({ timeout: 8000 });
+    await domCardNoEnt.locator('button:has-text("No pude")').click();
+    await page.locator('#modal-noentrega').waitFor({ state: 'visible', timeout: 8000 });
+    await page.locator('.ne-opt').first().click();
+    await page.click('#btn-confirmar-ne');
+    await page.locator('#modal-wa-confirm').waitFor({ state: 'visible', timeout: 8000 });
+    check('modal de WhatsApp también aparece tras confirmar "No pude" (no salta directo)',
+      await page.locator('#modal-wa-confirm').isVisible());
+    await page.locator('#modal-wa-confirm button:has-text("Ahora no")').click();
+    await page.reload();
+    await page.waitForSelector('.mcard', { timeout: 10000 });
+    check('el status "no_entregado" persistió en Firestore tras recargar',
+      await page.locator('.mcard', { hasText: 'CLIENTE PILOTO NO ENTREGA' }).locator('.dmbadge-no_entregado').count() === 1);
+
   } finally {
     for (const ctx of contexts) await ctx.close().catch(() => {});
     await browser.close();

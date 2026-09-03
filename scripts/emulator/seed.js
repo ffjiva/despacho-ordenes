@@ -141,6 +141,30 @@ async function seed() {
     createdAt: Date.now(), completedAt: null, photos: [],
   });
 
+  // Domicilios — happy path de las acciones con confirmación WhatsApp en moto.html.
+  // Dos docs separados: uno se completa (Salir → ACABÉ), el otro se marca no-entregado
+  // (Salir → No pude), para no pisarse entre checks.
+  const domAcabeRef = await db.collection('domicilios').add({
+    type: 'domicilio', date: today, cliente: 'Cliente Piloto Acabé',
+    telefono: '70001111', total: 25.5, formaPago: 'Efectivo',
+    direccion: 'Colonia Test #1, San Salvador', puntoReferencia: '',
+    departamento: 'San Salvador', municipio: 'San Salvador', empresaEnvio: '',
+    assignedTo: motoUid, assignedToName: 'Motorista Piloto',
+    status: 'pendiente', motivoNoEntrega: '', fechaReagenda: '',
+    photos: [], gpsInicio: null, gpsFin: null,
+    createdAt: Date.now(), completadoAt: null,
+  });
+  const domNoEntregaRef = await db.collection('domicilios').add({
+    type: 'domicilio', date: today, cliente: 'Cliente Piloto No Entrega',
+    telefono: '70002222', total: 40, formaPago: 'Tarjeta',
+    direccion: 'Colonia Test #2, San Salvador', puntoReferencia: '',
+    departamento: 'San Salvador', municipio: 'San Salvador', empresaEnvio: '',
+    assignedTo: motoUid, assignedToName: 'Motorista Piloto',
+    status: 'pendiente', motivoNoEntrega: '', fechaReagenda: '',
+    photos: [], gpsInicio: null, gpsFin: null,
+    createdAt: Date.now(), completadoAt: null,
+  });
+
   // Pendiente — happy path del módulo Pendientes en ops.html (s-home).
   const pendRef = await db.collection('ops_pendientes').add({
     type: 'dist', subtype: null, urgency: 'normal',
@@ -156,6 +180,7 @@ async function seed() {
   console.log('  motorista:   motorista@test.local / test1234    →  conteo asignado:', invMotoRef.id);
   console.log('  despacho piloto (colaborador):', despRef.id);
   console.log('  vuelta piloto ops.html:', vueltaOpsRef.id, '/ moto.html:', vueltaMotoRef.id);
+  console.log('  domicilio piloto ACABÉ:', domAcabeRef.id, '/ No pude:', domNoEntregaRef.id);
   console.log('  pendiente piloto ops.html:', pendRef.id);
   console.log('\nProbá (logueado como colaborador@test.local):');
   console.log('  reposicion.html#inv=' + invRef.id + '        (abre directo — es suyo)');

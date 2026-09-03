@@ -1512,18 +1512,6 @@ window.salirDomicilio = async id => {
 window.acabeDomicilio = async id => {
   const d = cachedDomicilios.find(x => x.id === id);
 
-  // WhatsApp DENTRO del gesto del usuario (antes de cualquier await, si no el móvil lo bloquea)
-  if (d && WHATSAPP_GROUP) {
-    const hora = new Date().toLocaleTimeString('es-SV', { hour:'2-digit', minute:'2-digit', hour12:false });
-    const msg = encodeURIComponent(
-      `✅ Entrega completada\nCliente: ${d.cliente || '—'}\n` +
-      `Tel: ${d.telefono || '—'}\nDirección: ${d.direccion || '—'}\n` +
-      `Monto: $${d.total || '0'} · ${d.formaPago || '—'}\n` +
-      `Motorista: ${currentDriver}\n🕐 ${hora}`
-    );
-    window.open(`https://wa.me/${WHATSAPP_GROUP}?text=${msg}`, '_blank');
-  }
-
   // UI optimista: reflejar 'entregado' de inmediato (no esperamos el ack del servidor)
   const update = { status: 'entregado', completadoAt: Date.now(), date: today() };
   const idx  = cachedDomicilios.findIndex(x => x.id === id);
@@ -1543,6 +1531,21 @@ window.acabeDomicilio = async id => {
       if (idx !== -1 && prev) { cachedDomicilios[idx] = prev; renderCombined(); }
       alert('No se pudo guardar la entrega. Revisa tu conexión e intenta de nuevo.');
     });
+
+  // Aviso por WhatsApp: se OFRECE (modal), ya no se dispara solo — saltar directo a WhatsApp
+  // dejaba la pestaña en segundo plano antes de que el updateDoc alcanzara a completarse
+  // (el estado quedaba pegado en "en camino" — bug reportado 03 Sep 2026).
+  if (d && WHATSAPP_GROUP) {
+    const hora = new Date().toLocaleTimeString('es-SV', { hour:'2-digit', minute:'2-digit', hour12:false });
+    const msg = encodeURIComponent(
+      `✅ Entrega completada\nCliente: ${d.cliente || '—'}\n` +
+      `Tel: ${d.telefono || '—'}\nDirección: ${d.direccion || '—'}\n` +
+      `Monto: $${d.total || '0'} · ${d.formaPago || '—'}\n` +
+      `Motorista: ${currentDriver}\n🕐 ${hora}`
+    );
+    openWaConfirm(`https://wa.me/${WHATSAPP_GROUP}?text=${msg}`,
+      `Avisar que la entrega de ${d.cliente || 'este cliente'} quedó completada.`);
+  }
 };
 
 window.reintentarEntrega = async id => {
@@ -1582,15 +1585,6 @@ window.confirmarNoEntrega = async () => {
   const d  = cachedDomicilios.find(x => x.id === id);
   const fechaReagenda = $('ne-fecha').value || '';
 
-  // WhatsApp dentro del gesto (antes de cerrar el modal / de cualquier await)
-  if (d && WHATSAPP_GROUP) {
-    const msg = encodeURIComponent(
-      `🚨 Entrega pendiente\nCliente: ${d.cliente || '—'}\nTel: ${d.telefono || '—'}\n` +
-      `Motivo: ${noEntregaMotivo}\nDirección: ${d.direccion || '—'}`
-    );
-    window.open(`https://wa.me/${WHATSAPP_GROUP}?text=${msg}`, '_blank');
-  }
-
   const update = { status: 'no_entregado', motivoNoEntrega: noEntregaMotivo, fechaReagenda };
   const idx  = cachedDomicilios.findIndex(x => x.id === id);
   const prev = idx !== -1 ? { ...cachedDomicilios[idx] } : null;
@@ -1602,12 +1596,45 @@ window.confirmarNoEntrega = async () => {
       if (idx !== -1 && prev) { cachedDomicilios[idx] = prev; renderCombined(); }
       alert('No se pudo guardar. Revisa tu conexión e intenta de nuevo.');
     });
+
+  // Aviso por WhatsApp: se OFRECE (modal), ya no se dispara solo — mismo motivo que en acabeDomicilio.
+  if (d && WHATSAPP_GROUP) {
+    const msg = encodeURIComponent(
+      `🚨 Entrega pendiente\nCliente: ${d.cliente || '—'}\nTel: ${d.telefono || '—'}\n` +
+      `Motivo: ${noEntregaMotivo}\nDirección: ${d.direccion || '—'}`
+    );
+    openWaConfirm(`https://wa.me/${WHATSAPP_GROUP}?text=${msg}`,
+      `Avisar por qué no se pudo entregar a ${d.cliente || 'este cliente'}.`);
+  }
 };
 
 window.closeNoEntregaModal = (e) => {
   if (e && e.target !== e.currentTarget) return;
   $('modal-noentrega').style.display = 'none';
   noEntregaId = null; noEntregaMotivo = '';
+};
+
+/* ═══════════════════════════════════
+   MODAL CONFIRMAR WHATSAPP
+   Se ofrece el envío en vez de dispararlo solo — el salto directo a wa.me
+   dejaba la pestaña en segundo plano antes de que el guardado en Firestore
+   alcanzara a completarse (bug reportado 03 Sep 2026).
+═══════════════════════════════════ */
+window.openWaConfirm = (url, text) => {
+  window._waPendingUrl = url;
+  $('wa-confirm-text').textContent = text || '';
+  $('modal-wa-confirm').style.display = '';
+};
+
+window.closeWaConfirmModal = (e) => {
+  if (e && e.target !== e.currentTarget) return;
+  $('modal-wa-confirm').style.display = 'none';
+  window._waPendingUrl = null;
+};
+
+window.sendWaConfirm = () => {
+  if (window._waPendingUrl) window.open(window._waPendingUrl, '_blank');
+  window.closeWaConfirmModal();
 };
 
 window.tomarFotoDom = id => {
@@ -1700,6 +1727,18 @@ document.addEventListener('DOMContentLoaded', init);
     <div style="display:flex;gap:8px;margin-top:1rem">
       <button style="flex:1;padding:11px;border:1px solid var(--border);border-radius:var(--r);background:transparent;font-family:var(--mono);font-size:.7rem;font-weight:700;letter-spacing:.07em;cursor:pointer;color:var(--text2);min-height:48px" onclick="closeNoEntregaModal()">Cancelar</button>
       <button id="btn-confirmar-ne" style="flex:1;padding:11px;border:none;border-radius:var(--r);background:var(--err-tx);color:#fff;font-family:var(--mono);font-size:.7rem;font-weight:700;letter-spacing:.07em;cursor:pointer;min-height:48px" onclick="confirmarNoEntrega()">Confirmar →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ MODAL CONFIRMAR WHATSAPP ══════════════ -->
+<div id="modal-wa-confirm" style="display:none;position:fixed;inset:0;z-index:500;background:rgba(0,0,0,.52)" onclick="closeWaConfirmModal(event)">
+  <div style="position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-radius:10px 10px 0 0;padding:1.25rem 1.25rem 2.5rem;max-width:480px;margin:0 auto;animation:slideUp .2s ease">
+    <div style="font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:.5rem">📱 Avisar por WhatsApp</div>
+    <div id="wa-confirm-text" style="font-size:.78rem;color:var(--text2);line-height:1.5;margin-bottom:1rem"></div>
+    <div style="display:flex;gap:8px">
+      <button style="flex:1;padding:11px;border:1px solid var(--border);border-radius:var(--r);background:transparent;font-family:var(--mono);font-size:.7rem;font-weight:700;letter-spacing:.07em;cursor:pointer;color:var(--text2);min-height:48px" onclick="closeWaConfirmModal()">Ahora no</button>
+      <button style="flex:1;padding:11px;border:1px solid var(--done-bd);border-radius:var(--r);background:var(--done-bg);color:var(--done-tx);font-family:var(--mono);font-size:.7rem;font-weight:700;letter-spacing:.07em;cursor:pointer;min-height:48px" onclick="sendWaConfirm()">📱 Enviar por WhatsApp</button>
     </div>
   </div>
 </div>
