@@ -13,6 +13,48 @@
 
 ## Sesiones y módulos
 
+### Sesión moto.html — WhatsApp en entregas: fix de estado pegado + limpieza de prioritario — 03 Sep 2026 *(moto.html)*
+
+Bug reportado por Fernando en producción: entregas de motoristas quedaban con status "en
+camino" sin importar que se tocara ACABÉ. Investigado en vivo junto con la observación de
+Anderson — el salto automático a `wa.me` antes de escribir en Firestore dejaba la pestaña en
+segundo plano y el guardado nunca alcanzaba a completarse.
+
+**fix(moto): confirmar envío por WhatsApp en vez de dispararlo solo** *(commit 8c8bd23)*
+`acabeDomicilio()` y `confirmarNoEntrega()` ya no llaman `window.open(wa.me...)` antes del
+`updateDoc`. El guardado (optimista + Firestore en segundo plano) va primero; el envío por
+WhatsApp se ofrece después en un modal nuevo (`#modal-wa-confirm`, bottom-sheet igual al de
+`modal-noentrega`) con "Ahora no" / "📱 Enviar por WhatsApp" — mismo patrón que
+`notifyAssigneeWA` en `index.html`. Al ser un tap directo del usuario ya no hace falta el
+truco de disparar `window.open` antes del `await` para evitar el bloqueo de popups.
+
+**fix(moto): limpiar `prioritario` al completar una entrega** *(commit cc29f1a)*
+Bug relacionado, detectado por Fernando al revisar los datos: `acabeDomicilio()` nunca
+limpiaba `prioritario` al marcar `entregado` (a diferencia de `completarVuelta()`, que sí
+limpia `emergency`) — el banner "🚨 ENTREGA DE EMERGENCIA" quedaba pegado en fichas ya
+resueltas. Agregado `prioritario: false` al update.
+
+**chore(datos): corrección retroactiva en producción** *(commit 76a123e, más
+`fix-prioritario-pegado.js`)*
+3 entregas de Anderson del 02 Sep quedaron en `en_camino` por el bug — corregidas a
+`entregado` preservando `date` real (no se tocó vía la app, para no descuadrar el reporte de
+ese día). 1 registro (Walter Fernando) además tenía `prioritario:true` pegado — limpiado.
+Scripts de un solo uso en `scripts/utilidades/`: `find-stuck-domicilios.js` /
+`fix-stuck-domicilios.js` (los 3 domicilios) y `fix-prioritario-pegado.js` (limpieza
+general, dry-run por defecto con `--apply`).
+
+Cobertura: extendido `test:e2e` (`scripts/emulator/seed.js` + `smoke.mjs`) con 2 domicilios
+piloto y 11 checks nuevos — incluye verificar que el modal aparece en vez del salto
+automático, que el status persiste en Firestore tras recargar la página completa (prueba
+directa de que el guardado ya no depende de WhatsApp), y que el banner de emergencia
+desaparece al completar. Suite completa corrida en verde antes de cada deploy.
+
+**Archivos:** `moto.html`, `scripts/emulator/seed.js`, `scripts/emulator/smoke.mjs`,
+`scripts/utilidades/find-stuck-domicilios.js`, `scripts/utilidades/fix-stuck-domicilios.js`,
+`scripts/utilidades/fix-prioritario-pegado.js`.
+
+---
+
 ### Sesión Reposición — Radar A3 (F3): cantidad sugerida + "pasar a reposición" — 24 Ago 2026 *(reposicion.html)*
 
 Cierra las 3 fases de A3: el Radar ahora completa el ciclo de qué / cuánto / cómo.

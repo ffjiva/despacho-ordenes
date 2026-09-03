@@ -289,9 +289,14 @@ consumo por deltas de 2 snapshots + parser/carga del reporte de ventas
 *ProductoPorSucursal* (`sales_snapshots/{rango}`) + señal 🔴 crítico / 🟠 ya toca /
 ⚫ estancado; F3 cantidad sugerida por consumo (`radarSugerido()`, horizonte 14 días,
 tope por sucursal) + botón "pasar a reposición" que pre-llena la tabla respetando el
-pool de bodega. Pendiente de esta sesión: validar en producción con datos reales de una
-sucursal (incluye el reporte de ventas real de F2, que seguía sin probarse con datos
-de verdad).*
+pool de bodega. Pendiente: validar en producción con datos reales de una sucursal
+(incluye el reporte de ventas real de F2, que seguía sin probarse con datos de verdad);
+fix del estado de entregas pegado en "en camino" por el salto automático a WhatsApp
+(`acabeDomicilio`, `confirmarNoEntrega`) + limpieza de la etiqueta `prioritario` pegada
+al completar (ítems ad-hoc, bug reportado por Fernando en producción y causa
+identificada con Anderson) en moto.html cerrados, desplegados en producción, con
+corrección retroactiva de los 3 domicilios y 1 etiqueta afectados, y movidos al
+CHANGELOG (03 Sep 2026).*
 
 ---
 
@@ -402,8 +407,6 @@ Nuevo rol en consideración. Aún sin definir: archivos a los que tendrá acceso
   `shared.js` para lo duplicado entre index/ops/moto (`esc`/`escHtml`, `fmt*`, auth, FCM)
   — ataca duplicación real sin fragmentar ops.
 - **Debounce de `refreshRepStockTotals`** *(ops.html)* — condicional. Hoy no hay lag al teclear sobre las 3,668 filas sin filtrar. Si en el futuro se percibe delay, envolver en debounce (~120 ms) para no recalcular `repAllocate` sobre todo el filtrado en cada tecla. Mitigación lista, sin aplicar hasta que haga falta.
-- **Revisar integración WhatsApp** *(moto.html)* — `wa.me/${WHATSAPP_GROUP}` (~líneas 1406/1460): la constante está definida pero no es funcional. Revisar si es código muerto a eliminar o feature a completar.
-
 ---
 
 ## Bodegas y sucursales
@@ -440,7 +443,10 @@ hacia el CHANGELOG.
 
 ---
 
-*Última actualización: 24 Agosto 2026 — A3 Radar de Reposición cerrado completo en sus
-3 fases (F1 frecuencia, F2 consumo, F3 cantidad sugerida + botón "pasar a reposición"),
-desplegado a producción (ver CHANGELOG); pendiente validar en real con datos de una
-sucursal. Sin frente activo definido para la próxima sesión.*
+*Última actualización: 03 Septiembre 2026 — bug ad-hoc en producción (reportado por
+Fernando, causa identificada con Anderson): el salto automático a WhatsApp en
+`acabeDomicilio()`/`confirmarNoEntrega()` (moto.html) dejaba el status de las entregas
+pegado en "en camino"; reemplazado por un modal de confirmación (Ahora no / Enviar por
+WhatsApp), más limpieza del campo `prioritario` pegado al completar. 3 domicilios y 1
+etiqueta de emergencia corregidos en producción, cobertura e2e ampliada, todo desplegado
+(ver CHANGELOG). Sin frente activo definido para la próxima sesión.*
