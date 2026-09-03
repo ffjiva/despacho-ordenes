@@ -1513,7 +1513,9 @@ window.acabeDomicilio = async id => {
   const d = cachedDomicilios.find(x => x.id === id);
 
   // UI optimista: reflejar 'entregado' de inmediato (no esperamos el ack del servidor)
-  const update = { status: 'entregado', completadoAt: Date.now(), date: today() };
+  // prioritario:false — igual que completarVuelta() limpia emergency, la etiqueta de
+  // emergencia no debe quedar pegada en una entrega ya resuelta.
+  const update = { status: 'entregado', completadoAt: Date.now(), date: today(), prioritario: false };
   const idx  = cachedDomicilios.findIndex(x => x.id === id);
   const prev = idx !== -1 ? { ...cachedDomicilios[idx] } : null;
   if (idx !== -1) { cachedDomicilios[idx] = { ...cachedDomicilios[idx], ...update }; renderCombined(); }

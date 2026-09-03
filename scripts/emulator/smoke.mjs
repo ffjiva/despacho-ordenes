@@ -346,6 +346,8 @@ async function main() {
     console.log('\n▶ moto.html — domicilio (ACABÉ → modal WhatsApp, sin disparo automático)');
     const domCardAcabe = page.locator('.mcard', { hasText: 'CLIENTE PILOTO ACABÉ' });
     check('domicilio piloto (ACABÉ) aparece en el portal del motorista', await domCardAcabe.count() === 1);
+    check('banner de emergencia visible antes de completar (prioritario:true del seed)',
+      await domCardAcabe.locator('.emergency-bar').count() === 1);
     await domCardAcabe.locator('button:has-text("Salir")').click();
     await domCardAcabe.locator('button:has-text("ACABÉ")').waitFor({ timeout: 8000 });
     await domCardAcabe.locator('button:has-text("ACABÉ")').click();
@@ -363,6 +365,8 @@ async function main() {
     await page.waitForSelector('.mcard', { timeout: 10000 });
     check('el status "entregado" persistió en Firestore tras recargar (no dependía del envío por WhatsApp)',
       await page.locator('.mcard', { hasText: 'CLIENTE PILOTO ACABÉ' }).locator('.dmbadge-entregado').count() === 1);
+    check('la etiqueta de emergencia se limpió al completar (no queda pegada)',
+      await page.locator('.mcard', { hasText: 'CLIENTE PILOTO ACABÉ' }).locator('.emergency-bar').count() === 0);
 
     // ── 15. moto.html: domicilio — "No pude" también ofrece WhatsApp en modal ──
     console.log('\n▶ moto.html — domicilio (No pude → modal WhatsApp)');

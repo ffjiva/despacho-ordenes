@@ -151,6 +151,7 @@ async function seed() {
     departamento: 'San Salvador', municipio: 'San Salvador', empresaEnvio: '',
     assignedTo: motoUid, assignedToName: 'Motorista Piloto',
     status: 'pendiente', motivoNoEntrega: '', fechaReagenda: '',
+    prioritario: true, // regresión: la etiqueta de emergencia debe limpiarse al completar
     photos: [], gpsInicio: null, gpsFin: null,
     createdAt: Date.now(), completadoAt: null,
   });
