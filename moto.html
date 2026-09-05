@@ -1521,18 +1521,21 @@ window.acabeDomicilio = async id => {
   if (idx !== -1) { cachedDomicilios[idx] = { ...cachedDomicilios[idx], ...update }; renderCombined(); }
   notify('📦 Entrega completada', `${currentDriver} entregó a ${d?.cliente || ''}`);
 
-  // Escritura en segundo plano — la cola offline de Firestore sincroniza si no hay señal
-  fbMod.updateDoc(fbMod.doc(db, 'domicilios', id), update)
-    .then(() => {
-      getGPS().then(gps => {
-        if (gps) fbMod.updateDoc(fbMod.doc(db, 'domicilios', id), { gpsFin: gps }).catch(() => {});
-      });
-    })
-    .catch(e => {
-      console.error(e);
-      if (idx !== -1 && prev) { cachedDomicilios[idx] = prev; renderCombined(); }
-      alert('No se pudo guardar la entrega. Revisa tu conexión e intenta de nuevo.');
-    });
+  // Guardado con confirmación del servidor ANTES de ofrecer WhatsApp: moto.html no tiene
+  // caché persistente, así que un write en vuelo se pierde si la pestaña pasa a segundo
+  // plano al abrir WhatsApp. Esperar el ack garantiza que 'entregado' ya quedó en el
+  // servidor antes de que Anderson pueda saltar a WhatsApp (fix bug estado pegado, Sep 2026).
+  try {
+    await fbMod.updateDoc(fbMod.doc(db, 'domicilios', id), update);
+  } catch(e) {
+    console.error(e);
+    if (idx !== -1 && prev) { cachedDomicilios[idx] = prev; renderCombined(); }
+    alert('No se pudo guardar la entrega. Revisa tu conexión e intenta de nuevo.');
+    return;
+  }
+  getGPS().then(gps => {
+    if (gps) fbMod.updateDoc(fbMod.doc(db, 'domicilios', id), { gpsFin: gps }).catch(() => {});
+  });
 
   // Aviso por WhatsApp: se OFRECE (modal), ya no se dispara solo — saltar directo a WhatsApp
   // dejaba la pestaña en segundo plano antes de que el updateDoc alcanzara a completarse
@@ -1592,12 +1595,14 @@ window.confirmarNoEntrega = async () => {
   const prev = idx !== -1 ? { ...cachedDomicilios[idx] } : null;
   if (idx !== -1) { cachedDomicilios[idx] = { ...cachedDomicilios[idx], ...update }; renderCombined(); }
   closeNoEntregaModal();
-  fbMod.updateDoc(fbMod.doc(db, 'domicilios', id), update)
-    .catch(e => {
-      console.error(e);
-      if (idx !== -1 && prev) { cachedDomicilios[idx] = prev; renderCombined(); }
-      alert('No se pudo guardar. Revisa tu conexión e intenta de nuevo.');
-    });
+  try {
+    await fbMod.updateDoc(fbMod.doc(db, 'domicilios', id), update);
+  } catch(e) {
+    console.error(e);
+    if (idx !== -1 && prev) { cachedDomicilios[idx] = prev; renderCombined(); }
+    alert('No se pudo guardar. Revisa tu conexión e intenta de nuevo.');
+    return;
+  }
 
   // Aviso por WhatsApp: se OFRECE (modal), ya no se dispara solo — mismo motivo que en acabeDomicilio.
   if (d && WHATSAPP_GROUP) {
