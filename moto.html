@@ -350,6 +350,8 @@ const FIREBASE_CFG = {
 const THEME_KEY       = 'moto_theme_v1';
 const COLLECTION      = 'vueltas';
 const WHATSAPP_GROUP  = '50377081881';
+const APP_VERSION     = '2026-09-05.1';   // subir en CADA deploy de moto.html + publicar en config/version.moto
+let _versionCheckStarted = false;
 
 let db = null, fbMod = null, authMod = null, auth = null;
 let currentDriver = '';
@@ -679,11 +681,41 @@ function goHome() {
     weekday: 'long', day: '2-digit', month: 'long', year: 'numeric'
   }).toUpperCase();
   showScreen('s-home');
+  initVersionCheck();
   startListener();
   startDomiciliosListener();
   if (navigator.geolocation) navigator.geolocation.getCurrentPosition(() => {}, () => {});
   setTimeout(fetchArrastre, 1500);
   setTimeout(fetchEnCola, 2000);
+}
+
+// ── Chequeo de versión: avisa (y permite recargar) si hay una build más nueva desplegada ──
+// Usa el campo PROPIO 'moto' de config/version (no 'latest', que es de index.html).
+// Subir APP_VERSION en cada deploy de moto.html y publicar config/version.moto (version:publish).
+function initVersionCheck() {
+  if (['localhost','127.0.0.1'].includes(location.hostname) || !db || _versionCheckStarted) return;
+  _versionCheckStarted = true;
+  try {
+    fbMod.onSnapshot(fbMod.doc(db, 'config', 'version'), snap => {
+      const latest = snap.exists() ? (snap.data().moto || '') : '';
+      if (latest && latest !== APP_VERSION) showUpdateBanner();
+    }, () => {});
+  } catch (e) { console.warn('versionCheck:', e.message); }
+}
+function showUpdateBanner() {
+  if ($('update-banner')) return;
+  const bar = document.createElement('div');
+  bar.id = 'update-banner';
+  bar.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:9999;'
+    + 'background:var(--warn-bg);color:var(--warn-tx);border-top:1px solid var(--warn-bd);'
+    + 'padding:10px 14px;display:flex;align-items:center;justify-content:center;gap:12px;'
+    + 'font-family:var(--mono);font-size:.72rem;font-weight:700';
+  bar.innerHTML = '🔄 Hay una actualización.'
+    + ' <button onclick="location.replace(location.pathname + \'?v=\' + Date.now())"'
+    + ' style="padding:4px 12px;font-family:var(--mono);font-size:.7rem;font-weight:700;'
+    + 'border:1px solid var(--warn-bd);border-radius:5px;background:transparent;'
+    + 'color:var(--warn-tx);cursor:pointer">Recargar</button>';
+  document.body.appendChild(bar);
 }
 
 function notify(title, body) {
