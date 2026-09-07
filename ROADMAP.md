@@ -443,10 +443,7 @@ hacia el CHANGELOG.
 
 ---
 
-*Última actualización: 03 Septiembre 2026 — bug ad-hoc en producción (reportado por
-Fernando, causa identificada con Anderson): el salto automático a WhatsApp en
-`acabeDomicilio()`/`confirmarNoEntrega()` (moto.html) dejaba el status de las entregas
-pegado en "en camino"; reemplazado por un modal de confirmación (Ahora no / Enviar por
-WhatsApp), más limpieza del campo `prioritario` pegado al completar. 3 domicilios y 1
-etiqueta de emergencia corregidos en producción, cobertura e2e ampliada, todo desplegado
-(ver CHANGELOG). Sin frente activo definido para la próxima sesión.*
+*Última actualización: 07 Septiembre 2026 — sesión housekeeping post-reinicio: verificación
+de estado del repo (sin cambios sin commitear salvo un script suelto) y archivado de
+`mark-domicilios-entregado.js` (draft redundante ya superado) a `scripts/utilidades-hechas/`.
+Sin frente activo definido para la próxima sesión.*

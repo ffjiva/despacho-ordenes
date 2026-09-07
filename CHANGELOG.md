@@ -13,6 +13,24 @@
 
 ## Sesiones y módulos
 
+### Sesión housekeeping — archivar script one-use redundante — 07 Sep 2026 *(scripts/)*
+
+Al revisar el estado del repo tras un reinicio de equipo, apareció `mark-domicilios-entregado.js`
+sin trackear en `scripts/utilidades/`: un draft alternativo del fix de los 3 domicilios pegados
+en `en_camino` (mismos 3 IDs), superado por `find-stuck-domicilios.js` / `fix-stuck-domicilios.js`
+/ `fix-prioritario-pegado.js` (commit `76a123e`, sesión del 03 Sep 2026). Nunca se commiteó ni
+se usó en producción; confirmado sin referencias en el resto del repo (`.html`, `functions/`,
+otros scripts).
+
+**chore: archivar script one-off redundante** *(commit `3b4b5e8`)*
+Movido a `scripts/utilidades-hechas/` (carpeta nueva, sigue el patrón `*-hechas/` ya usado por
+`scripts/migraciones-hechas/` e `instrucciones-hechas/`).
+
+**Archivos:** `scripts/utilidades-hechas/mark-domicilios-entregado.js` (nuevo, movido desde
+`scripts/utilidades/`).
+
+---
+
 ### Sesión moto.html — WhatsApp en entregas: fix de estado pegado + limpieza de prioritario — 03 Sep 2026 *(moto.html)*
 
 Bug reportado por Fernando en producción: entregas de motoristas quedaban con status "en
