@@ -1719,6 +1719,18 @@ function detectRepBrand(filename) {
   return '';
 }
 
+// Detecta una línea de PRODUCTO en el Gerencial: "CÓDIGO␣␣NOMBRE" (código +
+// 2 o más espacios + nombre). Acepta barcodes numéricos y SKU alfabéticos
+// cortos (HYWXJ, GTPLAYER, RGVITA…). Rechaza fragmentos de nombre partidos
+// por salto de página (un solo espacio) y encabezados de sección largos
+// (ej. "DEVOLUCIONES DIARIAS").
+function repIsProductLine(c1) {
+  const m = c1.match(/^(\S+)\s{2,}\S/);
+  if (!m) return false;
+  const code = m[1];
+  return /\d/.test(code) || /^[A-Za-z]{3,10}$/.test(code);
+}
+
 function parseRepXLS(workbook, brand) {
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
   const rows  = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
@@ -1749,7 +1761,7 @@ function parseRepXLS(workbook, brand) {
         const qty = Math.round(parseFloat(String(row[3] ?? '').replace(',', '.')) || 0);
         if (!cur.stock[sucId]) cur.stock[sucId] = qty;
       }
-    } else if (c1.includes(' ') && /\d/.test(c1.split(/\s+/)[0])) {
+    } else if (repIsProductLine(c1)) {
       const spIdx = c1.search(/\s/);
       const code  = c1.slice(0, spIdx);
       const name  = c1.slice(spIdx).trim();
