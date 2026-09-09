@@ -877,6 +877,10 @@ body.inv-collab #inv-btn-reasignar { display: none !important; }
   <input type="file" id="radar-sales-input" accept=".xls,.xlsx" style="display:none"
     onchange="handleRadarSalesFile(this)"/>
   <div class="rep-tabs" id="radar-tabs"></div>
+  <div id="radar-search-bar" style="padding:.5rem .875rem 0">
+    <input type="search" id="radar-search" class="rep-search" placeholder="Buscar código o producto en el Radar…"
+      oninput="onRadarSearch(this.value)" style="width:100%"/>
+  </div>
   <div id="radar-list" style="padding:.75rem .875rem 5rem"></div>
 </div>
 
@@ -1801,10 +1805,21 @@ function parseRepXLS(workbook, brand) {
 }
 
 function detectBrandFromName(name) {
-  const norm = s => s.toUpperCase().replace(/[^A-Z0-9]/g, '');
-  const nameNorm = norm(name);
+  // Marca por PALABRA COMPLETA: normaliza el nombre en palabras y busca la marca
+  // como una palabra o una secuencia de palabras contiguas (no como subcadena).
+  const norm  = s => String(s).toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const words = String(name).toUpperCase().split(/[^A-Z0-9]+/).filter(Boolean);
   for (const b of REP_KNOWN_BRANDS) {
-    if (nameNorm.includes(norm(b))) return b;
+    const bn = norm(b);
+    if (!bn) continue;
+    for (let i = 0; i < words.length; i++) {
+      let acc = '';
+      for (let j = i; j < words.length; j++) {
+        acc += words[j];
+        if (acc === bn) return b;          // calce exacto de palabra(s)
+        if (acc.length >= bn.length) break; // ya se pasó, cortar
+      }
+    }
   }
   return '';
 }
@@ -3166,7 +3181,7 @@ async function saveReposicionRecord(origen, destino, sendMap, fecha, extra) {
 // así el doc queda muy por debajo del límite de 1 MB de Firestore. Si el
 // catálogo creciera al punto de acercarse a 1 MB, migrar a subcolección.
 // ═══════════════════════════════════════════════════════════════════
-const SNAP_SUCS = ['M01','S02','S03','S04','S06','S07','B03'];
+const SNAP_SUCS = ['B01','B02','M01','S02','S03','S04','S06','S07','B03'];
 async function saveStockSnapshot() {
   if (!db || !fbMod) return;
   if (currentUser?.role !== 'super') return;
@@ -4184,6 +4199,12 @@ let radarSales        = null;   // F2: { code: { suc: unidadesPorDia } } del rep
 let radarSalesMeta    = null;   // F2: { rangoInicio, rangoFin, dias, timestamp, sinGerencial, fresh }
 let radarData         = {};
 let radarShowAll      = false;
+let radarSalesNames   = {};        // F-compra: nombres del reporte de ventas (agotados sin Gerencial)
+let radarView         = 'radar';   // 'radar' (por sucursal) | 'comprar' (lista global). Para abrir en Comprar: 'comprar'
+let comprarData       = [];        // F-compra: candidatos a comprar
+let comprarSucFilter  = '';        // '' = todas las sucursales
+let radarBodegaKnown  = false;     // true si hay Gerencial en sesión (para filtrar por bodega)
+let radarSearch       = '';        // búsqueda libre en el Radar (por sucursal y en Comprar)
 
 window.goRadar = () => { showScreen('s-radar'); loadRadar(); };
 window.goBackFromRadar = () => { showScreen('s-home'); };
@@ -4207,7 +4228,9 @@ async function loadRadar() {
     if (sdocs.length >= 2) { radarSnapshotPrev = sdocs[1].productos || {}; radarSnapPrevFecha = sdocs[1].fecha || null; }
     else { radarSnapshotPrev = null; radarSnapPrevFecha = null; }
     loadRadarSalesFromSnapshot(vsnap.empty ? null : vsnap.docs[0].data());
+    if (!repProductMap.size) loadRepSession();   // bodega B01/B02 desde el Gerencial en sesión
     computeRadar();
+    computeComprar();
     renderRadar();
   } catch (e) {
     if (list) list.innerHTML = `<div class="empty-state">Error al cargar: ${escHtml(e.message)}</div>`;
@@ -4229,6 +4252,7 @@ function matchSucVentas(v) {
 }
 function parseVentasReporteXLS(workbook) {
   const ventas = {};
+  const nombres = {};
   let rangoInicio = '', rangoFin = '', dias = 7;
   workbook.SheetNames.forEach(sheetName => {
     const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: '' });
@@ -4251,7 +4275,7 @@ function parseVentasReporteXLS(workbook) {
       if (/^\d+$/.test(c1)) continue;   // número de página suelto
       if (c1.includes(' - ') && !c2) {  // cabecera de producto (mismo patrón que Compra)
         const code = c1.slice(0, c1.indexOf(' - ')).trim();
-        if (/^[A-Za-z0-9]{3,}$/.test(code)) { cur = code; if (!ventas[cur]) ventas[cur] = {}; }
+        if (/^[A-Za-z0-9]{3,}$/.test(code)) { cur = code; if (!ventas[cur]) ventas[cur] = {}; nombres[cur] = c1.slice(c1.indexOf(' - ') + 3).trim(); }
         else cur = null;
         continue;
       }
@@ -4265,7 +4289,7 @@ function parseVentasReporteXLS(workbook) {
     }
   });
   for (const code of Object.keys(ventas)) if (!Object.keys(ventas[code]).length) delete ventas[code];
-  return { ventas, dias, rangoInicio, rangoFin, totalProductos: Object.keys(ventas).length };
+  return { ventas, nombres, dias, rangoInicio, rangoFin, totalProductos: Object.keys(ventas).length };
 }
 
 // Persiste el reporte de ventas parseado (TOTALES por code/suc; se normaliza al leer).
@@ -4283,12 +4307,13 @@ async function saveSalesSnapshot(parsed, sinGerencial) {
     totalProductos: parsed.totalProductos,
     sinGerencial:   sinGerencial,
     ventas:         parsed.ventas,
+    nombres:        parsed.nombres || {},
   });
 }
 
 // Normaliza el doc de ventas a unidades/día y sella frescura.
 function loadRadarSalesFromSnapshot(sd) {
-  if (!sd || !sd.ventas) { radarSales = null; radarSalesMeta = null; return; }
+  if (!sd || !sd.ventas) { radarSales = null; radarSalesMeta = null; radarSalesNames = {}; return; }
   const dias = sd.dias || 7;
   const perDay = {};
   for (const code of Object.keys(sd.ventas)) {
@@ -4297,6 +4322,7 @@ function loadRadarSalesFromSnapshot(sd) {
     perDay[code] = row;
   }
   radarSales = perDay;
+  radarSalesNames = sd.nombres || {};
   const ageDias = sd.timestamp ? (Date.now() - sd.timestamp) / 86400000 : 999;
   radarSalesMeta = {
     rangoInicio: sd.rangoInicio, rangoFin: sd.rangoFin, dias,
@@ -4384,6 +4410,7 @@ function computeSnapshotConsumoMap() {
 // → cobertura y señal primaria (🔴 crítico / 🟠 ya toca / ⚫ estancado / ok).
 function computeRadar() {
   const now = Date.now(), DAY = 86400000;
+  radarBodegaKnown = repProductMap.size > 0;   // ¿tenemos stock de bodega para filtrar?
   const snapConsumo = computeSnapshotConsumoMap();               // null si <2 snapshots
   const salesFresh  = !!(radarSales && radarSalesMeta && radarSalesMeta.fresh);
   const acc = {};
@@ -4451,7 +4478,7 @@ function computeRadar() {
       else if (sig === 'estancado') score = 10000 - diasDesde;
       else                          score = -diasDesde;
 
-      items.push({ code, nombre: codes[code].nombre, stockHoy, diasDesde, cadencia, ultCant,
+      items.push({ code, nombre: codes[code].nombre, stockHoy, bodega: radarBodega(code), diasDesde, cadencia, ultCant,
                    consumoDia, cobertura, ventasVentana, sig, activo, vencido: activo, score });
     }
     items.sort((a, b) => b.score - a.score);
@@ -4459,7 +4486,10 @@ function computeRadar() {
   }
 }
 
-function radarCount(suc) { return (radarData[suc] || []).filter(it => it.activo).length; }
+// En la vista por sucursal, si conocemos la bodega, ocultamos lo que no tiene
+// respaldo (B01+B02=0): eso no se repone, va a la pestaña 🛒 Comprar.
+function radarSucShow(it) { return !(radarBodegaKnown && (it.bodega || 0) <= 0); }
+function radarCount(suc) { return (radarData[suc] || []).filter(it => it.activo && radarSucShow(it)).length; }
 
 // ═══ F3 — Cantidad sugerida por consumo + pasar a reposición ═══
 const RADAR_HORIZONTE_DIAS = 14;   // días de cobertura objetivo (configurable)
@@ -4475,9 +4505,115 @@ function radarSugerido(it, suc) {
   return Math.max(0, Math.min(raw, tope));
 }
 
+// ═══ F-compra — Lista "Comprar": rotan y sin respaldo en bodega (B01+B02=0) ═══
+const RADAR_COMPRA_PISO = 3;   // uds mínimas vendidas en la ventana para entrar
+const RADAR_COMPRA_EXCL = /ENVIO|MANTENIMIENTO|ENSAMBLE|CAMBIOS? POR|RESERVA|COSTO DE|FLETE|SERVICIO/i;
+
+function radarBodega(code) {
+  const p = repProductMap.get(code);
+  if (p) return (p.stock.B01 || 0) + (p.stock.B02 || 0);
+  if (radarSnapshot && radarSnapshot[code]) return (radarSnapshot[code].B01 || 0) + (radarSnapshot[code].B02 || 0);
+  return 0;
+}
+
+function computeComprar() {
+  comprarData = [];
+  if (!radarSales || !radarSalesMeta) return;
+  const dias = radarSalesMeta.dias || 28;
+  for (const code of Object.keys(radarSales)) {
+    const perSuc = {}; let totWin = 0;
+    for (const suc of REP_DESTS) {
+      const pd = radarSales[code][suc];
+      if (pd === undefined) continue;
+      const w = pd * dias;                 // unidades vendidas en la ventana
+      perSuc[suc] = w; totWin += w;
+    }
+    if (totWin < RADAR_COMPRA_PISO) continue;   // piso de ventas
+    if (radarBodega(code) > 0) continue;        // hay respaldo en bodega → no es compra
+    const p = repProductMap.get(code);
+    const name = p ? p.name : (radarSalesNames[code] || code);
+    if (RADAR_COMPRA_EXCL.test(name)) continue; // no inventariables
+    const sug = Math.ceil((totWin / dias) * RADAR_HORIZONTE_DIAS);
+    comprarData.push({ code, name, totWin, sug, enGer: !!p, perSuc });
+  }
+  comprarData.sort((a, b) => b.totWin - a.totWin);
+}
+
+function radarToggleHTML() {
+  const c = radarView === 'comprar';
+  const badge = comprarData.length ? `<span class="rtab-badge">${comprarData.length}</span>` : '';
+  return `<button class="rtab${!c ? ' on' : ''}" onclick="setRadarView('radar')">🎯 Por sucursal</button>`
+       + `<button class="rtab${c ? ' on' : ''}" onclick="setRadarView('comprar')">🛒 Comprar${badge}</button>`
+       + `<span style="display:inline-block;width:1px;align-self:stretch;background:var(--border2);margin:0 3px"></span>`;
+}
+
+window.setRadarView  = (v) => { radarView = v; renderRadar(); };
+window.setComprarSuc = (s) => { comprarSucFilter = s; renderComprar(); };
+
+function renderComprar() {
+  const tabsEl = $('radar-tabs'), listEl = $('radar-list');
+  const chips = [['', 'Todas']].concat(REP_DESTS.map(s => [s, REP_LBLS[s].split(' ')[0]]))
+    .map(([id, lbl]) => `<button class="rtab${comprarSucFilter === id ? ' on' : ''}" onclick="setComprarSuc('${id}')">${lbl}</button>`).join('');
+  if (tabsEl) tabsEl.innerHTML = radarToggleHTML() + chips;
+
+  let items = comprarData;
+  if (comprarSucFilter) {
+    items = comprarData.filter(it => (it.perSuc[comprarSucFilter] || 0) > 0)
+      .map(it => Object.assign({}, it, { totWin: it.perSuc[comprarSucFilter] }))
+      .sort((a, b) => b.totWin - a.totWin);
+  }
+  if (radarSearch) items = items.filter(radarMatch);
+  const salesLine = radarSalesMeta
+    ? `ventas ${radarSalesMeta.rangoInicio || ''}→${radarSalesMeta.rangoFin || ''}${radarSalesMeta.fresh ? '' : ' (viejo)'}`
+    : 'sin reporte de ventas';
+  const head = `<div style="padding:.5rem .25rem .6rem">
+      <div style="font-size:.72rem;color:var(--text2)">
+        <strong style="color:var(--brand)">${items.length}</strong> ${items.length === 1 ? 'producto a comprar' : 'productos a comprar'}${comprarSucFilter ? ` en ${REP_LBLS[comprarSucFilter]}` : ' (todas las sucursales)'}
+      </div>
+      <div style="font-size:.58rem;color:var(--muted);margin-top:3px">rotan y sin stock en bodega (B01+B02 = 0) · ${salesLine}</div>
+    </div>`;
+  if (!radarSalesMeta) { listEl.innerHTML = head + `<div class="empty-state">Cargá el reporte de ventas con 📈 Recalibrar para ver qué comprar.</div>`; return; }
+  if (!items.length)   { listEl.innerHTML = head + `<div class="empty-state"><div style="font-size:1.5rem;margin-bottom:.35rem">✓</div>Nada por comprar con el filtro actual.</div>`; return; }
+
+  const rows = items.map(it => {
+    const ago = !it.enGer ? ` <span style="font-size:.5rem;color:var(--warn-tx);font-weight:700">◆ AGOTADO</span>` : '';
+    return `<div class="traz-card" style="padding:.6rem .8rem;margin-bottom:.5rem">
+      <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">
+        <div style="min-width:0">
+          <div style="font-size:.74rem;font-weight:600;line-height:1.3">${escHtml(it.name)}${ago}</div>
+          <div style="font-size:.6rem;color:var(--muted);margin-top:1px">${escHtml(it.code)}</div>
+        </div>
+        <div style="flex-shrink:0"><span class="sug-badge">🛒 ${it.sug}</span></div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:.45rem;font-size:.63rem;color:var(--text2)">
+        <span>Vendido (${radarSalesMeta.dias} d): <strong>${Math.round(it.totWin)}</strong></span>
+        <span>Bodega: <strong class="stk-low">0</strong></span>
+        <span>Sugerido comprar: <strong style="color:var(--brand)">${it.sug}</strong></span>
+      </div>
+    </div>`;
+  }).join('');
+  listEl.innerHTML = head + rows;
+}
+
+// Búsqueda libre en el Radar: filtra por código o nombre (sin acentos ni caso),
+// en la vista por sucursal y en Comprar. No altera el cálculo, solo lo mostrado.
+function radarMatch(it) {
+  if (!radarSearch) return true;
+  const ns = s => String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
+  const terms = radarSearch.trim().split(/\s+/).filter(Boolean).map(ns);
+  const hay = ns((it.nombre || it.name || '') + ' ' + (it.code || ''));
+  return terms.every(t => hay.includes(t));
+}
+let _radarSearchTimer = null;
+window.onRadarSearch = (val) => {
+  clearTimeout(_radarSearchTimer);
+  _radarSearchTimer = setTimeout(() => { radarSearch = val.trim(); renderRadar(); }, 200);
+};
+
 function renderRadar() {
+  if (radarView === 'comprar') { renderComprar(); return; }
   const tabsEl = $('radar-tabs');
-  if (tabsEl) tabsEl.innerHTML = REP_DESTS.map(id => {
+  if (tabsEl) tabsEl.innerHTML = radarToggleHTML() + REP_DESTS.map(id => {
     const n = radarCount(id);
     const badge = n ? `<span class="rtab-badge">${n}</span>` : '';
     return `<button class="rtab${id === radarActiveTab ? ' on' : ''}" id="radar-tab-${id}"
@@ -4485,8 +4621,9 @@ function renderRadar() {
   }).join('');
 
   const suc   = radarActiveTab;
-  const all   = radarData[suc] || [];
-  const items = radarShowAll ? all : all.filter(it => it.activo);
+  const all   = (radarData[suc] || []).filter(radarSucShow);
+  let items = radarShowAll ? all : all.filter(it => it.activo);
+  if (radarSearch) items = all.filter(radarMatch);   // buscando: mostrar todo lo que calce, accionable o no
   const count = radarCount(suc);
   const nCrit = all.filter(it => it.sig === 'critico').length;
   const nEst  = all.filter(it => it.sig === 'estancado').length;
@@ -4497,7 +4634,7 @@ function renderRadar() {
 
   // Total de sugerencias por consumo en TODAS las sucursales (habilita el botón "Pasar")
   let totLineas = 0;
-  for (const s of REP_DESTS) for (const it of (radarData[s] || [])) if (radarSugerido(it, s) > 0) totLineas++;
+  for (const s of REP_DESTS) for (const it of (radarData[s] || [])) if (radarSucShow(it) && radarSugerido(it, s) > 0) totLineas++;
   const pasarBtn = `
     <button class="btn btn-dark btn-full" style="margin-top:.5rem;font-size:.68rem"
       onclick="pasarRadarAReposicion()" ${totLineas ? '' : 'disabled'}>
@@ -4527,7 +4664,7 @@ function renderRadar() {
   if (!items.length) {
     $('radar-list').innerHTML = head + `<div class="empty-state">
       <div style="font-size:1.5rem;margin-bottom:.35rem">✓</div>
-      Nada accionable en ${REP_LBLS[suc]}.</div>`;
+      ${radarSearch ? `Sin resultados para «${escHtml(radarSearch)}».` : `Nada accionable en ${REP_LBLS[suc]}.`}</div>`;
     return;
   }
 
