@@ -13,6 +13,59 @@
 
 ## Sesiones y módulos
 
+### Sesión Radar de Reposición — parser de códigos, pestaña Comprar, marcas y búsqueda — 09 Sep 2026 *(reposicion.html)*
+
+Sesión de diseño/afinamiento del Radar (A3) tras la primera prueba con datos reales
+(ReporteGerencial + ReporteVentaProducto de 28 días). Cuatro cambios quirúrgicos por
+anclas de texto, cada uno validado con smoke test manual en local por Fernando; sin
+`node --check` nativo (JS inline en HTML).
+
+**fix(reposicion): el parser del Gerencial rescata productos con código alfabético**
+`parseRepXLS` dejaba fuera todo producto cuyo primer token no tuviera un dígito, perdiendo
+SKU reales (baterías DELL HYWXJ/WDXOR/XCMRD, GTPLAYER, RGVITA, FIVESTAR, MICRONICS…). Nuevo
+helper `repIsProductLine(c1)`: detecta la línea de producto por el patrón real de columnas
+del reporte — código seguido de **2 o más espacios** y luego el nombre — aceptando barcodes
+numéricos y SKU alfabéticos cortos (`/^[A-Za-z]{3,10}$/`). Verificado contra el Gerencial
+real: 0 regresiones (los 3.684 productos que ya se tomaban se siguen tomando), +7 rescatados,
+y deja de leer mal el fragmento de nombre partido "6GB PANTALLA…". Diagnóstico: de los 187
+"sin Gerencial" del reporte de ventas, casi todos son agotados o servicios; solo 2 eran por
+este bug.
+
+**feat(reposicion): pestaña 🛒 Comprar en el Radar — rota y sin respaldo en bodega**
+Toggle nuevo: "🎯 Por sucursal" | "🛒 Comprar" (lista global por defecto, con filtro por
+sucursal). Entra a Comprar si vendió ≥ `RADAR_COMPRA_PISO` (3) uds en la ventana Y bodega
+(B01+B02) = 0; incluye agotados totales fuera del Gerencial (◆ AGOTADO), excluyendo
+no-inventariables por keyword (`RADAR_COMPRA_EXCL`). Sugerido = `ceil(consumoDia ×
+RADAR_HORIZONTE_DIAS)`. Para lograrlo: `SNAP_SUCS` guarda B01/B02 en `stock_snapshots`
+(hacia adelante), la bodega se toma del Gerencial en sesión (`loadRepSession`), y
+`sales_snapshots` guarda los nombres del reporte de ventas. Nuevas
+`computeComprar`/`renderComprar`/`radarBodega`/`radarToggleHTML` + estado
+`radarView`/`comprarData`/`comprarSucFilter`/`radarSalesNames`.
+
+**fix(reposicion): la vista por sucursal oculta lo que no tiene respaldo en bodega**
+En "🎯 Por sucursal" ya no se muestra lo que tiene bodega (B01+B02) = 0 — eso no se repone,
+vive solo en Comprar. `radarSucShow(it)` filtra lista, conteos de pestañas y total del botón
+"Pasar a Reposición", con candado `radarBodegaKnown` (solo filtra si hay Gerencial en
+sesión). Reportado por Fernando al ver un HUB agotado apareciendo como "se agota".
+
+**feat(reposicion): detección de marca por palabra completa**
+`detectBrandFromName` deja de calzar la marca como subcadena ("ONE" en "smartphONE" → @ONE,
+"INTEL" en "intelIGENTE", "3M" en "3MTS") y exige calce como palabra(s) contiguas. Verificado
+contra el Gerencial real: limpia 110 marcas falsas, corrige 46 (INTEL→JBL, @ONE→DJI, HPE→HP…),
+0 marcas reales perdidas. Zona gris conocida (no arreglada): AMD/INTEL por mención de socket.
+Intacto el detector por nombre de archivo (`detectRepBrand`).
+
+**feat(reposicion): campo de búsqueda en el Radar**
+Barra fija (`#radar-search-bar`) entre las pestañas y la lista, en contenedor propio para no
+perder foco al re-renderizar. Filtra por código o nombre (sin acentos ni caso) en ambas
+vistas; en "Por sucursal" muestra el ítem aunque no sea accionable. Solo filtro de
+visualización. `radarMatch` + `onRadarSearch` (debounce 200 ms) + estado `radarSearch`.
+
+El diagnóstico se hizo reproduciendo el parser en Python sobre los archivos reales
+(confirmó 3.684 / 1.727 / 187 / 89% igual que la app) antes de tocar el código.
+
+---
+
 ### Sesión housekeeping — archivar script one-use redundante — 07 Sep 2026 *(scripts/)*
 
 Al revisar el estado del repo tras un reinicio de equipo, apareció `mark-domicilios-entregado.js`
