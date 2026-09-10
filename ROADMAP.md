@@ -194,6 +194,8 @@ dias: number, timestamp: number, cargadoPor: string
 totalProductos: number, sinGerencial: string[]   ← códigos del reporte no encontrados en repProductMap
 ventas: { [code]: { [sucId]: unidadesEnLaVentana } }   ← TOTALES, no normalizado; se
   divide por `dias` al leer para obtener unidades/día
+montos: { [code]: { [sucId]: total$EnLaVentana } }   ← TOTALES en $, análogo a `ventas`;
+  base del ordenamiento "$ Vendido" en la pestaña Comprar del Radar
 ← reporte "ProductoPorSucursal" cargado a demanda (botón 📈 Recalibrar en el Radar A3);
   recalibra el consumo al instante. Solo super escribe.
 
@@ -238,10 +240,10 @@ ventas: { [code]: { [sucId]: unidadesEnLaVentana } }   ← TOTALES, no normaliza
 
 ## 🎯 Frente activo
 
-*(próximo frente: **Mejoras al Radar de Reposición** — ver "Mejoras Radar de Reposición"
-en 🔲 Pendientes. Fernando cierra esta sesión y abrirá una nueva para implementarlas,
-empezando por el semáforo de salud de datos y priorizar Comprar por $ vendido. El Radar A3
-quedó cerrado en sus 3 fases (24 Ago) y afinado con datos reales (09 Sep, ver CHANGELOG).
+*(próximo frente: continuar con **Mejoras al Radar de Reposición** — ver "Mejoras Radar de
+Reposición" en 🔲 Pendientes. Con el semáforo de salud de datos y la priorización de Comprar
+por $ vendido cerrados (10 Sep 2026), sigue "Exportar Comprar a XLS" (bajo esfuerzo). El Radar
+A3 quedó cerrado en sus 3 fases (24 Ago) y afinado con datos reales (09 Sep, ver CHANGELOG).
 Otros candidatos: "Conectar el Ensamblador-ZD", "Recepción en sucursal destino — cotejo de
 despacho".)*
 
@@ -298,7 +300,7 @@ fix del estado de entregas pegado en "en camino" por el salto automático a What
 al completar (ítems ad-hoc, bug reportado por Fernando en producción y causa
 identificada con Anderson) en moto.html cerrados, desplegados en producción, con
 corrección retroactiva de los 3 domicilios y 1 etiqueta afectados, y movidos al
-CHANGELOG (03 Sep 2026); y afinamiento del Radar de Reposición (reposicion.html) tras la primera prueba con datos reales — parser del Gerencial que rescata códigos alfabéticos (patrón "código + 2+ espacios"), pestaña 🛒 Comprar (rota y sin bodega; global + filtro por sucursal) con la vista por sucursal ya filtrada por respaldo en bodega, detección de marca por palabra completa, y campo de búsqueda en el Radar — cerrado, probado en local por Fernando y movido al CHANGELOG (09 Sep 2026).*
+CHANGELOG (03 Sep 2026); y afinamiento del Radar de Reposición (reposicion.html) tras la primera prueba con datos reales — parser del Gerencial que rescata códigos alfabéticos (patrón "código + 2+ espacios"), pestaña 🛒 Comprar (rota y sin bodega; global + filtro por sucursal) con la vista por sucursal ya filtrada por respaldo en bodega, detección de marca por palabra completa, y campo de búsqueda en el Radar — cerrado, probado en local por Fernando y movido al CHANGELOG (09 Sep 2026); semáforo de salud de datos y priorización de Comprar por $ vendido (primeras 2 de las 5 mejoras del Radar priorizadas 09 Sep 2026) en reposicion.html — cerrados, validados con smoke test automatizado (Playwright headless + node --check) y regresión e2e (32/32), desplegados a producción y movidos al CHANGELOG (10 Sep 2026).*
 
 ---
 
@@ -312,21 +314,15 @@ del Ensamblador al proyecto de Despacho; (2) re-sembrar `catalogo`/`parametros`/
 `armados`; (3) fusionar sus reglas de Firestore; (4) leer `apps.ensamblador.role`
 en su `AuthScreen`/`AdminPanel`. Los permisos ya se pueden pre-cargar desde ahora.
 
-**Mejoras Radar de Reposición** *(reposicion.html — priorizadas 09 Sep 2026, próximas a implementar)*
+**Mejoras Radar de Reposición** *(reposicion.html — priorizadas 09 Sep 2026; 2 de 5 ya
+cerradas — semáforo de salud de datos y priorizar Comprar por $ vendido, ver CHANGELOG 10 Sep 2026)*
 Surgieron al probar el Radar con datos reales. Orden sugerido por retorno vs esfuerzo:
 
-1. **Semáforo de salud de datos** *(alto valor, bajo esfuerzo)* — badge arriba del Radar con la
-   frescura de cada insumo: antigüedad de `stock_snapshots`, de `sales_snapshots` (verde/ámbar/
-   rojo según la ventana de 21 días) y si el Gerencial está cargado en sesión. Hoy la
-   degradación es silenciosa; esto hace visible sobre qué datos se decide.
-2. **Priorizar Comprar por $ vendido** *(alto valor, bajo–medio)* — el reporte de ventas ya trae
-   precio y total en $ (hoy solo se leen unidades). Ordenar/mostrar la lista Comprar por dinero
-   prioriza mejor el capital. Requiere capturar el $ en `parseVentasReporteXLS` y `sales_snapshots`.
-3. **Exportar Comprar a XLS** *(bajo esfuerzo)* — botón para bajar la lista (código, nombre,
+1. **Exportar Comprar a XLS** *(bajo esfuerzo)* — botón para bajar la lista (código, nombre,
    vendido, sugerido, $) y mandarla a compras/proveedor. Reusa `XLSX.writeFile`.
-4. **Netear "se agota" contra lo recién despachado** *(medio)* — evitar el falso 🔴 con
+2. **Netear "se agota" contra lo recién despachado** *(medio)* — evitar el falso 🔴 con
    mercadería en tránsito: bajar la urgencia de lo despachado hace pocos días.
-5. **Estancado → Redistribución** *(futuro)* — el Radar detecta ⚫ estancados pero no hace nada;
+3. **Estancado → Redistribución** *(futuro)* — el Radar detecta ⚫ estancados pero no hace nada;
    conectarlos con el modo Redistribución para mover capital parado a una sucursal que sí lo mueve.
 
 ### 🟡 Soporte
@@ -462,8 +458,8 @@ hacia el CHANGELOG.
 
 ---
 
-*Última actualización: 09 Septiembre 2026 — sesión de afinamiento del Radar de Reposición con
-datos reales: 4 cambios cerrados y movidos al CHANGELOG (parser de códigos alfabéticos,
-pestaña 🛒 Comprar + filtro por bodega en la vista por sucursal, marca por palabra completa,
-y búsqueda en el Radar). Se priorizaron 5 mejoras del Radar (ver "Mejoras Radar de Reposición"
-en Pendientes); Fernando abrirá una nueva sesión para implementarlas.*
+*Última actualización: 10 Septiembre 2026 — semáforo de salud de datos y priorización de
+Comprar por $ vendido (primeras 2 de las 5 mejoras del Radar priorizadas 09 Sep 2026),
+cerrados y movidos al CHANGELOG. Quedan 3 pendientes en "Mejoras Radar de Reposición":
+Exportar Comprar a XLS, netear "se agota" contra lo recién despachado, y Estancado →
+Redistribución.*

@@ -13,6 +13,36 @@
 
 ## Sesiones y módulos
 
+### Sesión Radar de Reposición — semáforo de salud de datos + priorizar Comprar por $ vendido — 10 Sep 2026 *(reposicion.html)*
+
+Primeras 2 de las 5 mejoras del Radar priorizadas el 09 Sep 2026 (ver sesión anterior). Dos
+cambios quirúrgicos por anclas de texto, cada uno validado con smoke test automatizado
+(Playwright headless contra una copia instrumentada del archivo, sin tocar el real) +
+`node --check` sobre el JS extraído + regresión completa con `npm run test:e2e` (32/32);
+sin cambios en `firestore.rules`.
+
+**feat(reposicion): semáforo de salud de datos del Radar**
+Barra de 3 chips (📸 Stock · 📈 Ventas · 📦 Gerencial) arriba de las pestañas del Radar,
+visible en "Por sucursal" y en "Comprar" (`renderRadarSalud()`). Colores por antigüedad:
+Stock verde ≤2 d / ámbar 3–4 d / rojo ≥5 d; Ventas verde ≤14 d / ámbar 15–21 d / rojo >21 d
+(por fecha de carga); Gerencial rojo si no hay Gerencial cargado en sesión. Chip Ventas abre
+el selector de 📈 Recalibrar; chip Gerencial en rojo navega a Reposición (`goReposicion()`).
+Antes la degradación de datos era silenciosa.
+
+**feat(reposicion): Comprar prioriza por $ vendido**
+El parser de ventas (`parseVentasReporteXLS`) ahora también captura el Total $ (columna 4
+del reporte, `parseVentaMoney()` tolera formato US/europeo) y lo persiste en
+`sales_snapshots/{rango}.montos`. `computeComprar()` calcula $ vendido, precio promedio de
+venta y costo estimado de la compra sugerida; `renderComprar()` ordena por $ vendido por
+defecto (toggle "$ Vendido | Uds"), muestra el $ vendido y el costo sugerido por producto, y
+el $ total en el encabezado. Snapshots viejos (sin el campo `montos`) siguen funcionando —
+la lista cae a solo unidades con el aviso "sin $" hasta re-subir el reporte con 📈 Recalibrar.
+
+Esquema: `sales_snapshots/{rango}` gana el campo `montos: { [code]: { [sucId]:
+total$EnLaVentana } }`, análogo a `ventas` pero en dólares.
+
+---
+
 ### Sesión Radar de Reposición — parser de códigos, pestaña Comprar, marcas y búsqueda — 09 Sep 2026 *(reposicion.html)*
 
 Sesión de diseño/afinamiento del Radar (A3) tras la primera prueba con datos reales
