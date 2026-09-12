@@ -4194,6 +4194,7 @@ let radarActiveTab    = 'M01';
 let radarReposiciones = [];
 let radarSnapshot     = null;
 let radarSnapFecha    = null;
+let radarSnapTs       = null;   // #4: timestamp del último snapshot (para netear lo despachado después)
 let radarSnapshotPrev = null;   // F2: penúltimo snapshot (consumo por deltas)
 let radarSnapPrevFecha= null;
 let radarSales        = null;   // F2: { code: { suc: unidadesPorDia } } del reporte de ventas
@@ -4226,8 +4227,8 @@ async function loadRadar() {
     const [rsnap, ssnap, vsnap] = await Promise.all([getDocs(rq), getDocs(sq), getDocs(vq)]);
     radarReposiciones = rsnap.docs.map(d => d.data());
     const sdocs = ssnap.docs.map(d => d.data());
-    if (!sdocs.length) { radarSnapshot = null; radarSnapFecha = null; }
-    else { radarSnapshot = sdocs[0].productos || {}; radarSnapFecha = sdocs[0].fecha || null; }
+    if (!sdocs.length) { radarSnapshot = null; radarSnapFecha = null; radarSnapTs = null; }
+    else { radarSnapshot = sdocs[0].productos || {}; radarSnapFecha = sdocs[0].fecha || null; radarSnapTs = sdocs[0].timestamp || null; }
     if (sdocs.length >= 2) { radarSnapshotPrev = sdocs[1].productos || {}; radarSnapPrevFecha = sdocs[1].fecha || null; }
     else { radarSnapshotPrev = null; radarSnapPrevFecha = null; }
     loadRadarSalesFromSnapshot(vsnap.empty ? null : vsnap.docs[0].data());
@@ -4465,6 +4466,9 @@ function computeRadar() {
         if (n > 0) cadencia = sum / n;
       }
       const stockHoy = (radarSnapshot && radarSnapshot[code] && radarSnapshot[code][suc]) || 0;
+      // #4: lo despachado a esta sucursal DESPUÉS del snapshot = en tránsito (aún no reflejado en el stock).
+      const enTransito = radarSnapTs ? envios.reduce((s, e) => s + (e.ts > radarSnapTs ? (e.cant || 0) : 0), 0) : 0;
+      const stockEff   = stockHoy + enTransito;
       const umbral   = cadencia != null ? cadencia : RADAR_SINGLE_THRESHOLD;
       const vencidoFreq = diasDesde >= umbral;
 
@@ -4477,7 +4481,7 @@ function computeRadar() {
       else if (salesPD !== undefined) consumoDia = salesPD;
       const hasConsumo    = consumoDia !== null;
       const ventasVentana = (salesPD !== undefined && radarSalesMeta) ? salesPD * radarSalesMeta.dias : null;
-      const cobertura     = hasConsumo ? (consumoDia > 0 ? stockHoy / consumoDia : Infinity) : null;
+      const cobertura     = hasConsumo ? (consumoDia > 0 ? stockEff / consumoDia : Infinity) : null;
 
       let sig;   // 'critico' | 'yatoca' | 'estancado' | 'ok'
       if (hasConsumo) {
@@ -4499,7 +4503,7 @@ function computeRadar() {
       else if (sig === 'estancado') score = 10000 - diasDesde;
       else                          score = -diasDesde;
 
-      items.push({ code, nombre: codes[code].nombre, stockHoy, bodega: radarBodega(code), diasDesde, cadencia, ultCant,
+      items.push({ code, nombre: codes[code].nombre, stockHoy, stockEff, enTransito, bodega: radarBodega(code), diasDesde, cadencia, ultCant,
                    consumoDia, cobertura, ventasVentana, sig, activo, vencido: activo, score });
     }
     items.sort((a, b) => b.score - a.score);
@@ -4521,8 +4525,8 @@ const RADAR_HORIZONTE_DIAS = 14;   // días de cobertura objetivo (configurable)
 function radarSugerido(it, suc) {
   if (!it || it.consumoDia == null || it.consumoDia <= 0) return 0;
   if (it.sig !== 'critico' && it.sig !== 'yatoca') return 0;
-  const raw  = Math.ceil(it.consumoDia * RADAR_HORIZONTE_DIAS) - (it.stockHoy || 0);
-  const tope = (REP_MAXIMUMS[suc] || 999) - (it.stockHoy || 0);
+  const raw  = Math.ceil(it.consumoDia * RADAR_HORIZONTE_DIAS) - (it.stockEff || 0);
+  const tope = (REP_MAXIMUMS[suc] || 999) - (it.stockEff || 0);
   return Math.max(0, Math.min(raw, tope));
 }
 
@@ -4807,6 +4811,7 @@ function renderRadar() {
     const cob = it.cobertura == null ? '—' : (it.cobertura === Infinity ? '∞' : `${Math.round(it.cobertura)} d`);
     const sug = radarSugerido(it, suc);
     const sugSpan = sug > 0 ? `<span>Sugerido: <strong style="color:var(--done-tx)">${sug}</strong></span>` : '';
+    const transSpan = it.enTransito > 0 ? `<span>🚚 En tránsito: <strong style="color:var(--info-tx)">${it.enTransito}</strong></span>` : '';
     return `
     <div class="traz-card" style="padding:.6rem .8rem;margin-bottom:.5rem${it.sig==='estancado'?';opacity:.6':''}">
       <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">
@@ -4818,6 +4823,7 @@ function renderRadar() {
       </div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:.45rem;font-size:.63rem;color:var(--text2)">
         <span>Stock hoy: <strong class="${stkC}">${it.stockHoy}</strong></span>
+        ${transSpan}
         <span>Ventas/día: <strong>${vpd}</strong></span>
         <span>Cobertura: <strong>${cob}</strong></span>
         ${sugSpan}
