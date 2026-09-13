@@ -4771,6 +4771,12 @@ function renderRadar() {
       onclick="pasarRadarAReposicion()" ${totLineas ? '' : 'disabled'}>
       ➡ Pasar sugerencias a Reposición (todas · ${totLineas} líneas)
     </button>`;
+  const _estPlan = computeEstancadoPlan();
+  const redistBtn = `
+    <button class="btn btn-outline btn-full" style="margin-top:.4rem;font-size:.68rem"
+      onclick="pasarEstancadosARedist()" ${_estPlan.lineas ? '' : 'disabled'}>
+      ⇄ Pasar estancados a Redistribución (${_estPlan.lineas} líneas)
+    </button>`;
 
   const head = `
     <div style="padding:.5rem .25rem .75rem">
@@ -4786,6 +4792,7 @@ function renderRadar() {
       </div>
       <div style="font-size:.58rem;color:var(--muted);margin-top:3px">${snapLine} · ${salesLine}</div>
       ${pasarBtn}
+      ${redistBtn}
     </div>`;
 
   if (!radarReposiciones.length) {
@@ -4891,6 +4898,86 @@ window.pasarRadarAReposicion = async () => {
   renderRepFull();
   saveRepSession();
   if (trimmed > 0) await alertModal(`Listo en la tabla. ⚠ ${trimmed} código(s) se recortaron al pool de B01+B02.`);
+};
+
+// #5 — Arma un plan de redistribución que mueve estancados (⚫, con stock, sin rotación)
+// hacia la sucursal donde el MISMO código sí rota (🔴/🟠), solo lo que el destino necesita
+// (radarSugerido), con tope al stock estancado disponible.
+// Devuelve { plan, lineas, uds, huerfanos }; plan: { 'ORIG->DEST': { code: qty } } (= repRedistData).
+function computeEstancadoPlan() {
+  const byCode = {};   // code -> { src:[{suc,avail}], sink:[{suc,need,urg}] }
+  for (const suc of REP_DESTS) {
+    for (const it of (radarData[suc] || [])) {
+      if (it.sig === 'estancado' && (it.stockHoy || 0) > 0) {
+        (byCode[it.code] = byCode[it.code] || { src: [], sink: [] }).src.push({ suc, avail: it.stockHoy });
+      } else if (it.consumoDia > 0 && (it.sig === 'critico' || it.sig === 'yatoca')) {
+        const need = radarSugerido(it, suc);
+        if (need > 0) (byCode[it.code] = byCode[it.code] || { src: [], sink: [] }).sink.push({ suc, need, urg: it.sig === 'critico' ? 2 : 1 });
+      }
+    }
+  }
+  const plan = {}; let lineas = 0, uds = 0; const huerfanos = [];
+  for (const code of Object.keys(byCode)) {
+    const { src, sink } = byCode[code];
+    if (!src.length) continue;
+    if (!sink.length) { huerfanos.push(code); continue; }   // estancado sin destino que lo rote
+    sink.sort((a, b) => b.urg - a.urg || b.need - a.need);   // más urgente / más necesitado primero
+    for (const s of sink) {
+      let need = s.need;
+      for (const f of src) {
+        if (need <= 0) break;
+        if (f.avail <= 0 || f.suc === s.suc) continue;
+        const mover = Math.min(need, f.avail);
+        if (mover > 0) {
+          (plan[`${f.suc}->${s.suc}`] = plan[`${f.suc}->${s.suc}`] || {});
+          plan[`${f.suc}->${s.suc}`][code] = (plan[`${f.suc}->${s.suc}`][code] || 0) + mover;
+          f.avail -= mover; need -= mover; uds += mover; lineas++;
+        }
+      }
+    }
+  }
+  return { plan, lineas, uds, huerfanos };
+}
+
+// Botón global: arma el plan y abre Redistribución con las cantidades puestas (sin recalcular).
+window.pasarEstancadosARedist = async () => {
+  if (!repProductMap.size) loadRepSession();
+  if (!repProductMap.size) {
+    await alertModal('Cargá primero el Gerencial en Reposición: la tabla de Redistribución necesita el stock para mostrar y exportar.');
+    return;
+  }
+  const { plan, lineas, uds, huerfanos } = computeEstancadoPlan();
+  if (!lineas) {
+    await alertModal(huerfanos.length
+      ? `No hay a dónde redistribuir: ${huerfanos.length} estancado(s) con stock no rotan en ninguna otra sucursal (candidatos a devolución o liquidación, no a mover entre plazas).`
+      : 'No hay estancados con un destino que los rote.');
+    return;
+  }
+  const rutas = Object.keys(plan).length;
+  const ok = await confirmModal({
+    title: 'Pasar estancados a Redistribución',
+    msg: `Plan de <strong>${lineas} líneas · ${uds} uds</strong> en <strong>${rutas} ruta(s)</strong> entre sucursales: `
+       + `mueve stock parado (⚫) a donde sí rota, solo lo que el destino necesita.`
+       + (huerfanos.length ? `<br><br><span style="color:var(--muted)">${huerfanos.length} estancado(s) sin destino que los rote quedan fuera (devolución/liquidación).</span>` : '')
+       + `<br><br>Se abre Redistribución con las cantidades puestas; ahí revisás y exportás.`,
+    okText: 'Armar y abrir Redistribución', danger: false,
+  });
+  if (!ok) return;
+
+  repRedistData = plan;
+  repMode = 'redist';
+  const cp = $('rep-compra-panel'); if (cp) cp.style.display = 'none';
+  const rp = $('rep-redist-panel'); if (rp) rp.style.display = '';
+  const bc = $('btn-compra-mode');  if (bc) bc.style.display = 'none';
+  const br = $('btn-redist-mode');  if (br) br.style.display = 'none';
+  const ai = $('btn-ai-rep');       if (ai) ai.style.display = 'none';
+  const gt = $('rep-global-totals'); if (gt) gt.style.display = 'none';
+  repRedistActiveOrig = getRedistOrigenes()[0] || 'M01';
+  repRedistDestFilter = null;
+  showScreen('s-reposicion');
+  showRepState('data');
+  renderRepFull();
+  saveRepSession();
 };
 
 window.switchRadarTab   = (id)  => { radarActiveTab = id; renderRadar(); };
