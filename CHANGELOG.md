@@ -13,6 +13,31 @@
 
 ## Sesiones y módulos
 
+### Sesión Radar de Reposición — en tránsito + estancados → Redistribución — 12 Sep 2026 *(reposicion.html)*
+
+Continuación de las 5 mejoras del Radar priorizadas el 09 Sep 2026 (la sesión del 10 Sep
+cerró las 2 primeras — semáforo de salud de datos y priorizar Comprar por $ vendido). Dos
+cambios quirúrgicos por anclas de texto, validados con smoke test manual en local por
+Fernando; sin cambios en `firestore.rules` ni Cloud Functions.
+
+**fix(reposicion): netear "se agota" contra lo recién despachado**
+Nueva variable `radarSnapTs` (timestamp del último snapshot de stock). `computeRadar()`
+calcula `enTransito` = lo despachado a la sucursal después del snapshot, y
+`stockEff = stockHoy + enTransito`; `cobertura` y `radarSugerido()` usan `stockEff` en vez
+de `stockHoy`, evitando el falso 🔴 crítico cuando ya hay mercadería en camino. Chip
+"🚚 En tránsito: N" agregado a la card del Radar.
+
+**feat(reposicion): Radar #5 — pasar estancados a Redistribución**
+Botón global "⇄ Pasar estancados a Redistribución" bajo "Pasar sugerencias a Reposición".
+`computeEstancadoPlan()` arma rutas origen→destino moviendo stock ⚫ estancado hacia
+sucursales donde el mismo código sí rota (🔴 crítico / 🟠 ya toca), acotado a lo que el
+destino necesita (`radarSugerido`) y al stock estancado disponible. Estancados sin destino
+que los rote quedan fuera del plan (candidatos a devolución/liquidación, avisados en el
+modal de confirmación). Al confirmar, abre Redistribución con las cantidades pre-llenas.
+
+Con esto quedan 4 de las 5 mejoras del Radar cerradas; falta "Exportar Comprar a XLS"
+(bajo esfuerzo).
+
 ### Sesión Radar de Reposición — semáforo de salud de datos + priorizar Comprar por $ vendido — 10 Sep 2026 *(reposicion.html)*
 
 Primeras 2 de las 5 mejoras del Radar priorizadas el 09 Sep 2026 (ver sesión anterior). Dos
