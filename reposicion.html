@@ -4207,6 +4207,7 @@ let radarView         = 'radar';   // 'radar' (por sucursal) | 'comprar' (lista 
 let comprarData       = [];        // F-compra: candidatos a comprar
 let comprarSucFilter  = '';        // '' = todas las sucursales
 let comprarSortBy     = 'monto';   // #2: 'monto' ($ vendido, default) | 'unidades'
+let comprarShown      = [];        // #3: items visibles en Comprar (para exportar "lo que veo")
 let radarBodegaKnown  = false;     // true si hay Gerencial en sesión (para filtrar por bodega)
 let radarSearch       = '';        // búsqueda libre en el Radar (por sucursal y en Comprar)
 
@@ -4662,6 +4663,21 @@ window.setRadarView  = (v) => { radarView = v; renderRadar(); };
 window.setComprarSuc = (s) => { comprarSucFilter = s; renderComprar(); };
 window.setComprarSort = (v) => { comprarSortBy = v; renderComprar(); };
 
+// #3 — Exporta la lista Comprar VISIBLE (respeta filtro de sucursal, búsqueda y orden $/Uds)
+// a un XLS mínimo para proveedor: Código · Producto · Comprar (uds).
+window.exportComprarXLS = async () => {
+  if (typeof XLSX === 'undefined') { await alertModal({ msg: 'SheetJS no cargado. Recargá la página.', danger: true }); return; }
+  const items = comprarShown || [];
+  if (!items.length) { await alertModal('No hay productos en la lista Comprar para exportar.'); return; }
+  const rows = items.map(it => [it.code, it.name, it.sug]);
+  const ws = XLSX.utils.aoa_to_sheet([['Código', 'Producto', 'Comprar (uds)'], ...rows]);
+  ws['!cols'] = [{ wch: 18 }, { wch: 56 }, { wch: 14 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Comprar');
+  const suf = comprarSucFilter ? '_' + comprarSucFilter : '';
+  XLSX.writeFile(wb, `Comprar${suf}_${getTodaySV()}.xlsx`);
+};
+
 function renderComprar() {
   renderRadarSalud();
   const tabsEl = $('radar-tabs'), listEl = $('radar-list');
@@ -4683,15 +4699,18 @@ function renderComprar() {
   }
   items.sort((a, b) => comprarSortBy === 'unidades' ? b.totWin - a.totWin : b.montoWin - a.montoWin);
   if (radarSearch) items = items.filter(radarMatch);
+  comprarShown = items;   // #3: lo que se ve = lo que se exporta
 
   const hayMonto = items.some(it => it.montoWin > 0);
   const totMonto = items.reduce((s, it) => s + (it.montoWin || 0), 0);
   const salesLine = radarSalesMeta
     ? `ventas ${radarSalesMeta.rangoInicio || ''}→${radarSalesMeta.rangoFin || ''}${radarSalesMeta.fresh ? '' : ' (viejo)'}`
     : 'sin reporte de ventas';
-  const sortToggle = `<div style="display:flex;gap:4px;margin-top:.45rem">
+  const sortToggle = `<div style="display:flex;gap:4px;margin-top:.45rem;align-items:center">
       <button class="rtab${comprarSortBy === 'monto' ? ' on' : ''}" onclick="setComprarSort('monto')">$ Vendido</button>
       <button class="rtab${comprarSortBy === 'unidades' ? ' on' : ''}" onclick="setComprarSort('unidades')">Uds</button>
+      <button class="rtab" style="margin-left:auto" onclick="exportComprarXLS()"
+        title="Baja la lista visible (código, nombre, sugerido) para compras/proveedor">⬇ XLS</button>
     </div>`;
   const head = `<div style="padding:.5rem .25rem .6rem">
       <div style="font-size:.72rem;color:var(--text2)">
