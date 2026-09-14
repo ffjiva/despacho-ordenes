@@ -402,7 +402,15 @@ async function init() {
     ]);
     const existing = getApps().find(a => a.name === 'despacho-main');
     const app = existing || initializeApp(FIREBASE_CFG, 'despacho-main');
-    db      = fbMod.getFirestore(app);
+    try {
+      db = fbMod.initializeFirestore(app, {
+        localCache: fbMod.persistentLocalCache({ tabManager: fbMod.persistentMultipleTabManager() })
+      });
+    } catch (e) {
+      // Ya inicializado, sin IndexedDB o modo privado → cache en memoria (comportamiento anterior)
+      console.warn('Persistencia offline no disponible:', e.message);
+      db = fbMod.getFirestore(app);
+    }
     auth    = authMod.getAuth(app);
     storage = storageMod.getStorage(app);
 
