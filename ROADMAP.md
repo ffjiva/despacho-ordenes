@@ -240,11 +240,10 @@ montos: { [code]: { [sucId]: total$EnLaVentana } }   ← TOTALES en $, análogo 
 
 ## 🎯 Frente activo
 
-*(próximo frente: cerrar la última mejora del Radar de Reposición — "Exportar Comprar a
-XLS" (bajo esfuerzo, ver 🔲 Pendientes) — con eso se completa el ciclo de 5 mejoras
-priorizado el 09 Sep 2026. El Radar A3 quedó cerrado en sus 3 fases (24 Ago) y afinado con
-datos reales (09 Sep, ver CHANGELOG). Otros candidatos: "Conectar el Ensamblador-ZD",
-"Recepción en sucursal destino — cotejo de despacho".)*
+*(próximo frente: sin definir — el ciclo de 5 mejoras del Radar de Reposición priorizado el
+09 Sep 2026 quedó completo (ver CHANGELOG 10, 12 y 14 Sep 2026). Candidatos abiertos:
+"Conectar el Ensamblador-ZD" (pausado, retomar con archivos actualizados) y "Recepción en
+sucursal destino — cotejo de despacho" (por diseñar, ver 🔲 Pendientes).)*
 
 *Ciclos previos cerrados — historial: "Conteos asignables al colaborador" (fases 1, 1.1, 2)
 cerrado, desplegado y movido al CHANGELOG (30 Jul 2026); filtro de asignables por rol
@@ -299,7 +298,7 @@ fix del estado de entregas pegado en "en camino" por el salto automático a What
 al completar (ítems ad-hoc, bug reportado por Fernando en producción y causa
 identificada con Anderson) en moto.html cerrados, desplegados en producción, con
 corrección retroactiva de los 3 domicilios y 1 etiqueta afectados, y movidos al
-CHANGELOG (03 Sep 2026); y afinamiento del Radar de Reposición (reposicion.html) tras la primera prueba con datos reales — parser del Gerencial que rescata códigos alfabéticos (patrón "código + 2+ espacios"), pestaña 🛒 Comprar (rota y sin bodega; global + filtro por sucursal) con la vista por sucursal ya filtrada por respaldo en bodega, detección de marca por palabra completa, y campo de búsqueda en el Radar — cerrado, probado en local por Fernando y movido al CHANGELOG (09 Sep 2026); semáforo de salud de datos y priorización de Comprar por $ vendido (primeras 2 de las 5 mejoras del Radar priorizadas 09 Sep 2026) en reposicion.html — cerrados, validados con smoke test automatizado (Playwright headless + node --check) y regresión e2e (32/32), desplegados a producción y movidos al CHANGELOG (10 Sep 2026); y netear "se agota" contra lo recién despachado + Estancado → Redistribución (mejoras #4 y #5 del Radar, cerrando 4 de las 5 priorizadas) en reposicion.html — cerrados, validados con smoke test manual por Fernando, desplegados a producción y movidos al CHANGELOG (12 Sep 2026).*
+CHANGELOG (03 Sep 2026); y afinamiento del Radar de Reposición (reposicion.html) tras la primera prueba con datos reales — parser del Gerencial que rescata códigos alfabéticos (patrón "código + 2+ espacios"), pestaña 🛒 Comprar (rota y sin bodega; global + filtro por sucursal) con la vista por sucursal ya filtrada por respaldo en bodega, detección de marca por palabra completa, y campo de búsqueda en el Radar — cerrado, probado en local por Fernando y movido al CHANGELOG (09 Sep 2026); semáforo de salud de datos y priorización de Comprar por $ vendido (primeras 2 de las 5 mejoras del Radar priorizadas 09 Sep 2026) en reposicion.html — cerrados, validados con smoke test automatizado (Playwright headless + node --check) y regresión e2e (32/32), desplegados a producción y movidos al CHANGELOG (10 Sep 2026); y netear "se agota" contra lo recién despachado + Estancado → Redistribución (mejoras #4 y #5 del Radar, cerrando 4 de las 5 priorizadas) en reposicion.html — cerrados, validados con smoke test manual por Fernando, desplegados a producción y movidos al CHANGELOG (12 Sep 2026); y exportar Comprar a XLS (mejora #3, última de las 5 priorizadas) en reposicion.html — cerrada, validada en local por Fernando, desplegada a producción y movida al CHANGELOG (14 Sep 2026).*
 
 ---
 
@@ -312,14 +311,6 @@ Con la identidad lista, la conexión se reduce a: (1) apuntar el `firebaseConfig
 del Ensamblador al proyecto de Despacho; (2) re-sembrar `catalogo`/`parametros`/
 `armados`; (3) fusionar sus reglas de Firestore; (4) leer `apps.ensamblador.role`
 en su `AuthScreen`/`AdminPanel`. Los permisos ya se pueden pre-cargar desde ahora.
-
-**Mejoras Radar de Reposición** *(reposicion.html — priorizadas 09 Sep 2026; 4 de 5 ya
-cerradas — semáforo de salud de datos, priorizar Comprar por $ vendido, netear "se agota"
-contra lo recién despachado y Estancado → Redistribución, ver CHANGELOG 10 y 12 Sep 2026)*
-Surgió al probar el Radar con datos reales. Queda un solo pendiente:
-
-1. **Exportar Comprar a XLS** *(bajo esfuerzo)* — botón para bajar la lista (código, nombre,
-   vendido, sugerido, $) y mandarla a compras/proveedor. Reusa `XLSX.writeFile`.
 
 ### 🟡 Soporte
 
@@ -454,7 +445,6 @@ hacia el CHANGELOG.
 
 ---
 
-*Última actualización: 12 Septiembre 2026 — netear "se agota" contra lo recién despachado
-y Estancado → Redistribución (mejoras #4 y #5 del Radar priorizadas 09 Sep 2026), cerrados
-y movidos al CHANGELOG. Queda 1 pendiente en "Mejoras Radar de Reposición": Exportar
-Comprar a XLS.*
+*Última actualización: 14 Septiembre 2026 — exportar Comprar a XLS (mejora #3, última de las
+5 del Radar priorizadas 09 Sep 2026), cerrada y movida al CHANGELOG. Ciclo del Radar de
+Reposición completo; sin frente activo definido.*

@@ -13,6 +13,20 @@
 
 ## Sesiones y módulos
 
+### Sesión Radar de Reposición — exportar Comprar a XLS — 14 Sep 2026 *(reposicion.html)*
+
+Cierra las 5 mejoras del Radar priorizadas el 09 Sep 2026 (las sesiones del 10 y 12 Sep
+cerraron las 4 anteriores). Cambio quirúrgico por anclas de texto, validado con smoke test
+manual en local por Fernando; sin cambios en `firestore.rules` ni Cloud Functions.
+
+**feat(reposicion): Radar #3 — exportar Comprar a XLS**
+Botón "⬇ XLS" en el header de Comprar, junto al toggle $ Vendido/Uds. Exporta la lista
+VISIBLE (respeta filtro de sucursal, búsqueda y orden) a un XLS mínimo para proveedor:
+Código · Producto · Comprar (uds). `comprarShown` guarda en `renderComprar()` la lista tras
+filtro/orden para que "lo que se ve" sea "lo que se exporta".
+
+Con esto se completan las 5 mejoras del Radar de Reposición priorizadas el 09 Sep 2026.
+
 ### Sesión Radar de Reposición — en tránsito + estancados → Redistribución — 12 Sep 2026 *(reposicion.html)*
 
 Continuación de las 5 mejoras del Radar priorizadas el 09 Sep 2026 (la sesión del 10 Sep
