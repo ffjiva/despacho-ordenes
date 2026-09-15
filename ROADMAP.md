@@ -166,10 +166,14 @@ counters: { [sucId]: number }   ← correlativo Provisional por sucursal (desde 
 config/agenda
 events: []
 config/version
-latest: string   ← APP_VERSION del build actualmente desplegado; publicado por
-                   `npm run version:publish` tras cada deploy que toque index.html.
-                   index.html escucha este doc (initVersionCheck) y muestra un
-                   banner de actualización si su APP_VERSION quedó desactualizado.
+latest: string   ← APP_VERSION del build actualmente desplegado (index.html); publicado
+                   por `npm run version:publish` tras cada deploy que toque index.html.
+moto:   string   ← APP_VERSION del build actualmente desplegado (moto.html); publicado
+                   por `npm run version:publish:moto` (`publish-version.js --app moto`)
+                   tras cada deploy que toque moto.html.
+← index.html y moto.html escuchan su propio campo (initVersionCheck) y muestran un
+  banner de actualización si su APP_VERSION quedó desactualizado. Cada app escribe/lee
+  solo su campo — el merge nunca pisa el del otro.
 config/team
 ← DEPRECADO como fuente de usuarios.
 Solo persiste por FCM tokens legacy. No usar para nuevos desarrollos.
@@ -299,6 +303,12 @@ al completar (ítems ad-hoc, bug reportado por Fernando en producción y causa
 identificada con Anderson) en moto.html cerrados, desplegados en producción, con
 corrección retroactiva de los 3 domicilios y 1 etiqueta afectados, y movidos al
 CHANGELOG (03 Sep 2026); y afinamiento del Radar de Reposición (reposicion.html) tras la primera prueba con datos reales — parser del Gerencial que rescata códigos alfabéticos (patrón "código + 2+ espacios"), pestaña 🛒 Comprar (rota y sin bodega; global + filtro por sucursal) con la vista por sucursal ya filtrada por respaldo en bodega, detección de marca por palabra completa, y campo de búsqueda en el Radar — cerrado, probado en local por Fernando y movido al CHANGELOG (09 Sep 2026); semáforo de salud de datos y priorización de Comprar por $ vendido (primeras 2 de las 5 mejoras del Radar priorizadas 09 Sep 2026) en reposicion.html — cerrados, validados con smoke test automatizado (Playwright headless + node --check) y regresión e2e (32/32), desplegados a producción y movidos al CHANGELOG (10 Sep 2026); y netear "se agota" contra lo recién despachado + Estancado → Redistribución (mejoras #4 y #5 del Radar, cerrando 4 de las 5 priorizadas) en reposicion.html — cerrados, validados con smoke test manual por Fernando, desplegados a producción y movidos al CHANGELOG (12 Sep 2026); y exportar Comprar a XLS (mejora #3, última de las 5 priorizadas) en reposicion.html — cerrada, validada en local por Fernando, desplegada a producción y movida al CHANGELOG (14 Sep 2026).*
+
+*Sesión ad-hoc adicional: persistencia offline de Firestore + fix de causa raíz del bug
+"entregas pegadas en en camino" (notify() reventaba en Android) + activación de la cadena
+de aviso de versión (config/version.moto, publish-version.js --app moto) en moto.html —
+cerrados, validados en campo por Fernando/Anderson, desplegados a producción y movidos al
+CHANGELOG (15 Sep 2026).*
 
 ---
 
@@ -445,6 +455,7 @@ hacia el CHANGELOG.
 
 ---
 
-*Última actualización: 14 Septiembre 2026 — exportar Comprar a XLS (mejora #3, última de las
-5 del Radar priorizadas 09 Sep 2026), cerrada y movida al CHANGELOG. Ciclo del Radar de
-Reposición completo; sin frente activo definido.*
+*Última actualización: 15 Septiembre 2026 — persistencia offline de Firestore + fix de
+causa raíz del bug "entregas pegadas en en camino" (notify() en Android) + activación de
+config/version.moto en moto.html, cerrados y movidos al CHANGELOG. Sin frente activo
+definido.*

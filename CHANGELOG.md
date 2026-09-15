@@ -13,6 +13,48 @@
 
 ## Sesiones y módulos
 
+### Sesión moto.html — fix causa raíz "entregas pegadas en en camino" + persistencia offline + versionado — 15 Sep 2026 *(moto.html, package.json, scripts/utilidades/publish-version.js)*
+
+Bug reportado por Fernando: Anderson marcaba ACABÉ en una entrega, la UI la mostraba
+completada, pero en ops.html y al recargar moto.html seguía en "en camino" — el dato
+nunca llegaba al servidor. Dos causas encontradas y corregidas en la misma sesión, más
+la cadena de aviso de versión que nunca se había activado para moto.html.
+
+**fix(moto): persistencia offline de Firestore**
+`initializeFirestore` con `persistentLocalCache` + `persistentMultipleTabManager` (mismo
+patrón de index.html, sesión "Desmarcado de ítems — Anderson", 07 Jul 2026), con fallback
+a `getFirestore` en memoria si la persistencia no está disponible (incógnito, IndexedDB
+bloqueado). Mitiga la pérdida de writes por corte breve de señal.
+
+**fix(moto): notify() ya no revienta el guardado en Android — causa raíz confirmada**
+Chrome en Android no soporta el constructor `new Notification()` (TypeError "Illegal
+constructor"). `notify()` se llamaba en `acabeDomicilio()` ANTES del try/catch y sin
+protección propia: la excepción abortaba la función completa y el `updateDoc` nunca se
+ejecutaba, sin alert de error porque el throw ocurría fuera del try — la UI optimista ya
+había pintado "entregado", por eso el bug pasaba desapercibido hasta el reload. Confirmado
+en campo en el Alcatel de Anderson (en Chrome/Brave de escritorio no fallaba). `notify()`
+ahora nunca propaga y usa `serviceWorker.showNotification()` cuando está disponible (la
+vía que sí funciona en Android); el aviso se movió a después del `updateDoc` confirmado.
+Auditado el mismo patrón (`new Notification(`) en index.html/ops.html/reposicion.html: no
+aparece en ninguna — index.html usa FCM (`getToken`/`getMessaging`) sin instanciar
+`Notification` directamente, así que no comparte esta causa raíz.
+
+**feat(moto): chip de diagnóstico de build + persistencia**
+Chip visible bajo la fecha en el home (`v<APP_VERSION> · 💾 ON/OFF`) para saber sin
+preguntar qué build corre un teléfono y si la caché offline de Firestore quedó realmente
+activa (IndexedDB puede fallar en silencio en incógnito o "borrar datos al salir").
+
+**feat: `config/version.moto` + `publish-version.js --app moto`**
+La cadena de aviso de actualización (`initVersionCheck` en moto.html, existente desde
+antes) nunca se disparaba porque `config/version.moto` nunca se había publicado.
+`publish-version.js` ahora acepta `--app moto` (nuevo script `version:publish:moto`) y
+escribe solo el campo correspondiente por `merge` (sin tocar el campo del otro). Publicado
+en producción: `config/version.moto = '2026-09-14.2'`.
+
+Validado: sintaxis del `<script type="module">` verificada con node; deploy verificado en
+producción por curl (HTML servido contiene el build y fix esperados); prueba de campo en
+el Alcatel de Anderson con señal inestable confirmada por Fernando.
+
 ### Sesión Radar de Reposición — exportar Comprar a XLS — 14 Sep 2026 *(reposicion.html)*
 
 Cierra las 5 mejoras del Radar priorizadas el 09 Sep 2026 (las sesiones del 10 y 12 Sep
