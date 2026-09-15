@@ -10,28 +10,40 @@ admin.initializeApp({
 
 const db = getFirestore();
 
+// Cada app publica su propio campo en config/version, siempre con merge — nunca se
+// toca el campo de otra app. index.html → 'latest' (comportamiento por defecto,
+// sin --app); moto.html → 'moto' (node publish-version.js --app moto).
+const APPS = {
+  index: { file: 'index.html', field: 'latest' },
+  moto:  { file: 'moto.html',  field: 'moto' },
+};
+
+function parseApp(argv) {
+  const idx = argv.indexOf('--app');
+  if (idx === -1) return 'index';
+  const val = argv[idx + 1];
+  if (!val || !APPS[val]) {
+    console.error(`❌ Argumento --app inválido: '${val || ''}'. Valores válidos: ${Object.keys(APPS).join(', ')}`);
+    process.exit(1);
+  }
+  return val;
+}
+
 async function publish() {
-  const indexPath = path.join(__dirname, '..', '..', 'index.html');
-  const html = fs.readFileSync(indexPath, 'utf8');
+  const appName = parseApp(process.argv.slice(2));
+  const { file, field } = APPS[appName];
+
+  const filePath = path.join(__dirname, '..', '..', file);
+  const html = fs.readFileSync(filePath, 'utf8');
   const match = html.match(/const APP_VERSION\s*=\s*'([^']+)'/);
   if (!match) {
-    console.error('❌ No se encontró APP_VERSION en index.html');
+    console.error(`❌ No se encontró APP_VERSION en ${file}`);
     process.exit(1);
   }
   const version = match[1];
 
-  const motoPath = path.join(__dirname, '..', '..', 'moto.html');
-  const motoHtml = fs.readFileSync(motoPath, 'utf8');
-  const motoMatch = motoHtml.match(/const APP_VERSION\s*=\s*'([^']+)'/);
-  if (!motoMatch) {
-    console.error('❌ No se encontró APP_VERSION en moto.html');
-    process.exit(1);
-  }
-  const motoVersion = motoMatch[1];
-
-  await db.collection('config').doc('version').set({ latest: version, moto: motoVersion }, { merge: true });
-  console.log(`✅ config/version.latest = '${version}'`);
-  console.log(`✅ config/version.moto = '${motoVersion}'`);
+  await db.collection('config').doc('version').set({ [field]: version }, { merge: true });
+  console.log(`✅ config/version.${field} = '${version}'`);
 }
 
 publish().catch(err => {

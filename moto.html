@@ -301,6 +301,7 @@ body:not(.dark) input[type="time"] {
       <div>
         <div class="m-name" id="m-name-lbl">—</div>
         <div class="m-date" id="m-date-lbl"></div>
+        <div class="m-date" id="m-build-lbl" style="opacity:.7"></div>
       </div>
       <div style="display:flex;gap:6px">
         <button class="m-logout" id="notif-chip" onclick="enableNotifications()" style="display:none"></button>
@@ -350,10 +351,11 @@ const FIREBASE_CFG = {
 const THEME_KEY       = 'moto_theme_v1';
 const COLLECTION      = 'vueltas';
 const WHATSAPP_GROUP  = '50377081881';
-const APP_VERSION     = '2026-09-05.1';   // subir en CADA deploy de moto.html + publicar en config/version.moto
+const APP_VERSION     = '2026-09-14.2';   // subir en CADA deploy de moto.html + publicar en config/version.moto
 let _versionCheckStarted = false;
 
 let db = null, fbMod = null, authMod = null, auth = null;
+let persistMode = 'memoria';   // 'idb' si la caché persistente de Firestore quedó activa
 let currentDriver = '';
 let currentDriverUid = '';
 let homeUnsub       = null;
@@ -406,6 +408,7 @@ async function init() {
       db = fbMod.initializeFirestore(app, {
         localCache: fbMod.persistentLocalCache({ tabManager: fbMod.persistentMultipleTabManager() })
       });
+      persistMode = 'idb';
     } catch (e) {
       // Ya inicializado, sin IndexedDB o modo privado → cache en memoria (comportamiento anterior)
       console.warn('Persistencia offline no disponible:', e.message);
@@ -684,6 +687,7 @@ async function fetchEnCola() {
 
 function goHome() {
   registerFCMToken(currentDriver);
+  showBuildChip();
   $('m-name-lbl').textContent = `🚐 ${currentDriver}`;
   $('m-date-lbl').textContent = new Date().toLocaleDateString('es-SV', {
     weekday: 'long', day: '2-digit', month: 'long', year: 'numeric'
@@ -726,9 +730,55 @@ function showUpdateBanner() {
   document.body.appendChild(bar);
 }
 
+// Chip de diagnóstico: qué build corre este teléfono y si la caché offline quedó activa.
+// 💾 ON  = Firestore escribe en IndexedDB y reintenta solo cuando vuelve la señal.
+// 💾 OFF = caché en memoria (incógnito, "borrar datos al salir", IndexedDB bloqueado)
+//          → un corte de señal al tocar ACABÉ se pierde igual que antes del fix.
+async function idbDisponible() {
+  try {
+    if (!('indexedDB' in window)) return false;
+    return await new Promise(res => {
+      let listo = false;
+      const req = indexedDB.open('moto_probe_v1');
+      req.onsuccess = () => { listo = true; try { req.result.close(); } catch(e){} res(true); };
+      req.onerror   = () => res(false);
+      req.onblocked = () => res(false);
+      setTimeout(() => { if (!listo) res(false); }, 3000);
+    });
+  } catch(e) { return false; }
+}
+
+async function showBuildChip() {
+  const el = $('m-build-lbl');
+  if (!el) return;
+  el.textContent = `v${APP_VERSION} · 💾 …`;
+  const idb = await idbDisponible();
+  const ok  = (persistMode === 'idb') && idb;
+  el.textContent = `v${APP_VERSION} · 💾 ${ok ? 'ON' : 'OFF'}`;
+  el.style.color = ok ? '' : 'var(--err-tx)';
+}
+
+// Chrome en Android NO soporta el constructor Notification: lanza TypeError
+// ("Illegal constructor"). Como notify() se llamaba fuera de todo try/catch, la
+// excepción abortaba la función que la invocaba — en acabeDomicilio() eso mataba el
+// updateDoc y la entrega nunca se guardaba (causa raíz del bug de entregas pegadas en
+// "en camino", Sep 2026). Ahora nunca propaga, y usa el service worker cuando está
+// disponible, que es la única vía que sí funciona en Android.
 function notify(title, body) {
-  if ('Notification' in window && Notification.permission === 'granted') {
+  try {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    if (navigator.serviceWorker && navigator.serviceWorker.getRegistration) {
+      navigator.serviceWorker.getRegistration()
+        .then(reg => {
+          if (reg && reg.showNotification) { reg.showNotification(title, { body }); return; }
+          try { new Notification(title, { body }); } catch(e) { console.warn('notify:', e.message); }
+        })
+        .catch(() => {});
+      return;
+    }
     new Notification(title, { body });
+  } catch(e) {
+    console.warn('notify no disponible:', e.message);
   }
 }
 
@@ -1559,7 +1609,6 @@ window.acabeDomicilio = async id => {
   const idx  = cachedDomicilios.findIndex(x => x.id === id);
   const prev = idx !== -1 ? { ...cachedDomicilios[idx] } : null;
   if (idx !== -1) { cachedDomicilios[idx] = { ...cachedDomicilios[idx], ...update }; renderCombined(); }
-  notify('📦 Entrega completada', `${currentDriver} entregó a ${d?.cliente || ''}`);
 
   // Guardado con confirmación del servidor ANTES de ofrecer WhatsApp: moto.html no tiene
   // caché persistente, así que un write en vuelo se pierde si la pestaña pasa a segundo
@@ -1573,6 +1622,7 @@ window.acabeDomicilio = async id => {
     alert('No se pudo guardar la entrega. Revisa tu conexión e intenta de nuevo.');
     return;
   }
+  notify('📦 Entrega completada', `${currentDriver} entregó a ${d?.cliente || ''}`);
   getGPS().then(gps => {
     if (gps) fbMod.updateDoc(fbMod.doc(db, 'domicilios', id), { gpsFin: gps }).catch(() => {});
   });

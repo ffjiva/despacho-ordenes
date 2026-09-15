@@ -4,7 +4,8 @@
     "seed:emulator": "node scripts/emulator/seed.js",
     "test:e2e": "node scripts/emulator/smoke.mjs",
     "test:functions": "node scripts/emulator/functions-smoke.mjs",
-    "version:publish": "node scripts/utilidades/publish-version.js"
+    "version:publish": "node scripts/utilidades/publish-version.js",
+    "version:publish:moto": "node scripts/utilidades/publish-version.js --app moto"
   },
   "dependencies": {
     "firebase-admin": "^14.1.0",
