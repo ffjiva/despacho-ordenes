@@ -351,7 +351,7 @@ const FIREBASE_CFG = {
 const THEME_KEY       = 'moto_theme_v1';
 const COLLECTION      = 'vueltas';
 const WHATSAPP_GROUP  = '50377081881';
-const APP_VERSION     = '2026-09-14.2';   // subir en CADA deploy de moto.html + publicar en config/version.moto
+const APP_VERSION     = '2026-09-15.1';   // subir en CADA deploy de moto.html + publicar en config/version.moto
 let _versionCheckStarted = false;
 
 let db = null, fbMod = null, authMod = null, auth = null;
@@ -372,6 +372,7 @@ let fotoDomId       = null;
 const openCards       = new Set();  // detalles de tarjeta expandidos (persisten tras re-render)
 const openFotoActions = new Set();  // panel Cámara/Galería de vueltas expandido
 let noEntregaId     = null;
+let syncFails       = [];   // fallos reales de guardado: [{etiqueta, col, id, update}]
 let noEntregaMotivo = '';
 const MOTIVOS_NE = ['Cliente no contesta', 'Dirección incorrecta', 'Cliente reagendó', 'Devolver a bodega'];
 
@@ -764,6 +765,64 @@ async function showBuildChip() {
 // updateDoc y la entrega nunca se guardaba (causa raíz del bug de entregas pegadas en
 // "en camino", Sep 2026). Ahora nunca propaga, y usa el service worker cuando está
 // disponible, que es la única vía que sí funciona en Android.
+/* ═══ SINCRONIZACIÓN ═══
+   Dos cosas que antes eran invisibles:
+   · cola: updateDoc NO rechaza por falta de red — el SDK encola y sincroniza solo.
+     Mientras tanto la tarjeta se ve completada en el celular pero en ops.html no ha
+     pasado nada. metadata.hasPendingWrites es quien sabe la verdad; se pinta en ámbar.
+   · fallo real (rechazo del servidor): antes era un alert() que Android suprime si la
+     pestaña está en segundo plano. Ahora barra roja persistente con Reintentar.
+   El reintento reenvía SOLO el dato, no re-ejecuta la acción: nada de volver a ofrecer
+   WhatsApp ni re-notificar algo que el motorista ya hizo. */
+function contarPendientes() {
+  return [...cachedList, ...cachedDomicilios].filter(x => x && x._pending).length;
+}
+
+function renderSyncBar() {
+  const bar = $('sync-bar');
+  if (!bar) return;
+  if (syncFails.length) {
+    const nombres = syncFails.map(f => f.etiqueta).filter(Boolean).join(' · ');
+    bar.style.display    = 'flex';
+    bar.style.background  = 'var(--err-bg)';
+    bar.style.color       = 'var(--err-tx)';
+    bar.style.borderTop   = '1px solid var(--err-bd)';
+    bar.innerHTML = `<span>⚠ ${syncFails.length} sin guardar${nombres ? ': ' + esc(nombres) : ''}</span>`
+      + `<button id="sync-retry-btn" onclick="reintentarGuardado()" style="padding:5px 12px;`
+      + `font-family:var(--mono);font-size:.66rem;font-weight:700;border:1px solid var(--err-bd);`
+      + `border-radius:5px;background:transparent;color:var(--err-tx);cursor:pointer;flex-shrink:0">Reintentar</button>`;
+    return;
+  }
+  const pend = contarPendientes();
+  if (pend) {
+    bar.style.display    = 'flex';
+    bar.style.background  = 'var(--warn-bg)';
+    bar.style.color       = 'var(--warn-tx)';
+    bar.style.borderTop   = '1px solid var(--warn-bd)';
+    bar.innerHTML = `<span>⏳ ${pend} sin enviar · se guardan solas al volver la señal</span>`;
+    return;
+  }
+  bar.style.display = 'none';
+}
+
+function syncError(etiqueta, col, id, update) {
+  syncFails = syncFails.filter(f => !(f.col === col && f.id === id));
+  syncFails.push({ etiqueta, col, id, update });
+  renderSyncBar();
+}
+
+window.reintentarGuardado = async () => {
+  const btn = $('sync-retry-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Reintentando…'; }
+  const quedan = [];
+  for (const f of syncFails) {
+    try { await fbMod.updateDoc(fbMod.doc(db, f.col, f.id), f.update); }
+    catch(e) { console.error('reintento:', e); quedan.push(f); }
+  }
+  syncFails = quedan;
+  renderSyncBar();   // si quedó vacío la barra se apaga; el listener repinta el dato real
+};
+
 function notify(title, body) {
   try {
     if (!('Notification' in window) || Notification.permission !== 'granted') return;
@@ -799,9 +858,9 @@ function startListener() {
   let prevEmergencyIds = new Set();
   let prevVueltaIds = new Set();
 
-  homeUnsub = fbMod.onSnapshot(q,
+  homeUnsub = fbMod.onSnapshot(q, { includeMetadataChanges: true },
     snap => {
-      const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const list = snap.docs.map(d => ({ id: d.id, ...d.data(), _pending: d.metadata.hasPendingWrites }));
       if (!firstSnap) {
         list.forEach(v => {
           if (v.emergency && !prevEmergencyIds.has(v.id)) {
@@ -859,9 +918,9 @@ function startDomiciliosListener() {
     fbMod.where('assignedTo', '==', currentDriverUid),
     fbMod.orderBy('createdAt', 'asc')
   );
-  domUnsub = fbMod.onSnapshot(qToday,
+  domUnsub = fbMod.onSnapshot(qToday, { includeMetadataChanges: true },
     snap => {
-      const list = snap.docs.map(d => ({ id: d.id, type: 'domicilio', ...d.data() }));
+      const list = snap.docs.map(d => ({ id: d.id, type: 'domicilio', ...d.data(), _pending: d.metadata.hasPendingWrites }));
       if (!firstDomSnap) {
         list.forEach(d => {
           if (d.prioritario && !prevPrioIds.has(d.id))
@@ -955,6 +1014,7 @@ function renderCombined() {
     </div>`;
 
   applyMotoFilter();
+  renderSyncBar();
 }
 
 function applyMotoFilter() {
@@ -1095,6 +1155,7 @@ function buildVueltaCard(v) {
         <div class="m-order-circle ${circleCls}">${v.order}</div>
         <div class="mcard-info">
           <div class="mcard-dest">${esc(v.destination || '')}</div>
+          ${v._pending ? `<div style="font-size:.6rem;color:var(--warn-tx);margin-top:3px;font-weight:700">⏳ sin enviar</div>` : ''}
           ${v.description ? `<div class="mcard-desc">${esc(v.description)}</div>` : ''}
           ${isDone ? `
             <div class="mcard-done-time">✓ ${doneTime ? `Completada a las ${doneTime}` : 'Completada'}</div>
@@ -1271,6 +1332,7 @@ function buildDomCard(d) {
             <div class="mcard-dest">${esc((d.cliente || '').toUpperCase())}</div>
             <div style="margin-top:4px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
               <span class="dmbadge dmbadge-${st}">${STATUS_LBL[st] || st}</span>
+              ${d._pending ? `<span class="dmbadge" style="background:var(--warn-bg);color:var(--warn-tx);border-color:var(--warn-bd)">⏳ sin enviar</span>` : ''}
               ${d.assignedTo
                 ? `<span style="font-size:.58rem;color:var(--muted)">
                      👤 ${esc(d.assignedToName || d.assignedTo)}</span>`
@@ -1503,7 +1565,7 @@ window.irEnCamino = async (id, dest) => {
     .catch(e => {
       console.error(e);
       if (idx !== -1 && prev) { cachedList[idx] = prev; renderCombined(); }
-      alert('No se pudo actualizar. Revisa tu conexión e intenta de nuevo.');
+      syncError(`vuelta a ${dest || ''}`, COLLECTION, id, update);
     });
 };
 
@@ -1521,7 +1583,7 @@ window.completarVuelta = async id => {
     .catch(e => {
       console.error(e);
       if (idx !== -1 && prev) { cachedList[idx] = prev; renderCombined(); }
-      alert('No se pudo guardar. Revisa tu conexión e intenta de nuevo.');
+      syncError(`vuelta a ${prev?.destination || ''}`, COLLECTION, id, update);
     });
 };
 
@@ -1574,7 +1636,7 @@ window.revertirVuelta = async id => {
     .catch(e => {
       console.error(e);
       if (idx !== -1 && prev) { cachedList[idx] = prev; renderCombined(); }
-      alert('No se pudo revertir. Revisa tu conexión e intenta de nuevo.');
+      syncError(`reversión de vuelta`, COLLECTION, id, update);
     });
 };
 
@@ -1595,7 +1657,7 @@ window.salirDomicilio = async id => {
     .catch(e => {
       console.error(e);
       if (idx !== -1 && prev) { cachedDomicilios[idx] = prev; renderCombined(); }
-      alert('No se pudo actualizar. Revisa tu conexión e intenta de nuevo.');
+      syncError(`salida a ${prev?.cliente || ''}`, 'domicilios', id, update);
     });
 };
 
@@ -1619,7 +1681,7 @@ window.acabeDomicilio = async id => {
   } catch(e) {
     console.error(e);
     if (idx !== -1 && prev) { cachedDomicilios[idx] = prev; renderCombined(); }
-    alert('No se pudo guardar la entrega. Revisa tu conexión e intenta de nuevo.');
+    syncError(`entrega de ${d?.cliente || ''}`, 'domicilios', id, update);
     return;
   }
   notify('📦 Entrega completada', `${currentDriver} entregó a ${d?.cliente || ''}`);
@@ -1652,7 +1714,7 @@ window.reintentarEntrega = async id => {
     .catch(e => {
       console.error(e);
       if (idx !== -1 && prev) { cachedDomicilios[idx] = prev; renderCombined(); }
-      alert('No se pudo reintentar. Revisa tu conexión e intenta de nuevo.');
+      syncError(`reintento de ${prev?.cliente || ''}`, 'domicilios', id, update);
     });
 };
 
@@ -1690,7 +1752,7 @@ window.confirmarNoEntrega = async () => {
   } catch(e) {
     console.error(e);
     if (idx !== -1 && prev) { cachedDomicilios[idx] = prev; renderCombined(); }
-    alert('No se pudo guardar. Revisa tu conexión e intenta de nuevo.');
+    syncError(`no entrega de ${d?.cliente || ''}`, 'domicilios', id, update);
     return;
   }
 
@@ -1811,6 +1873,11 @@ document.addEventListener('DOMContentLoaded', init);
 <input type="file" id="foto-input-galeria" accept="image/*"                      style="display:none" onchange="uploadFoto(this)"/>
 <input type="file" id="foto-dom-cam-input" accept="image/*" capture="environment" style="display:none" onchange="uploadFotoDom(this)"/>
 <input type="file" id="foto-dom-gal-input" accept="image/*"                   style="display:none" onchange="uploadFotoDom(this)"/>
+
+<!-- ══════════════ BARRA DE SINCRONIZACIÓN ══════════════ -->
+<div id="sync-bar" style="display:none;position:fixed;left:0;right:0;bottom:60px;z-index:400;
+     padding:8px 14px;align-items:center;justify-content:center;gap:10px;text-align:center;
+     font-family:var(--mono);font-size:.68rem;font-weight:700"></div>
 
 <!-- ══════════════ MODAL NO ENTREGA ══════════════ -->
 <div id="modal-noentrega" style="display:none;position:fixed;inset:0;z-index:500;background:rgba(0,0,0,.52)" onclick="closeNoEntregaModal(event)">
