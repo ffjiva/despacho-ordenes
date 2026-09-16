@@ -310,6 +310,11 @@ de aviso de versión (config/version.moto, publish-version.js --app moto) en mot
 cerrados, validados en campo por Fernando/Anderson, desplegados a producción y movidos al
 CHANGELOG (15 Sep 2026).*
 
+*Sesión ad-hoc adicional: barra de sincronización en moto.html (chip ámbar "⏳ sin enviar"
+por metadata.hasPendingWrites + barra roja con Reintentar reemplazando los 7 alert()
+invisibles en Android) — cierra el pendiente del alert() invisible, validada en campo por
+Anderson, desplegada a producción y movida al CHANGELOG (16 Sep 2026).*
+
 ---
 
 ## 🔲 Pendientes (por impacto operativo)
@@ -455,7 +460,6 @@ hacia el CHANGELOG.
 
 ---
 
-*Última actualización: 15 Septiembre 2026 — persistencia offline de Firestore + fix de
-causa raíz del bug "entregas pegadas en en camino" (notify() en Android) + activación de
-config/version.moto en moto.html, cerrados y movidos al CHANGELOG. Sin frente activo
-definido.*
+*Última actualización: 16 Septiembre 2026 — barra de sincronización en moto.html (cierra
+el pendiente del alert() invisible en Android), cerrada y movida al CHANGELOG. Sin frente
+activo definido.*

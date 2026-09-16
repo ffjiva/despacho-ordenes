@@ -13,6 +13,28 @@
 
 ## Sesiones y módulos
 
+### Sesión moto.html — barra de sincronización: visibilidad de guardados + reintento — 16 Sep 2026 *(moto.html)*
+
+Cierra el pendiente del alert() invisible (Chrome Android lo suprime en segundo plano y no
+ofrecía ninguna acción). Alcance: las 7 acciones de motorista (vueltas + entregas); fotos y
+comentarios no se tocan.
+
+**feat(moto): barra de sincronización — visibilidad de guardados + reintento**
+Dos problemas resueltos con una sola pieza de UI:
+- **Cola sin señal:** `updateDoc` no rechaza por falta de red — el SDK encola y sincroniza
+  solo. `metadata.hasPendingWrites` (`includeMetadataChanges` en los listeners de vueltas y
+  domicilios) ahora se refleja en un chip ámbar por tarjeta ("⏳ sin enviar") y una barra
+  "N sin enviar" — antes el motorista veía todo verde y `ops.html` no se enteraba de la
+  desincronización.
+- **Fallo real de guardado:** los 7 `alert()` se reemplazan por `syncError()`, que pinta una
+  barra roja persistente con botón Reintentar. El reintento reenvía solo el dato
+  (`updateDoc`), sin re-disparar WhatsApp ni `notify()`.
+
+Bump `APP_VERSION` a `2026-09-15.1` y publicado `config/version.moto` en producción para
+que el banner de actualización llegue solo a los teléfonos con build vieja. Validado en
+campo por Anderson (modo avión / recuperación de señal, y prueba de la barra roja desde
+consola).
+
 ### Sesión moto.html — fix causa raíz "entregas pegadas en en camino" + persistencia offline + versionado — 15 Sep 2026 *(moto.html, package.json, scripts/utilidades/publish-version.js)*
 
 Bug reportado por Fernando: Anderson marcaba ACABÉ en una entrega, la UI la mostraba
