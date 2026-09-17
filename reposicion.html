@@ -751,6 +751,17 @@ body.inv-collab #inv-btn-reasignar { display: none !important; }
         onclick="enterRedistMode()">
         ⇄ Redistribuir
       </button>
+      <button class="btn btn-outline" id="btn-focus-mode" style="font-size:.6rem"
+        onclick="openFocusModal()">
+        🎯 Oferta
+      </button>
+      <button class="btn btn-outline" id="btn-focus-matrix" style="font-size:.6rem;display:none"
+        onclick="openFocusMatrix()">
+        ▦ Matriz
+      </button>
+      <span id="rep-focus-chip" style="display:none;font-size:.6rem;padding:2px 8px;
+        border-radius:var(--r);background:var(--warn-bg);border:1px solid var(--warn-bd);
+        color:var(--warn-tx)"></span>
       <button class="btn btn-outline" style="font-size:.6rem;color:var(--err-tx)"
         onclick="clearRepSession()">
         ⊘ Limpiar todo
@@ -1066,6 +1077,8 @@ let repProductMap  = new Map();
 let repProducts    = [];
 let repSendData    = {};
 let repZeroedSucs  = new Set();   // sucursales puestas en 0: excluidas de sugerencias/redistribución
+let repFocusCodes  = null;   // enfoque por oferta: Set<code> activo, o null = sin enfoque
+let repMatrixMode  = 'stock';   // matriz: 'stock' (diagnóstico) | 'enviar' (editable)
 let repLoadedFiles = [];
 let repLoadedAt    = null;   // sello de frescura del snapshot de stock del Gerencial
 let repActiveTab   = 'M01';
@@ -1477,6 +1490,7 @@ function saveRepSession() {
       compraFiles:    repCompraFiles,
       redistData:     repRedistData,
       zeroedSucs:     [...repZeroedSucs],
+      focusCodes:     repFocusCodes ? [...repFocusCodes] : null,
     }));
   } catch(e) { console.warn('saveRepSession:', e); }
 }
@@ -1496,6 +1510,7 @@ function loadRepSession() {
     repProducts    = d.products    || [];
     repSendData    = d.sendData    || {};
     repZeroedSucs  = new Set(d.zeroedSucs || []);
+    repFocusCodes  = d.focusCodes ? new Set(d.focusCodes) : null;
     repLoadedFiles = d.loadedFiles || [];
     repActiveTab   = d.activeTab   || 'M01';
     repActiveCat   = d.activeCat   || '';
@@ -1568,6 +1583,230 @@ window.goReposicion = () => {
 
 window.goBackFromReposicion = () => { showScreen('s-home'); };
 
+/* ═══ ENFOQUE POR OFERTA (Fase 1) ═══ */
+function repFocusTokenize(s){
+  return String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .split(/[^a-z0-9]+/).filter(t => t.length>=2 && !/^\d{5,}$/.test(t));
+}
+function repFocusModelToks(toks){
+  return toks.filter(t => /[a-z]/.test(t) && /\d/.test(t) && t.length>=3);
+}
+function repBuildFocusIndex(){
+  const N = repProducts.length || 1, df = new Map();
+  const idx = repProducts.map(p => {
+    const toks = repFocusTokenize(p.name), set = new Set(toks);
+    for (const t of set) df.set(t, (df.get(t)||0)+1);
+    return { p, set, full: toks.join('') };
+  });
+  const idf = new Map();
+  for (const [t,c] of df) idf.set(t, Math.log((N+1)/(c+0.5)));
+  return { idx, idf };
+}
+function repMatchOffer(lines){
+  const { idx, idf } = repBuildFocusIndex();
+  const matched=[], dudosos=[], noMatch=[];
+  for (const raw of lines){
+    const line = String(raw).trim(); if (!line) continue;
+    const toks = repFocusTokenize(line);
+    if (!toks.length){ noMatch.push(line); continue; }
+    const uniq = [...new Set(toks)];
+    const mtoks = repFocusModelToks(uniq);
+    let selfIdf = 0; for (const t of uniq) selfIdf += (idf.get(t)||0);
+    const scored = [];
+    for (const e of idx){
+      let s=0; for (const t of uniq) if (e.set.has(t)) s += (idf.get(t)||0);
+      let modelHit=false;
+      for (const mt of mtoks){ if (e.set.has(mt) || e.full.includes(mt)){ s+=3; modelHit=true; } }
+      if (s>0) scored.push({ code:e.p.code, name:e.p.name, s, modelHit });
+    }
+    if (!scored.length){ noMatch.push(line); continue; }
+    scored.sort((a,b)=> b.s-a.s);
+    const best=scored[0], second=scored[1];
+    const cov   = selfIdf>0 ? best.s/selfIdf : 0;
+    const clear = !second || best.s >= 1.3*second.s;
+    if ((best.modelHit && clear) || (cov>=0.5 && clear)){
+      matched.push({ line, code:best.code, name:best.name });
+    } else if (best.s>0 && (best.modelHit || cov>=0.2)){
+      dudosos.push({ line, candidates: scored.slice(0,3) });
+    } else {
+      noMatch.push(line);
+    }
+  }
+  return { matched, dudosos, noMatch };
+}
+function repEnsureFocusModal(){
+  if ($('rep-focus-modal')) return;
+  const d = document.createElement('div');
+  d.id = 'rep-focus-modal';
+  d.style.cssText = 'display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.5);padding:1rem;overflow:auto';
+  d.innerHTML = `<div style="max-width:640px;margin:2rem auto;background:var(--surface);border:1px solid var(--border2);border-radius:var(--r);padding:1rem 1.1rem">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:.6rem">
+      <strong style="font-size:.9rem">🎯 Enfocar en lista / oferta</strong>
+      <button class="btn btn-ghost" style="margin-left:auto;font-size:.7rem" onclick="closeFocusModal()">✕</button>
+    </div>
+    <div style="font-size:.66rem;color:var(--muted);margin-bottom:.4rem">Pegá las descripciones de la oferta, una por línea. Se cruzan contra el Gerencial cargado.</div>
+    <textarea id="rep-focus-input" style="width:100%;height:140px;font-size:.68rem;padding:.5rem;border:1px solid var(--border2);border-radius:var(--r);background:var(--surface2);color:var(--text);resize:vertical" placeholder="MONITOR XIAOMI A22I ...&#10;MONITOR MSI MAG 274QF ..."></textarea>
+    <div style="display:flex;gap:8px;margin:.5rem 0">
+      <button class="btn btn-dark" style="font-size:.66rem" onclick="runFocusCotejo()">Cotejar</button>
+      <span id="rep-focus-hint" style="font-size:.62rem;color:var(--muted);align-self:center"></span>
+    </div>
+    <div id="rep-focus-results" style="max-height:40vh;overflow:auto"></div>
+    <div style="display:flex;gap:8px;margin-top:.7rem;justify-content:flex-end">
+      <button class="btn btn-outline" style="font-size:.66rem" onclick="closeFocusModal()">Cancelar</button>
+      <button class="btn btn-dark" id="rep-focus-apply" style="font-size:.66rem;display:none" onclick="applyFocus()">Aplicar enfoque</button>
+    </div>
+  </div>`;
+  document.body.appendChild(d);
+  $('rep-focus-results').addEventListener('change', () => {
+    const n = document.querySelectorAll('#rep-focus-results .rep-focus-cb:checked').length;
+    const b = $('rep-focus-apply'); if (b) b.textContent = `Aplicar enfoque (${n})`;
+  });
+}
+window.openFocusModal = () => {
+  if (!repProductMap.size && !loadRepSession()){ alertModal({ msg:'Cargá primero el Gerencial.', danger:true }); return; }
+  repEnsureFocusModal();
+  $('rep-focus-modal').style.display = '';
+};
+window.closeFocusModal = () => { const m=$('rep-focus-modal'); if (m) m.style.display='none'; };
+window.runFocusCotejo = () => {
+  if (!repProductMap.size && !loadRepSession()){ alertModal({ msg:'Cargá primero el Gerencial.', danger:true }); return; }
+  const r = repMatchOffer(($('rep-focus-input').value||'').split('\n'));
+  const esc = escHtml; let html='';
+  if (r.matched.length){
+    html += `<div style="font-size:.66rem;font-weight:700;color:var(--done-tx);margin:.4rem 0 .2rem">✓ Encontrados (${r.matched.length})</div>`;
+    html += r.matched.map(m => `<label style="display:flex;gap:6px;align-items:flex-start;font-size:.63rem;padding:.15rem 0">
+      <input type="checkbox" class="rep-focus-cb" data-code="${esc(m.code)}" checked>
+      <span><strong>${esc(m.code)}</strong> — ${esc(m.name)}</span></label>`).join('');
+  }
+  if (r.dudosos.length){
+    html += `<div style="font-size:.66rem;font-weight:700;color:var(--warn-tx);margin:.5rem 0 .2rem">⚠ Revisar (${r.dudosos.length})</div>`;
+    html += r.dudosos.map(d => `<div style="font-size:.62rem;padding:.2rem 0;border-top:1px solid var(--border2)">
+      <div style="color:var(--muted);margin-bottom:.15rem">“${esc(d.line)}”</div>
+      ${d.candidates.map((c,i) => `<label style="display:flex;gap:6px;align-items:flex-start;padding:.1rem 0">
+        <input type="checkbox" class="rep-focus-cb" data-code="${esc(c.code)}" ${i===0?'checked':''}>
+        <span><strong>${esc(c.code)}</strong> — ${esc(c.name)}</span></label>`).join('')}</div>`).join('');
+  }
+  if (r.noMatch.length){
+    html += `<div style="font-size:.66rem;font-weight:700;color:var(--err-tx);margin:.5rem 0 .2rem">✗ No encontrados (${r.noMatch.length})</div>`;
+    html += `<div style="font-size:.6rem;color:var(--muted)">No aparecen en el Gerencial (sin stock en ninguna sucursal, o nombre muy distinto):</div>`;
+    html += r.noMatch.map(l => `<div style="font-size:.61rem;padding:.1rem 0">• ${esc(l)}</div>`).join('');
+  }
+  $('rep-focus-results').innerHTML = html || '<div style="font-size:.63rem;color:var(--muted)">Sin resultados.</div>';
+  const total = r.matched.length + r.dudosos.length;
+  const apply = $('rep-focus-apply');
+  apply.style.display = total ? '' : 'none';
+  apply.textContent  = `Aplicar enfoque (${document.querySelectorAll('#rep-focus-results .rep-focus-cb:checked').length})`;
+  $('rep-focus-hint').textContent = `${r.matched.length} directos · ${r.dudosos.length} a revisar · ${r.noMatch.length} sin match`;
+};
+window.applyFocus = () => {
+  const codes = [...document.querySelectorAll('#rep-focus-results .rep-focus-cb:checked')].map(cb => cb.dataset.code);
+  const set = new Set(codes);
+  if (!set.size){ alertModal({ msg:'Elegí al menos un producto.' }); return; }
+  repFocusCodes = set;
+  repDisplayLimit = 300;
+  closeFocusModal();
+  renderRepFull();
+  saveRepSession();
+};
+window.clearFocus = () => {
+  repFocusCodes = null;
+  renderRepFull();
+  saveRepSession();
+};
+/* ═══ MATRIZ DE LA OFERTA (Fase 2) — read-only ═══ */
+window.openFocusMatrix = () => {
+  if (!repFocusCodes || !repFocusCodes.size){
+    alertModal({ msg:'Aplicá primero un enfoque (🎯 Oferta) para ver la matriz.' });
+    return;
+  }
+  repEnsureMatrixModal();
+  renderFocusMatrix();
+  $('rep-matrix-modal').style.display = '';
+};
+window.closeFocusMatrix = () => { const m=$('rep-matrix-modal'); if (m) m.style.display='none'; };
+function repEnsureMatrixModal(){
+  if ($('rep-matrix-modal')) return;
+  const d = document.createElement('div');
+  d.id = 'rep-matrix-modal';
+  d.style.cssText = 'display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.5);padding:1rem;overflow:auto';
+  d.innerHTML = `<div style="max-width:900px;margin:1.5rem auto;background:var(--surface);border:1px solid var(--border2);border-radius:var(--r);padding:1rem 1.1rem">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:.5rem">
+      <strong style="font-size:.9rem">▦ Matriz de la oferta — stock por sucursal</strong>
+      <button class="btn btn-ghost" style="margin-left:auto;font-size:.7rem" onclick="closeFocusMatrix()">✕</button>
+    </div>
+    <div style="font-size:.62rem;color:var(--muted);margin-bottom:.5rem">
+      🔴 en 0 · 🟠 bajo el mínimo · 🟢 ok. &nbsp;"Bod" = disponible en B01+B02 para enviar.
+    </div>
+    <div id="rep-matrix-toggle" style="margin-bottom:.4rem"></div>
+    <div id="rep-matrix-body" style="overflow:auto;max-height:66vh"></div>
+  </div>`;
+  document.body.appendChild(d);
+};
+function renderFocusMatrix(){
+  const cols = ['M01','S02','S04','S03','S07','S06'];
+  const editable = repMatrixMode === 'enviar';
+  const rows = [];
+  for (const code of repFocusCodes){
+    const p = repProductMap.get(code); if (!p) continue;
+    const bod = (p.stock.B01||0) + (p.stock.B02||0);
+    const cells = cols.map(sid => {
+      const s   = p.stock[sid]||0;
+      const min = repMinFor(p, sid);
+      const state = s<=0 ? 'red' : (s < min ? 'amber' : 'ok');
+      const qty = (repSendData[sid]||{})[code] || 0;
+      const ceiling = repPoolCeiling(p, repOrigin);
+      const avail   = repAvailable(p, repOrigin);
+      const elsew   = repAssignedElsewhere(code, sid);
+      const ta      = elsew + qty;
+      const zone = qty<=0 ? '' : ta>=ceiling ? ' is-full' : ta>avail ? ' is-warn' : ' has-qty';
+      return { sid, s, state, qty, zone };
+    });
+    const crit = cells.reduce((n,c)=> n + (c.state==='red'?2:c.state==='amber'?1:0), 0);
+    rows.push({ p, bod, cells, crit });
+  }
+  rows.sort((a,b)=> b.crit - a.crit || a.p.name.localeCompare(b.p.name));
+  const tint = st => st==='red'   ? 'background:var(--err-bg);color:var(--err-tx);font-weight:700'
+                   : st==='amber' ? 'background:var(--warn-bg);color:var(--warn-tx);font-weight:600'
+                   :                'background:var(--done-bg);color:var(--done-tx)';
+  const th = 'padding:.3rem .4rem;font-size:.58rem;color:var(--muted);text-align:center;position:sticky;top:0;background:var(--surface2);border-bottom:1px solid var(--border2)';
+  const head = `<tr>
+    <th style="${th};text-align:left;left:0;z-index:2;min-width:180px">Producto</th>
+    <th style="${th}">Bod</th>
+    ${cols.map(c => `<th style="${th}">${REP_LBLS[c].split(' ')[0]}</th>`).join('')}
+  </tr>`;
+  const body = rows.map(r => `<tr>
+    <td style="padding:.25rem .4rem;font-size:.6rem;position:sticky;left:0;background:var(--surface);border-bottom:1px solid var(--border2);min-width:180px;max-width:280px">
+      <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${escHtml(r.p.name)}"><strong>${escHtml(r.p.code)}</strong> ${escHtml(r.p.name)}</div>
+    </td>
+    <td style="padding:.25rem .4rem;text-align:center;font-size:.62rem;border-bottom:1px solid var(--border2);${r.bod<=0?'color:var(--err-tx);font-weight:700':''}">${r.bod}</td>
+    ${r.cells.map(c => editable
+      ? `<td style="padding:.1rem .2rem;text-align:center;border-bottom:1px solid var(--border2)">
+          <input type="number" min="0" step="1" value="${c.qty||''}" class="rep-qty${c.zone}"
+            data-code="${escAttr(r.p.code)}" data-suc="${c.sid}" data-matrix="1" placeholder="0"
+            oninput="onRepQtyInput(this)" style="width:42px;text-align:center;font-size:.62rem"/>
+        </td>`
+      : `<td style="padding:.25rem .4rem;text-align:center;font-size:.62rem;border-bottom:1px solid var(--border2);${tint(c.state)}">${c.s}</td>`
+    ).join('')}
+  </tr>`).join('');
+  const toggle = `<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+    <button class="btn ${repMatrixMode==='stock' ?'btn-dark':'btn-outline'}" style="font-size:.62rem" onclick="setMatrixMode('stock')">Stock</button>
+    <button class="btn ${repMatrixMode==='enviar'?'btn-dark':'btn-outline'}" style="font-size:.62rem" onclick="setMatrixMode('enviar')">Enviar</button>
+    <span style="font-size:.6rem;color:var(--muted)">${editable ? 'Editá las cantidades a enviar — respeta el stock de bodega y se refleja en pestañas, totales y XLS.' : 'Semáforo de stock por sucursal.'}</span>
+  </div>`;
+  $('rep-matrix-toggle').innerHTML = toggle;
+  $('rep-matrix-body').innerHTML = `<table style="border-collapse:collapse;width:100%">${head}${body}</table>`;
+}
+window.setMatrixMode = (m) => { repMatrixMode = m; renderFocusMatrix(); };
+function repInFocus(code){ return !repFocusCodes || repFocusCodes.has(code); }
+function repRenderFocusChip(){
+  const el = $('rep-focus-chip'); if (!el) return;
+  const mb = $('btn-focus-matrix'); if (mb) mb.style.display = (repFocusCodes && repFocusCodes.size) ? '' : 'none';
+  if (repFocusCodes && repFocusCodes.size){
+    el.style.display = '';
+    el.innerHTML = `🎯 Oferta (${repFocusCodes.size}) <span style="cursor:pointer;font-weight:700" onclick="clearFocus()">✕</span>`;
+  } else { el.style.display='none'; el.innerHTML=''; }
+}
+
 window.clearRepSession = async () => {
   if (repLoadedFiles.length && !(await confirmModal({
     title: 'Limpiar todo',
@@ -1580,6 +1819,7 @@ window.clearRepSession = async () => {
   repProducts       = [];
   repSendData       = {};
   repZeroedSucs     = new Set();
+  repFocusCodes     = null;
   repLoadedFiles    = [];
   repActiveCat      = '';
   repActiveBrand    = '';
@@ -2072,6 +2312,7 @@ function renderRepFull() {
   renderRepGlobalTotals();
   renderRepFilters();
   renderRepTable();
+  repRenderFocusChip();
 }
 
 function renderRepGlobalTotals() {
@@ -2082,8 +2323,9 @@ function renderRepGlobalTotals() {
   const _src = repMode === 'compra' ? repCompraData : repSendData;
   const totales = (repMode === 'compra' ? REP_DESTS : repTargets()).map(sid => {
     const send  = _src[sid] || {};
-    const total = Object.values(send).reduce((s,v) => s+v, 0);
-    const lines = Object.values(send).filter(v => v > 0).length;
+    const foc   = repMode === 'stock';
+    const total = Object.entries(send).reduce((s,[c,v]) => s + ((!foc || repInFocus(c)) ? v : 0), 0);
+    const lines = Object.entries(send).filter(([c,v]) => v > 0 && (!foc || repInFocus(c))).length;
     return { sid, total, lines };
   });
   const grandTotal = totales.reduce((s,t) => s + t.total, 0);
@@ -2120,10 +2362,11 @@ function refreshRepStockTotals() {
   const totalSend  = Object.values(send).reduce((s,v) => s+v, 0);
   const totalSendF = filtered.reduce((s,p) => s+(send[p.code]||0), 0);
   const filled     = Object.values(send).filter(v => v > 0).length;
+  const filledF    = filtered.filter(p => (send[p.code]||0) > 0).length;
   const sumEl = $('rep-summary');
   if (sumEl) sumEl.innerHTML =
     `${filtered.length} productos · disponible ${repOriginLabel()}: <strong>${totalB}</strong> · ` +
-    `asignado: <strong>${totalSend}</strong> · líneas: <strong>${filled}</strong>`;
+    `asignado: <strong>${totalSendF}</strong> · líneas: <strong>${filledF}</strong>`;
   const foot = $('rep-foot-send');
   if (foot) foot.textContent = totalSendF > 0 ? totalSendF.toLocaleString() : '—';
   const fb01 = $('rep-foot-b01'), fb02 = $('rep-foot-b02'), fb03 = $('rep-foot-b03');
@@ -2183,7 +2426,7 @@ function renderRepTabs() {
   if (repMode === 'redist') { renderRedistTabs(); return; }
   const _tabSrc = repMode === 'compra' ? repCompraData : repSendData;
   $('rep-tabs').innerHTML = repTargets().map(id => {
-    const n     = Object.values(_tabSrc[id] || {}).filter(v => v > 0).length;
+    const n     = Object.entries(_tabSrc[id] || {}).filter(([c,v]) => v > 0 && (repMode !== 'stock' || repInFocus(c))).length;
     const badge = n ? `<span class="rtab-badge">${n}</span>` : '';
     const unserved = repMode !== 'compra' && !repOriginServes(id) ? ' rtab-unserved' : '';
     return `<button class="rtab${id === repActiveTab ? ' on' : ''}${unserved}" id="rtab-${id}"
@@ -2236,6 +2479,7 @@ function renderRepFilters() {
 }
 
 function repRowMatches(p) {
+  if (repFocusCodes && !repFocusCodes.has(p.code)) return false;
   if (repActiveCat   && p.cat   !== repActiveCat)  return false;
   if (repActiveBrand && (p.brand||'').toUpperCase().trim() !== repActiveBrand) return false;
   if (repSearch) {
@@ -2271,6 +2515,7 @@ function renderRepTable() {
   const totalSend = Object.values(send).reduce((s,v) => s+v, 0);
   const totalSendF= filtered.reduce((s,p) => s+(send[p.code]||0), 0);
   const filled    = Object.values(send).filter(v => v > 0).length;
+  const filledF   = filtered.filter(p => (send[p.code]||0) > 0).length;
   const totalSug  = isZeroed ? 0 : filtered.reduce((s,p) => {
     const sst      = p.stock[sucId]||0;
     const _minimum = repMinFor(p, sucId);
@@ -2279,7 +2524,7 @@ function renderRepTable() {
   }, 0);
   $('rep-summary').innerHTML =
     `${filtered.length} productos · disponible ${repOriginLabel()}: <strong>${totalB}</strong> · ` +
-    `asignado: <strong>${totalSend}</strong> · líneas: <strong>${filled}</strong>`;
+    `asignado: <strong>${totalSendF}</strong> · líneas: <strong>${filledF}</strong>`;
 
   if (!filtered.length) {
     $('rep-table-wrap').innerHTML = `<div class="empty-state">
@@ -2544,16 +2789,12 @@ window.onRepQtyInput = inp => {
     }
   }
 
-  const btn = $(`rtab-${suc}`);
-  if (btn) {
-    const n     = Object.values(_target[suc]).filter(x=>x>0).length;
-    const badge = n ? `<span class="rtab-badge">${n}</span>` : '';
-    btn.innerHTML = `${REP_LBLS[suc]}${badge}`;
-  }
+  renderRepTabs();
 
   renderRepGlobalTotals();
   refreshRepStockTotals();
   saveRepSessionDebounced();
+  if (inp.dataset.matrix) renderRepTable();   // matriz abierta: sincroniza la tabla de fondo en vivo (el foco queda en la matriz)
 };
 
 const REP_FRESH_WINDOW_MIN = 90;   // ventana de frescura del Gerencial
@@ -2652,8 +2893,8 @@ window.generateActiveRepXLS = async () => {
   }
   if (repMode === 'redist') { generateRedistXLS(repRedistActiveOrig); return; }
   if (!(await repPreflightGate())) return;   // gate solo en flujo stock
-  generateRepXLS(repActiveTab);
-  setTimeout(() => maybeSendProjection(repActiveTab), 300);   // confirm + envío (solo stock)
+  generateRepXLS(repActiveTab, repFocusCodes || undefined);
+  if (!repFocusCodes) setTimeout(() => maybeSendProjection(repActiveTab), 300);   // en enfoque no se auto-envía proyección
 };
 
 window.generateAllRepXLS = async () => {
@@ -2668,7 +2909,7 @@ window.generateAllRepXLS = async () => {
   }
   if (repMode === 'stock' && !(await repPreflightGate())) return;   // gate solo en flujo stock
   const activos = repTargets().filter(id =>
-    Object.values(repSendData[id] || {}).some(v => v > 0)
+    Object.entries(repSendData[id] || {}).some(([c,v]) => v > 0 && repInFocus(c))
   );
   if (!activos.length) {
     await alertModal('Sin cantidades asignadas en ninguna sucursal.');
@@ -2680,7 +2921,7 @@ window.generateAllRepXLS = async () => {
     const sources  = Object.keys(bySource).filter(w =>
       Object.values(bySource[w]).some(v => v > 0));
     if (sources.length) {
-      setTimeout(() => generateRepXLS(sucId), delay);
+      setTimeout(() => generateRepXLS(sucId, repFocusCodes || undefined), delay);
       delay += sources.length > 1 ? 900 : 450;
     }
   });
@@ -2695,7 +2936,7 @@ window.generateFilteredRepXLS = async () => {
     await alertModal('El export por filtro solo aplica a reposición normal (stock).');
     return;
   }
-  if (!(repActiveCat || repActiveBrand || repSearch)) {
+  if (!(repActiveCat || repActiveBrand || repSearch || repFocusCodes)) {
     await alertModal('No hay filtro activo. Para el export completo usá "XLS activo" o "Todos".');
     return;
   }
