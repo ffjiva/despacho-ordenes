@@ -120,6 +120,11 @@ service cloud.firestore {
       allow read, write: if isSuper();
     }
 
+    // ── client_locations (libreta de ubicaciones) ────────
+    match /client_locations/{phone} {
+      allow read, write: if isAuth();
+    }
+
     // ── productImages/{code} — fotos de producto ──
     match /productImages/{code} {
       allow read:            if isAuth();

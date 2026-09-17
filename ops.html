@@ -2767,8 +2767,45 @@ window.saveDomPin = async (cid, id) => {
   try {
     if (db) await fbMod.updateDoc(fbMod.doc(db, 'domicilios', id),
       { geoLat: lat, geoLng: lng, geoSource: 'manual', geoTs: Date.now() });
+    const it = (cachedEntregasList || []).find(x => x.id === id);
+    if (it) saveClientLocation(it, lat, lng, 'manual');
   } catch(e) { console.warn('saveDomPin:', e.message); alert('No se pudo guardar: ' + e.message); }
 };
+
+// ===== Libreta de ubicaciones por cliente (Fase 4a) =====
+function phoneKey(tel){
+  const d = String(tel || '').replace(/\D/g, '');
+  return d.length >= 8 ? d.slice(-8) : '';
+}
+async function saveClientLocation(dom, lat, lng, source){
+  // source: 'manual' | 'gpsFin'. 'manual' pisa; 'gpsFin' no pisa una 'manual' previa.
+  if (!db || dom == null || lat == null || lng == null) return;
+  const key = phoneKey(dom.telefono);
+  if (!key) return;
+  try {
+    const ref  = fbMod.doc(db, 'client_locations', key);
+    const snap = await fbMod.getDoc(ref);
+    const prev = snap.exists() ? snap.data() : null;
+    const now  = Date.now();
+    const entry = { lat, lng, source, ts: now, municipio: dom.municipio || '' };
+    let history = (prev && Array.isArray(prev.history)) ? prev.history.slice(0, 4) : [];
+    history = [entry, ...history];
+    const keepManual = !!(prev && prev.source === 'manual' && source === 'gpsFin');
+    await fbMod.setDoc(ref, {
+      telefono: dom.telefono || (prev && prev.telefono) || '',
+      cliente:  dom.cliente  || (prev && prev.cliente)  || '',
+      lat:          keepManual ? prev.lat                : lat,
+      lng:          keepManual ? prev.lng                : lng,
+      source:       keepManual ? 'manual'                : source,
+      municipio:    keepManual ? (prev.municipio||'')    : (dom.municipio||''),
+      departamento: keepManual ? (prev.departamento||'') : (dom.departamento||''),
+      direccion:    keepManual ? (prev.direccion||'')    : (dom.direccion||''),
+      updatedAt: now,
+      deliveriesCount: ((prev && prev.deliveriesCount) || 0) + (source === 'gpsFin' ? 1 : 0),
+      history
+    }, { merge: true });
+  } catch(e) { console.warn('saveClientLocation:', e.message); }
+}
 
 function buildDomCard(d, STATUS_LABEL, prefix) {
   const st    = d.status || 'pendiente';
