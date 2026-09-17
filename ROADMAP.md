@@ -359,6 +359,40 @@ Preguntas de diseño abiertas (resolver antes de código):
 4. `firestore.rules`: que el recepcionista escriba solo el mapa `received` de las
    órdenes de SU sucursal.
 
+**Crear picking directo desde el historial de reposición — atajo de emergencia (super)**
+*(reposicion.html → index.html — por diseñar; NO ejecutar aún, solo documentado 16 Sep 2026)*
+Idea de Fernando: desde el historial de Trazabilidad, un botón que cree la orden en
+index.html (colección `despachos`) directamente a partir de un registro de reposiciones,
+generando la picking list sin pasar por facturación. Caso de uso: emergencia puntual —
+reposición ya trabajada pero aún no cargada en facturación, y sin acceso a una terminal
+propia. Uso poco frecuente. El mapeo `reposiciones` → `despachos` es directo: origen→origin,
+destino→destination, codigo→code, nombre→name, cantidad→qty; `family` no existe en el
+registro de reposición (quedaría vacío), `id` se genera, `checked: {}`, status inicial.
+
+⚠️ Tensión de diseño — facturación es la fuente de verdad del inventario. Saltarse
+facturación significa que el producto sale físicamente pero el inventario NO se descuenta
+en el sistema que alimenta el Radar y las sugerencias → desincronización. El peligro real
+no es un uso aislado, sino que "el atajo de emergencia" se vuelva costumbre y queden
+órdenes despachadas sin facturar. Por eso NO debe ser un bypass silencioso.
+
+Diseño acordado (16 Sep 2026) — orden "provisional" marcada + reconciliación obligatoria:
+- La orden nace con número tipo PROVISIONAL (o el id de la reposición), nunca un
+  correlativo real de facturación.
+- Badge visible "⚠ pendiente de facturar" en la tarjeta de index.html y en ops.html.
+- Queda en un estado/lista de pendientes de reconciliación hasta que el super confirme
+  que ya la ingresó en facturación (cierra el loop).
+- Solo super (Fernando). El botón no aparece para otros roles; pensado para usarlo desde
+  su celular, sin loguearse en terminales ajenas — el caso exacto del 16 Sep 2026.
+
+Preguntas de diseño abiertas (resolver antes de código):
+1. ¿Cómo se marca "ya facturada"? — botón manual del super que limpia el flag, o detección
+   automática cuando llega la orden real de facturación con el mismo destino/productos.
+2. ¿`status` propio (`provisional`) o `status: 'pending'` + flag `provisional: true` en
+   `despachos`? (el flag es menos invasivo con los filtros/estados existentes).
+3. ¿Dónde vive la lista de "pendientes de reconciliar" — index.html, ops.html, o el propio
+   historial de reposición?
+4. `firestore.rules`: la creación de despachos provisionales restringida a super.
+
 ### ⚪ Menor / estético
 
 **Modal de celebración (pixel-art):** el actual es SVG/CSS hecho a mano. Explorar mejora con herramienta externa de pixel-art (ej. sprite sheet de Aseprite/Piskel animado con `steps()`, o asset con licencia abierta), conservando la estética. *(Claude no genera pixel-art animado directamente; se diseña aparte y se integra.)*
