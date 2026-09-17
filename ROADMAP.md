@@ -315,6 +315,12 @@ por metadata.hasPendingWrites + barra roja con Reintentar reemplazando los 7 ale
 invisibles en Android) — cierra el pendiente del alert() invisible, validada en campo por
 Anderson, desplegada a producción y movida al CHANGELOG (16 Sep 2026).*
 
+*Sesión ad-hoc adicional: enfoque por oferta + matriz de stock/envío por sucursal
+(`repFocusCodes` como filtro central, cruce de descripciones contra el Gerencial, y matriz
+producto × sucursal con toggle Stock↔Enviar editable) en reposicion.html — cerrados,
+validados con smoke test sintético (Playwright headless) y desplegados a producción; falta
+validar con datos reales de Fernando. Movidos al CHANGELOG (17 Sep 2026).*
+
 ---
 
 ## 🔲 Pendientes (por impacto operativo)
@@ -458,6 +464,11 @@ Nuevo rol en consideración. Aún sin definir: archivos a los que tendrá acceso
   `shared.js` para lo duplicado entre index/ops/moto (`esc`/`escHtml`, `fmt*`, auth, FCM)
   — ataca duplicación real sin fragmentar ops.
 - **Debounce de `refreshRepStockTotals`** *(ops.html)* — condicional. Hoy no hay lag al teclear sobre las 3,668 filas sin filtrar. Si en el futuro se percibe delay, envolver en debounce (~120 ms) para no recalcular `repAllocate` sobre todo el filtrado en cada tecla. Mitigación lista, sin aplicar hasta que haga falta.
+- **Eliminar código muerto `getTotalesGlobales()`** *(reposicion.html)* — función
+  sin ninguna llamada en todo el archivo (detectada al implementar el enfoque por
+  oferta, 17 Sep 2026). Comparte texto con `renderRepGlobalTotals()` (la barra de
+  totales viva), lo que ya causó una ambigüedad de ancla al editar. Borrarla en una
+  limpieza; verificar antes con grep que sigue sin referencias.
 ---
 
 ## Bodegas y sucursales
@@ -494,6 +505,5 @@ hacia el CHANGELOG.
 
 ---
 
-*Última actualización: 16 Septiembre 2026 — barra de sincronización en moto.html (cierra
-el pendiente del alert() invisible en Android), cerrada y movida al CHANGELOG. Sin frente
-activo definido.*
+*Última actualización: 17 Septiembre 2026 — enfoque por oferta + matriz de stock/envío por
+sucursal en reposicion.html, cerrados y movidos al CHANGELOG. Sin frente activo definido.*

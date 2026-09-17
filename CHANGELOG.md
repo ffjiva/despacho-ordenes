@@ -13,6 +13,41 @@
 
 ## Sesiones y módulos
 
+### Sesión reposicion.html — enfoque por oferta + matriz de stock/envío por sucursal — 17 Sep 2026 *(reposicion.html)*
+
+Idea de Fernando: cuando llega una oferta puntual (lista de descripciones a cotejar contra
+el Gerencial), acotar toda la vista de Reposición a esos productos en vez de navegar las
+miles de filas del catálogo completo.
+
+**feat(reposicion): enfoque por oferta (Fase 1)**
+Modal "🎯 Oferta" — pegás las descripciones de la oferta (una por línea), se cruzan contra
+el Gerencial cargado por rareza de palabra (TF-IDF simplificado) + ancla de modelo
+alfanumérico, y se clasifican en ✓ encontrados / ⚠ a revisar / ✗ sin match. Al aplicar,
+`repFocusCodes` (Set de códigos) se vuelve el filtro central: `repRowMatches(p)` lo
+respeta como primera condición, así que toda la vista (tabla, badges de pestaña, totales
+globales, resumen "asignado/líneas") y las exportaciones (Filtrado, XLS activo — que deja
+de auto-enviar la proyección en enfoque —, y Todos) quedan acotadas a la oferta sin
+tocar las asignaciones existentes. Persiste en `sessionStorage` (mismo mecanismo que el
+resto de la sesión de Reposición).
+
+**feat(reposicion): matriz de la oferta — stock por sucursal (Fase 2)**
+Botón "▦ Matriz" (visible solo con enfoque activo) abre una vista producto × sucursal
+con semáforo de stock (🔴 en 0 · 🟠 bajo mínimo · 🟢 ok) + columna "Bod" (disponible en
+B01+B02), ordenada por criticidad. Toggle Stock ↔ Enviar: en "Enviar" las celdas son
+inputs que reusan `onRepQtyInput` (mismo pool duro, mismos totales, misma exportación),
+así que editar desde la matriz es equivalente a editar la tabla principal. Fix aplicado
+en la misma sesión: los inputs de la matriz llevan `data-matrix="1"` para que
+`onRepQtyInput` redibuje la tabla de fondo en vivo sin perder el foco ni forzar un
+cambio de pestaña.
+
+Validado con smoke tests sintéticos (Playwright headless, `node --check`) inyectando
+estado directo en el módulo ES vía un hook de exposición temporal (el `<script>` de
+reposicion.html es `type="module"`, sin acceso a `window` desde fuera) — cruce de
+oferta, filtro de totales/exportaciones, render de matriz, orden por criticidad, tope
+duro de pool al editar desde la matriz, persistencia del foco y sincronización en vivo
+de la tabla de fondo. Pendiente: validar en producción con una oferta y un Gerencial
+reales (Fernando).
+
 ### Sesión moto.html — barra de sincronización: visibilidad de guardados + reintento — 16 Sep 2026 *(moto.html)*
 
 Cierra el pendiente del alert() invisible (Chrome Android lo suprime en segundo plano y no
