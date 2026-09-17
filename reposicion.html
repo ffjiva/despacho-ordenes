@@ -4321,6 +4321,9 @@ window.renderTrazabilidad = function() {
         </div>
         <div style="display:flex;gap:12px;align-items:center">
           <span style="font-size:.7rem;color:var(--muted)">${r.totalUnidades} uds · ${r.productos.length} prods</span>
+          <button class="btn btn-ghost" style="font-size:.62rem;padding:3px 7px;line-height:1"
+            onclick="event.stopPropagation(); downloadReposicionXLS('${r.id}')"
+            title="Descargar XLS de nuevo">⬇ XLS</button>
           <span style="font-size:.75rem;color:var(--muted)">▾</span>
         </div>
       </div>
@@ -4342,6 +4345,40 @@ window.renderTrazabilidad = function() {
 window.toggleTrazDetail = (id) => {
   const el = $(`traz-detail-${id}`);
   if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+};
+
+// Re-descarga el XLS de un registro de reposición ya generado (historial).
+// Reusa productos:[{codigo,nombre,cantidad}] del registro — todo lo que necesita
+// el XLS (Código/Cantidad). Mismo formato, segmentación y biff8 que generateRepXLS,
+// pero con la fecha ORIGINAL del registro. No crea un nuevo registro de trazabilidad.
+window.downloadReposicionXLS = (id) => {
+  if (typeof XLSX === 'undefined') { alertModal({ msg: 'SheetJS no cargado. Recargá la página.', danger: true }); return; }
+  const r = (trazRecords || []).find(x => x.id === id);
+  if (!r) { alertModal('No se encontró el registro.'); return; }
+  const entries = (r.productos || [])
+    .filter(p => (p.cantidad || 0) > 0)
+    .map(p => [p.codigo, p.cantidad]);
+  if (!entries.length) { alertModal('Este registro no tiene cantidades para exportar.'); return; }
+  const origName = REP_ORIGIN_NAMES[r.origen] || r.origen;
+  const destName = REP_FNAMES[r.destino]      || r.destino;
+  const fecha    = r.fecha || getTodaySV();
+  const suf      = r.parcial ? '_filtrado' : '';
+  const chunks   = repChunkEntries(entries, 30);
+  const total    = chunks.length;
+  chunks.forEach((chunk, i) => {
+    const parte = total > 1 ? `_${i + 1}de${total}` : '';
+    setTimeout(() => {
+      const rows = chunk.map(([code, qty]) => [code, qty]);
+      const ws = XLSX.utils.aoa_to_sheet([['Código', 'Cantidad'], ...rows]);
+      ws['!cols'] = [{ wch: 22 }, { wch: 10 }];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Reposicion');
+      XLSX.writeFile(wb,
+        `Reposicion_${origName}_${destName}${suf}${parte}_${fecha}.xls`,
+        { bookType: 'biff8' }
+      );
+    }, i * 400);
+  });
 };
 
 window.setTrazTab = (tab) => {
