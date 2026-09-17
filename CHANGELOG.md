@@ -45,8 +45,9 @@ estado directo en el módulo ES vía un hook de exposición temporal (el `<scrip
 reposicion.html es `type="module"`, sin acceso a `window` desde fuera) — cruce de
 oferta, filtro de totales/exportaciones, render de matriz, orden por criticidad, tope
 duro de pool al editar desde la matriz, persistencia del foco y sincronización en vivo
-de la tabla de fondo. Pendiente: validar en producción con una oferta y un Gerencial
-reales (Fernando).
+de la tabla de fondo. Validado en producción por Fernando (17 Sep 2026) con un
+Gerencial y un listado de oferta reales: cruce, matriz y edición desde la matriz
+funcionaron correctamente.
 
 ### Sesión moto.html — barra de sincronización: visibilidad de guardados + reintento — 16 Sep 2026 *(moto.html)*
 

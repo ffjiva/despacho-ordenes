@@ -318,8 +318,9 @@ Anderson, desplegada a producción y movida al CHANGELOG (16 Sep 2026).*
 *Sesión ad-hoc adicional: enfoque por oferta + matriz de stock/envío por sucursal
 (`repFocusCodes` como filtro central, cruce de descripciones contra el Gerencial, y matriz
 producto × sucursal con toggle Stock↔Enviar editable) en reposicion.html — cerrados,
-validados con smoke test sintético (Playwright headless) y desplegados a producción; falta
-validar con datos reales de Fernando. Movidos al CHANGELOG (17 Sep 2026).*
+validados con smoke test sintético (Playwright headless), desplegados a producción y
+confirmados por Fernando con un Gerencial y una oferta reales. Movidos al CHANGELOG
+(17 Sep 2026).*
 
 ---
 
