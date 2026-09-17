@@ -2767,8 +2767,10 @@ window.saveDomPin = async (cid, id) => {
   try {
     if (db) await fbMod.updateDoc(fbMod.doc(db, 'domicilios', id),
       { geoLat: lat, geoLng: lng, geoSource: 'manual', geoTs: Date.now() });
-    const it = (cachedEntregasList || []).find(x => x.id === id);
-    if (it) saveClientLocation(it, lat, lng, 'manual');
+    if (db) {
+      const _dsnap = await fbMod.getDoc(fbMod.doc(db, 'domicilios', id));
+      if (_dsnap.exists()) saveClientLocation({ id, ..._dsnap.data() }, lat, lng, 'manual');
+    }
   } catch(e) { console.warn('saveDomPin:', e.message); alert('No se pudo guardar: ' + e.message); }
 };
 
