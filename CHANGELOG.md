@@ -13,6 +13,21 @@
 
 ## Sesiones y módulos
 
+### Sesión reposicion.html — re-descarga de XLS desde el historial de Trazabilidad — 17 Sep 2026 *(reposicion.html)*
+
+Ítem ad-hoc, continuación de la sesión de enfoque por oferta: Fernando pidió poder re-bajar
+el XLS de un registro ya generado en Trazabilidad sin tener que rehacer la reposición.
+
+**feat(reposicion): botón "⬇ XLS" en el historial de Trazabilidad**
+Cada tarjeta del historial suma un botón "⬇ XLS" junto al contador de uds/prods
+(`event.stopPropagation()` para no disparar el toggle del detalle). `downloadReposicionXLS(id)`
+reusa `productos:[{codigo,nombre,cantidad}]` del registro — filtra cantidades > 0 y genera
+el archivo con el mismo formato, segmentación (`repChunkEntries`, 30 filas) y `bookType:
+'biff8'` que `generateRepXLS`, pero con la fecha ORIGINAL del registro (no la de hoy) y sin
+crear un nuevo registro de trazabilidad. Validado en canal preview (celular): descarga
+correcta tocando el botón, el toggle del detalle sigue funcionando al tocar el resto de la
+tarjeta.
+
 ### Sesión reposicion.html — enfoque por oferta + matriz de stock/envío por sucursal — 17 Sep 2026 *(reposicion.html)*
 
 Idea de Fernando: cuando llega una oferta puntual (lista de descripciones a cotejar contra

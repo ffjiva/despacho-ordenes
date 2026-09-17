@@ -322,6 +322,12 @@ validados con smoke test sintético (Playwright headless), desplegados a producc
 confirmados por Fernando con un Gerencial y una oferta reales. Movidos al CHANGELOG
 (17 Sep 2026).*
 
+*Sesión ad-hoc adicional: botón "⬇ XLS" en el historial de Trazabilidad (reposicion.html)
+para re-descargar el XLS de un registro de reposición ya generado, reusando código/cantidad
+del registro con el mismo formato/segmentación/biff8 que la exportación original — cerrado,
+validado en canal preview por Fernando en celular, desplegado a producción y movido al
+CHANGELOG (17 Sep 2026).*
+
 ---
 
 ## 🔲 Pendientes (por impacto operativo)
@@ -506,5 +512,5 @@ hacia el CHANGELOG.
 
 ---
 
-*Última actualización: 17 Septiembre 2026 — enfoque por oferta + matriz de stock/envío por
-sucursal en reposicion.html, cerrados y movidos al CHANGELOG. Sin frente activo definido.*
+*Última actualización: 17 Septiembre 2026 — botón de re-descarga de XLS en el historial de
+Trazabilidad de reposicion.html, cerrado y movido al CHANGELOG. Sin frente activo definido.*
