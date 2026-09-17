@@ -151,6 +151,14 @@ formaPago, direccion, puntoReferencia, departamento, municipio
 empresaEnvio, assignedTo, status, motivoNoEntrega
 fechaReagenda, photos, gpsInicio, gpsFin
 createdAt, completadoAt: number
+geoLat, geoLng: number | null    ← coordenada aproximada (centroide de municipio/departamento)
+                                    o corregida a mano por el motorista/super
+geoSource: 'municipio' | 'departamento' | 'manual' | null
+geoMunicipio: string              ← municipio normalizado usado para el match
+geoTs: number | null              ← timestamp del cálculo o del último ajuste manual
+← calculados por `geocodeDom()` (ops.html, moto.html) al importar el XLS o al vuelo si
+  el doc no los trae; el pin es arrastrable en moto.html/ops.html y el ajuste manual
+  pisa geoSource a 'manual' (17 Sep 2026, ver CHANGELOG)
 reposiciones/{id}
 fecha, timestamp, origen, destino
 productos: [{ codigo, nombre, cantidad }]
@@ -328,6 +336,13 @@ del registro con el mismo formato/segmentación/biff8 que la exportación origin
 validado en canal preview por Fernando en celular, desplegado a producción y movido al
 CHANGELOG (17 Sep 2026).*
 
+*Sesión ad-hoc adicional: geolocalización aproximada de domicilios (Fases 1-3 + parche
+Maps/Waze endurecido + fix de mapa en negro al reabrir) en ops.html y moto.html — cierra
+el pendiente "Geocodificar dirección del XLS de envíos" con la alternativa gratuita (lookup
+de centroides por municipio/departamento, sin Google Geocoding de paga). Cerrado, validado
+en canal preview por Fernando con entregas y pines reales, desplegado a producción y movido
+al CHANGELOG (17 Sep 2026).*
+
 ---
 
 ## 🔲 Pendientes (por impacto operativo)
@@ -341,13 +356,6 @@ del Ensamblador al proyecto de Despacho; (2) re-sembrar `catalogo`/`parametros`/
 en su `AuthScreen`/`AdminPanel`. Los permisos ya se pueden pre-cargar desde ahora.
 
 ### 🟡 Soporte
-
-- Geocodificar dirección del XLS de envíos → ubicación en la ficha de moto,
-  para que Anderson tenga mejor referencia. *(moto.html)* ⚠️ Bandera de costo:
-  Google Geocoding API es de paga (cupo gratis mensual). Alternativa gratis:
-  OpenStreetMap/Nominatim, alineada con la preferencia de no sumar pagos y con
-  el Leaflet ya previsto para Módulo 9b. Direcciones SV informales → precisión
-  variable. Comparar Google-pago vs OSM-gratis con números antes de decidir.
 
 **Recepción en sucursal destino — cotejo de despacho** *(por diseñar — nueva vista, posible `recepcion.html` o pantalla en `index.html`)*
 Hoy quien recibe en la sucursal imprime la hoja y coteja los productos a mano.
@@ -512,5 +520,6 @@ hacia el CHANGELOG.
 
 ---
 
-*Última actualización: 17 Septiembre 2026 — botón de re-descarga de XLS en el historial de
-Trazabilidad de reposicion.html, cerrado y movido al CHANGELOG. Sin frente activo definido.*
+*Última actualización: 17 Septiembre 2026 — geolocalización aproximada de domicilios
+(ops.html + moto.html: Fases 1-3, parche Maps/Waze y fix de mapa en negro), cerrada y movida
+al CHANGELOG. Sin frente activo definido.*

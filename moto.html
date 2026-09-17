@@ -4,6 +4,8 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
 <title>Portal Motorista</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
 :root {
@@ -1268,6 +1270,91 @@ window.guardarVComentario = async id => {
   }
 };
 
+/* ===== Geolocalización aproximada por municipio (Zona central: SS + La Libertad) ===== */
+const GEO_MUNI = {
+  'san salvador':[13.6989,-89.1914], 'aguilares':[13.9569,-89.1897], 'apopa':[13.8072,-89.1794],
+  'ayutuxtepeque':[13.7486,-89.2036], 'ciudad delgado':[13.7256,-89.1697], 'cuscatancingo':[13.7331,-89.1836],
+  'el paisnal':[13.9739,-89.2131], 'guazapa':[13.8983,-89.1197], 'ilopango':[13.7017,-89.1103],
+  'mejicanos':[13.7408,-89.2131], 'nejapa':[13.8167,-89.2331], 'panchimalco':[13.6122,-89.1794],
+  'rosario de mora':[13.5875,-89.2036], 'san marcos':[13.6586,-89.1836], 'san martin':[13.7803,-89.0503],
+  'santiago texacuangos':[13.6219,-89.1169], 'santo tomas':[13.6339,-89.1339], 'soyapango':[13.7100,-89.1400],
+  'tonacatepeque':[13.7828,-89.1167],
+  'antiguo cuscatlan':[13.6753,-89.2519], 'chiltiupan':[13.5322,-89.4033], 'ciudad arce':[13.8419,-89.4467],
+  'colon':[13.7167,-89.3600], 'comasagua':[13.5906,-89.3489], 'huizucar':[13.6172,-89.2261],
+  'jayaque':[13.6592,-89.4442], 'jicalapa':[13.5236,-89.4408], 'la libertad':[13.4883,-89.3222],
+  'nuevo cuscatlan':[13.6472,-89.2708], 'san juan opico':[13.8792,-89.3617], 'quezaltepeque':[13.8339,-89.2742],
+  'sacacoyo':[13.7089,-89.4325], 'san jose villanueva':[13.5892,-89.2889], 'san matias':[13.7800,-89.3336],
+  'san pablo tacachico':[13.9736,-89.3667], 'santa tecla':[13.6731,-89.2897], 'talnique':[13.6289,-89.4008],
+  'tamanique':[13.5450,-89.3767], 'teotepeque':[13.5083,-89.5008], 'tepecoyo':[13.6389,-89.4222],
+  'zaragoza':[13.5850,-89.2836]
+};
+const GEO_ALIAS = {
+  'nueva san salvador':'santa tecla', 'ciudad merliot':'santa tecla', 'merliot':'santa tecla',
+  'lourdes':'colon', 'lourdes colon':'colon', 'opico':'san juan opico', 'puerto de la libertad':'la libertad'
+};
+const GEO_DEPTO = {
+  'ahuachapan':[13.9214,-89.8450], 'santa ana':[13.9942,-89.5597], 'sonsonate':[13.7186,-89.7242],
+  'chalatenango':[14.0333,-88.9403], 'la libertad':[13.6731,-89.2897], 'san salvador':[13.6989,-89.1914],
+  'cuscatlan':[13.7167,-88.9333], 'la paz':[13.5000,-88.8686], 'cabanas':[13.8667,-88.6297],
+  'san vicente':[13.6417,-88.7844], 'usulutan':[13.3506,-88.4408], 'san miguel':[13.4833,-88.1833],
+  'morazan':[13.7692,-88.1075], 'la union':[13.3369,-87.8439]
+};
+function geoNorm(s){
+  return String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'')
+    .replace(/[^a-z\s]/g,' ').replace(/\s+/g,' ').trim();
+}
+function geoMuniDepto(d){
+  let m = geoNorm(d.municipio), dep = geoNorm(d.departamento);
+  if(!m && d.direccion){
+    const base = String(d.direccion).split(/punto\s*referencia/i)[0];
+    const parts = base.split(',').map(geoNorm).filter(Boolean);
+    if(parts.length >= 2){ m = parts[parts.length-2]; dep = dep || parts[parts.length-1]; }
+  }
+  if(GEO_ALIAS[m]) m = GEO_ALIAS[m];
+  return { m, dep };
+}
+function geocodeDom(d){
+  const { m, dep } = geoMuniDepto(d);
+  if(m && GEO_MUNI[m])   return { lat:GEO_MUNI[m][0],  lng:GEO_MUNI[m][1],  source:'municipio',   muni:m };
+  if(dep && GEO_DEPTO[dep]) return { lat:GEO_DEPTO[dep][0], lng:GEO_DEPTO[dep][1], source:'departamento', muni:m||'' };
+  return { lat:null, lng:null, source:null, muni:m||'' };
+}
+const _domMaps = {};
+window.showDomMap = (id, lat, lng) => {
+  const wrap = document.getElementById('mapwrap-' + id);
+  const el   = document.getElementById('map-' + id);
+  if (!wrap || !el || !window.L) return;
+  if (_domMaps[id] && _domMaps[id].el !== el) {
+    try { _domMaps[id].map.remove(); } catch(e){}
+    delete _domMaps[id];
+  }
+  if (wrap.style.display === 'none') {
+    wrap.style.display = 'block';
+    if (!_domMaps[id]) {
+      const map = L.map(el).setView([lat, lng], 15);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
+      const mk = L.marker([lat, lng], { draggable: true }).addTo(map);
+      _domMaps[id] = { map, mk, el };
+    }
+    setTimeout(() => { try { _domMaps[id].map.invalidateSize(); } catch(e){} }, 80);
+  } else {
+    wrap.style.display = 'none';
+  }
+};
+window.saveDomPin = async (id) => {
+  const m = _domMaps[id]; if (!m) return;
+  const p = m.mk.getLatLng();
+  const lat = +p.lat.toFixed(6), lng = +p.lng.toFixed(6);
+  try {
+    if (db) await fbMod.updateDoc(fbMod.doc(db, 'domicilios', id),
+      { geoLat: lat, geoLng: lng, geoSource: 'manual', geoTs: Date.now() });
+    const it = cachedDomicilios.find(x => x.id === id);
+    if (it) { it.geoLat = lat; it.geoLng = lng; it.geoSource = 'manual'; }
+  } catch(e) { console.warn('saveDomPin:', e.message); alert('No se pudo guardar: ' + e.message); }
+};
+/* ===== fin geolocalización ===== */
+
 function buildDomCard(d) {
   const st      = d.status || 'pendiente';
   const isPend  = st === 'pendiente';
@@ -1301,6 +1388,45 @@ function buildDomCard(d) {
     : '';
 
   const cid = 'mc-' + d.id;
+
+  // --- Geolocalización (Fase 2) ---
+  const _geo = (d.geoLat != null)
+    ? { lat: d.geoLat, lng: d.geoLng, source: d.geoSource || 'municipio' }
+    : geocodeDom(d);
+  const _dirBase = String(d.direccion || '').split(/punto\s*referencia/i)[0].trim();
+  const _muni = String(d.municipio || '').trim();
+  const _dep  = String(d.departamento || '').trim();
+  const _low  = _dirBase.toLowerCase();
+  let _dirNav = _dirBase;
+  if (_muni && !_low.includes(_muni.toLowerCase())) _dirNav += ', ' + _muni;
+  if (_dep  && !_low.includes(_dep.toLowerCase()))  _dirNav += ', ' + _dep;
+  _dirNav = (_dirNav + ', El Salvador').trim();
+  const _useCoord = (_geo.source === 'manual' && _geo.lat != null);
+  const _gmaps = _useCoord
+    ? `https://www.google.com/maps/search/?api=1&query=${_geo.lat},${_geo.lng}`
+    : (_dirNav ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(_dirNav)}` : '');
+  const _waze = _useCoord
+    ? `https://waze.com/ul?ll=${_geo.lat},${_geo.lng}&navigate=yes`
+    : (_dirNav ? `https://waze.com/ul?q=${encodeURIComponent(_dirNav)}&navigate=yes` : '');
+  const _hasMap = !!(window.L && _geo.lat != null);
+  const _geoTag = _geo.source === 'manual' ? 'ajustada a mano'
+    : _geo.source === 'departamento' ? 'aprox. (departamento)'
+    : _geo.lat != null ? 'aprox. (municipio)' : 'sin ubicación';
+  const _btnStyle = 'flex:1;text-align:center;font-size:.62rem;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);text-decoration:none;font-family:inherit;cursor:pointer';
+  const geoHtml = `
+    <div style="margin:2px 0 8px">
+      <div style="font-size:.55rem;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;margin-bottom:5px">🗺️ Ubicación · ${_geoTag}</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">
+        ${_gmaps ? `<a style="${_btnStyle}" href="${escAttr(_gmaps)}" target="_blank" rel="noopener">📍 Google Maps</a>` : ''}
+        ${_waze  ? `<a style="${_btnStyle}" href="${escAttr(_waze)}" target="_blank" rel="noopener">🧭 Waze</a>` : ''}
+      </div>
+      ${_hasMap ? `
+      <button style="width:100%;${_btnStyle}" onclick="showDomMap('${d.id}',${_geo.lat},${_geo.lng})">🗺️ Ver / ajustar en mapa</button>
+      <div id="mapwrap-${d.id}" style="display:none;margin-top:6px">
+        <div id="map-${d.id}" style="height:220px;border:1px solid var(--border);border-radius:8px;overflow:hidden"></div>
+        <button style="width:100%;margin-top:6px;${_btnStyle};background:var(--accent2);color:#0b1f14;border-color:var(--accent2);font-weight:700" onclick="saveDomPin('${d.id}')">✓ Guardar esta ubicación</button>
+      </div>` : ''}
+    </div>`;
 
   return `
     <div class="mcard ${cardCls}" id="${cid}">
@@ -1387,6 +1513,7 @@ function buildDomCard(d) {
             ? `<div style="font-size:.63rem;color:var(--muted);margin-bottom:4px">
                  📞 ${esc(d.telefono)}</div>`
             : ''}
+          ${geoHtml}
           ${d.gpsFin
             ? `<div style="margin-bottom:6px">
                  <a class="vloc-link"

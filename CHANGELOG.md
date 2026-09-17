@@ -13,6 +13,49 @@
 
 ## Sesiones y módulos
 
+### Sesión ops.html + moto.html — Geolocalización aproximada de domicilios (Fases 1-3) — 17 Sep 2026 *(ops.html, moto.html)*
+
+Resuelve el pendiente "Geocodificar dirección del XLS de envíos → ubicación en la ficha de
+moto" del ROADMAP — se optó por la alternativa gratuita marcada ahí (sin Google Geocoding de
+paga): un lookup fijo de centroides por municipio/departamento en vez de geocodificación real
+por dirección, sin llamadas a APIs externas ni costo adicional.
+
+**Fase 1 — cálculo y guardado en el import (ops.html)**
+`geocodeDom(d)` + tablas `GEO_MUNI`/`GEO_ALIAS`/`GEO_DEPTO` (~55 municipios de San Salvador y
+La Libertad + 14 departamentos como fallback) normalizan `municipio`/`departamento`/`direccion`
+del domicilio y devuelven una coordenada aproximada. `handleXLSFile` guarda `geoLat`, `geoLng`,
+`geoSource` ('municipio'|'departamento'|null), `geoMunicipio`, `geoTs` en cada domicilio nuevo
+— sin tocar el parser XLS existente ni la UI.
+
+**Fase 2 — ficha del motorista (moto.html)**
+Leaflet (CDN) + bloque "🗺️ Ubicación" en `buildDomCard`: botones Google Maps / Waze y
+"Ver / ajustar en mapa" con pin arrastrable; `saveDomPin` persiste la corrección manual
+(`geoSource:'manual'`) en el domicilio. Domicilios ya importados antes de la Fase 1 no
+necesitan reimportarse — `geocodeDom(d)` corre al vuelo si el doc no trae `geoLat`.
+
+**Parche — Maps/Waze endurecido**
+La consulta de texto a Google/Waze agrega municipio + departamento + ", El Salvador" (sin
+duplicar si ya están en la dirección), para reducir ambigüedad en direcciones informales.
+Confirmado en real: Google Maps resuelve directo al lugar y no muestra el texto crudo de la
+consulta, así que "El Salvador" no se ve en pantalla aunque sí viaja en la petición.
+
+**Fase 3 — revisión de entregas (ops.html)**
+Mismo bloque "🗺️ Ubicación" (Maps/Waze + mapa/pin ajustable) reutilizado en `buildDomCard` de
+ops.html (Entregas), con el `geocodeDom` compartido de la Fase 1.
+
+**Fix — mapa en negro al reabrir**
+`showDomMap` guardaba la instancia de Leaflet contra el `id`/`cid` de la tarjeta, pero el
+re-render de Firestore reemplaza el `<div>` contenedor por uno nuevo con el mismo id; el mapa
+viejo quedaba "pegado" a un nodo DOM desmontado → caja negra al reabrir. Ahora se guarda también
+el contenedor (`el`) y, si cambió, se descarta el mapa anterior (`map.remove()`) antes de crear
+uno nuevo — en `ops.html` y `moto.html`.
+
+Validado en un canal preview de Firebase Hosting — evita dos trampas de probar `moto.html` en
+local: la persistencia offline (`persistentLocalCache`/IndexedDB) no es confiable bajo `file://`
+(causaba un falso "vuelve a login" a los ~2s), y cualquier hostname `localhost` dispara el
+auto-connect al Emulator Suite del código existente. Probado en real por Fernando: las 4 fases
++ parche + fix, con entregas y pines reales.
+
 ### Sesión reposicion.html — re-descarga de XLS desde el historial de Trazabilidad — 17 Sep 2026 *(reposicion.html)*
 
 Ítem ad-hoc, continuación de la sesión de enfoque por oferta: Fernando pidió poder re-bajar
