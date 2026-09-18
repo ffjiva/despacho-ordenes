@@ -902,6 +902,7 @@ body:not(.dark) input[type="time"] {
     <div style="padding:.5rem .875rem .25rem">
       <button class="btn btn-outline" style="font-size:.65rem" onclick="document.getElementById('xls-input').click()">📦 Importar XLS</button>
       <input type="file" id="xls-input" accept=".xls,.xlsx" style="display:none" onchange="handleXLSFile(this)"/>
+      <button class="btn btn-outline" style="font-size:.65rem" onclick="openUbicaciones()">📍 Ubicaciones</button>
     </div>
     <div id="d-preview"></div>
     <div class="estado-filter-bar" id="entregas-filter-bar">
@@ -2827,6 +2828,131 @@ async function saveClientLocation(dom, lat, lng, source){
     }, { merge: true });
   } catch(e) { console.warn('saveClientLocation:', e.message); }
 }
+
+// ===== Fase 4c: Panel de ubicaciones guardadas =====
+let _ubiAll = [];
+let _ubiMap = null, _ubiMk = null;
+function _ubiKillMap(){ if (_ubiMap){ try{ _ubiMap.remove(); }catch(e){} _ubiMap=null; _ubiMk=null; } }
+
+window.openUbicaciones = async () => {
+  const ov = document.getElementById('ubi-overlay');
+  ov.style.display = 'flex';
+  const s = document.getElementById('ubi-search'); if (s) s.value = '';
+  document.getElementById('ubi-body').innerHTML = '<div style="text-align:center;color:var(--muted);padding:1rem">Cargando…</div>';
+  try {
+    const snap = await fbMod.getDocs(fbMod.collection(db, 'client_locations'));
+    _ubiAll = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0));
+  } catch(e){ console.warn('openUbicaciones:', e.message); _ubiAll = []; }
+  renderUbiList();
+};
+
+window.closeUbi = (ev) => {
+  if (ev && ev.target !== document.getElementById('ubi-overlay')) return;
+  _ubiKillMap();
+  document.getElementById('ubi-overlay').style.display = 'none';
+};
+
+window.renderUbiList = () => {
+  _ubiKillMap();
+  const raw = String((document.getElementById('ubi-search')||{}).value || '');
+  const q = geoNorm(raw), qd = raw.replace(/\D/g,'');
+  const list = _ubiAll.filter(c => {
+    if (!q && !qd) return true;
+    const nom = geoNorm(c.cliente);
+    const tel = String(c.telefono||'').replace(/\D/g,'') + ' ' + c.id;
+    return (q && nom.includes(q)) || (qd && tel.includes(qd));
+  });
+  const body = document.getElementById('ubi-body');
+  if (!_ubiAll.length){ body.innerHTML = '<div style="text-align:center;color:var(--muted);padding:1.2rem">Aún no hay ubicaciones guardadas.</div>'; return; }
+  if (!list.length){ body.innerHTML = '<div style="text-align:center;color:var(--muted);padding:1.2rem">Sin coincidencias.</div>'; return; }
+  body.innerHTML = list.map(c => {
+    const src = c.source==='manual'?'ajustada':c.source==='gpsFin'?'GPS entrega':(c.source||'');
+    const n = (c.history||[]).length;
+    return `<div onclick="ubiDetail('${c.id}')" style="padding:10px 11px;border:1px solid var(--border);border-radius:9px;margin-bottom:7px;cursor:pointer;background:var(--surface2)">
+      <div style="display:flex;justify-content:space-between;gap:8px">
+        <div style="font-weight:700;font-size:.76rem;color:var(--text)">${escHtml(c.cliente||'—')}</div>
+        <div style="font-size:.62rem;color:var(--muted)">${escHtml(src)}</div>
+      </div>
+      <div style="font-size:.66rem;color:var(--text2);margin-top:2px">📞 ${escHtml(String(c.telefono||c.id))} · ${escHtml(String(c.municipio||''))}</div>
+      <div style="font-size:.6rem;color:var(--muted);margin-top:2px">${c.deliveriesCount||0} entregas · ${n} en historial</div>
+    </div>`;
+  }).join('');
+};
+
+window.ubiDetail = (id) => {
+  _ubiKillMap();
+  const c = _ubiAll.find(x => x.id === id); if (!c) return;
+  const hasLL = (typeof c.lat === 'number' && typeof c.lng === 'number');
+  const gmaps = hasLL ? `https://www.google.com/maps/search/?api=1&query=${c.lat},${c.lng}` : '';
+  const waze  = hasLL ? `https://waze.com/ul?ll=${c.lat},${c.lng}&navigate=yes` : '';
+  const hist = (c.history||[]).map((h,i)=>{
+    const t = h.ts ? new Date(h.ts).toLocaleDateString('es-SV') : '';
+    const s = h.source==='manual'?'ajuste':h.source==='gpsFin'?'GPS':(h.source||'');
+    return `<div style="font-size:.6rem;color:var(--muted);padding:2px 0">${i===0?'▸ ':'· '}${s} · ${t} · ${String(h.lat).slice(0,9)}, ${String(h.lng).slice(0,9)}</div>`;
+  }).join('') || '<div style="font-size:.6rem;color:var(--muted)">Sin historial</div>';
+  const btn = 'flex:1;text-align:center;font-size:.62rem;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);text-decoration:none;font-family:inherit;cursor:pointer';
+  document.getElementById('ubi-body').innerHTML = `
+    <button onclick="renderUbiList()" style="background:none;border:none;color:var(--brand);font-size:.68rem;cursor:pointer;padding:2px 0;margin-bottom:6px">← Volver a la lista</button>
+    <div style="font-weight:700;font-size:.8rem;color:var(--text)">${escHtml(c.cliente||'—')}</div>
+    <div style="font-size:.66rem;color:var(--text2);margin:2px 0 8px">📞 ${escHtml(String(c.telefono||c.id))} · ${escHtml(String(c.municipio||''))} · ${c.deliveriesCount||0} entregas</div>
+    ${hasLL ? `<div id="ubi-map" style="height:220px;border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:8px"></div>
+    <div style="display:flex;gap:6px;margin-bottom:6px">
+      <a style="${btn}" href="${escAttr(gmaps)}" target="_blank" rel="noopener">📍 Maps</a>
+      <a style="${btn}" href="${escAttr(waze)}" target="_blank" rel="noopener">🧭 Waze</a>
+      <button style="${btn};background:#1e7d46;color:#fff;border-color:#1e7d46;font-weight:700" onclick="ubiSavePin('${c.id}')">✓ Guardar ajuste</button>
+    </div>` : '<div style="font-size:.66rem;color:var(--muted);margin-bottom:8px">Sin coordenada guardada.</div>'}
+    <div style="font-size:.58rem;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;margin:6px 0 3px">Historial</div>
+    ${hist}
+    <div style="display:flex;gap:6px;margin-top:10px">
+      <button style="${btn}" onclick="ubiClearHist('${c.id}')">🧹 Limpiar historial</button>
+      <button style="${btn};color:var(--err-tx);border-color:var(--err-bd)" onclick="ubiDelete('${c.id}')">🗑 Eliminar</button>
+    </div>`;
+  if (hasLL) setTimeout(()=>{ try {
+    const el = document.getElementById('ubi-map');
+    _ubiMap = L.map(el).setView([c.lat, c.lng], 15);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(_ubiMap);
+    _ubiMk = L.marker([c.lat, c.lng], { draggable:true }).addTo(_ubiMap);
+    (c.history||[]).slice(1).forEach(h=>{ if(typeof h.lat==='number'&&typeof h.lng==='number') L.circleMarker([h.lat,h.lng],{radius:4,color:'#c8922a',weight:1,fillOpacity:.5}).addTo(_ubiMap); });
+    _ubiMap.invalidateSize();
+  } catch(e){ console.warn('ubi map:', e.message); } }, 60);
+};
+
+window.ubiSavePin = async (id) => {
+  if (!_ubiMk || !db) return;
+  const p = _ubiMk.getLatLng();
+  const lat = +p.lat.toFixed(6), lng = +p.lng.toFixed(6);
+  const c = _ubiAll.find(x => x.id === id) || {};
+  try {
+    const now = Date.now();
+    const entry = { lat, lng, source:'manual', ts: now, municipio: c.municipio||'' };
+    const history = [entry, ...((c.history)||[]).slice(0,4)];
+    await fbMod.setDoc(fbMod.doc(db, 'client_locations', id), { lat, lng, source:'manual', updatedAt: now, history }, { merge:true });
+    Object.assign(c, { lat, lng, source:'manual', updatedAt: now, history });
+    ubiDetail(id);
+  } catch(e){ alert('No se pudo guardar: ' + e.message); }
+};
+
+window.ubiClearHist = async (id) => {
+  if (!db) return;
+  if (!confirm('¿Vaciar el historial? Se conserva la ubicación actual.')) return;
+  const c = _ubiAll.find(x => x.id === id) || {};
+  try {
+    const keep = (typeof c.lat==='number') ? [{ lat:c.lat, lng:c.lng, source:c.source||'manual', ts:Date.now(), municipio:c.municipio||'' }] : [];
+    await fbMod.updateDoc(fbMod.doc(db, 'client_locations', id), { history: keep });
+    c.history = keep; ubiDetail(id);
+  } catch(e){ alert('No se pudo limpiar: ' + e.message); }
+};
+
+window.ubiDelete = async (id) => {
+  if (!db) return;
+  if (!confirm('¿Eliminar la ubicación guardada de este cliente? El sistema la volverá a aprender con la próxima entrega.')) return;
+  try {
+    await fbMod.deleteDoc(fbMod.doc(db, 'client_locations', id));
+    _ubiAll = _ubiAll.filter(x => x.id !== id);
+    _ubiKillMap();
+    renderUbiList();
+  } catch(e){ alert('No se pudo eliminar: ' + e.message); }
+};
 
 function buildDomCard(d, STATUS_LABEL, prefix) {
   const st    = d.status || 'pendiente';
@@ -4877,5 +5003,18 @@ document.addEventListener('DOMContentLoaded', init);
   </div>
 </div>
 
+<div id="ubi-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;align-items:center;justify-content:center;padding:14px" onclick="closeUbi(event)">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;width:min(640px,94vw);max-height:90vh;display:flex;flex-direction:column;overflow:hidden">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--border2)">
+      <div style="font-weight:700;font-size:.85rem;color:var(--text)">📍 Ubicaciones guardadas</div>
+      <button onclick="closeUbi()" style="background:none;border:none;color:var(--muted);font-size:1.1rem;cursor:pointer">✕</button>
+    </div>
+    <div style="padding:10px 14px;border-bottom:1px solid var(--border2)">
+      <input id="ubi-search" type="text" inputmode="tel" placeholder="Buscar por teléfono o nombre…" oninput="renderUbiList()"
+        style="width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);font-family:inherit;font-size:.78rem;outline:none"/>
+    </div>
+    <div id="ubi-body" style="overflow:auto;padding:8px 10px;flex:1"></div>
+  </div>
+</div>
 </body>
 </html>
