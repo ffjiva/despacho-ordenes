@@ -2652,13 +2652,31 @@ window.confirmImport = async () => {
   const now = Date.now();
 
   try {
+    // Fase 4b: precargar ubicaciones guardadas por teléfono (libreta)
+    const _libMap = {};
+    try {
+      const _keys = [...new Set(pendingDomicilios.map(x => phoneKey(x.telefono)).filter(Boolean))];
+      const _snaps = await Promise.all(_keys.map(k => fbMod.getDoc(fbMod.doc(db, 'client_locations', k))));
+      _snaps.forEach((s, i2) => { if (s.exists()) _libMap[_keys[i2]] = s.data(); });
+    } catch(e) { console.warn('precarga libreta:', e.message); }
+
     const BATCH_SIZE = 499;
     for (let i = 0; i < pendingDomicilios.length; i += BATCH_SIZE) {
       const chunk = pendingDomicilios.slice(i, i + BATCH_SIZE);
       const batch = fbMod.writeBatch(db);
       chunk.forEach(d => {
         const ref = fbMod.doc(fbMod.collection(db, 'domicilios'));
-        const _geo = geocodeDom(d);
+        let _geo = geocodeDom(d);
+        let _geoVerify = false;
+        const _lib = _libMap[phoneKey(d.telefono)];
+        if (_lib && _lib.lat != null) {
+          const _mNew = geoNorm(d.municipio), _mOld = geoNorm(_lib.municipio);
+          if (!_mOld || _mNew === _mOld) {
+            _geo = { lat: _lib.lat, lng: _lib.lng, source: 'historial', muni: _mNew };
+          } else {
+            _geoVerify = true; // guardada en otro municipio → se deja el centroide y se marca
+          }
+        }
         batch.set(ref, {
           type: 'domicilio',
           date: importDate,
@@ -2675,6 +2693,7 @@ window.confirmImport = async () => {
           geoSource: _geo.source,
           geoMunicipio: _geo.muni,
           geoTs: _geo.lat != null ? now : null,
+          geoVerify: _geoVerify,
           empresaEnvio: d.empresaEnvio || 'Delivery Quiky',
           assignedTo:     motorista,
           assignedToName: motoristaNombre,
@@ -2849,7 +2868,7 @@ function buildDomCard(d, STATUS_LABEL, prefix) {
   const _btnGeo = 'flex:1;text-align:center;font-size:.62rem;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);text-decoration:none;font-family:inherit;cursor:pointer';
   const geoHtml = `
     <div style="padding:6px 12px 8px">
-      <div style="font-size:.55rem;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;margin-bottom:5px">🗺️ Ubicación · ${_geoTag}</div>
+      <div style="font-size:.55rem;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;margin-bottom:5px">🗺️ Ubicación · ${_geoTag}${d.geoVerify ? ' · 🔎 VERIFICAR' : ''}</div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">
         ${_gmaps ? `<a style="${_btnGeo}" href="${escAttr(_gmaps)}" target="_blank" rel="noopener">📍 Google Maps</a>` : ''}
         ${_waze  ? `<a style="${_btnGeo}" href="${escAttr(_waze)}" target="_blank" rel="noopener">🧭 Waze</a>` : ''}
