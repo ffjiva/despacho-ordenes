@@ -353,7 +353,7 @@ const FIREBASE_CFG = {
 const THEME_KEY       = 'moto_theme_v1';
 const COLLECTION      = 'vueltas';
 const WHATSAPP_GROUP  = '50377081881';
-const APP_VERSION     = '2026-09-15.1';   // subir en CADA deploy de moto.html + publicar en config/version.moto
+const APP_VERSION     = '2026-09-17.1';   // subir en CADA deploy de moto.html + publicar en config/version.moto
 let _versionCheckStarted = false;
 
 let db = null, fbMod = null, authMod = null, auth = null;
@@ -719,18 +719,25 @@ function initVersionCheck() {
 }
 function showUpdateBanner() {
   if ($('update-banner')) return;
+  let _updN = 20;
+  const _doReload = () => location.replace(location.pathname + '?v=' + Date.now());
   const bar = document.createElement('div');
   bar.id = 'update-banner';
   bar.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:9999;'
     + 'background:var(--warn-bg);color:var(--warn-tx);border-top:1px solid var(--warn-bd);'
     + 'padding:10px 14px;display:flex;align-items:center;justify-content:center;gap:12px;'
     + 'font-family:var(--mono);font-size:.72rem;font-weight:700';
-  bar.innerHTML = '🔄 Hay una actualización.'
-    + ' <button onclick="location.replace(location.pathname + \'?v=\' + Date.now())"'
-    + ' style="padding:4px 12px;font-family:var(--mono);font-size:.7rem;font-weight:700;'
-    + 'border:1px solid var(--warn-bd);border-radius:5px;background:transparent;'
-    + 'color:var(--warn-tx);cursor:pointer">Recargar</button>';
+  bar.innerHTML = '🔄 Actualización disponible. Recargando en <b id="upd-n">' + _updN + '</b>s…'
+    + ' <button id="upd-now" style="padding:4px 12px;font-family:var(--mono);font-size:.7rem;'
+    + 'font-weight:700;border:1px solid var(--warn-bd);border-radius:5px;background:transparent;'
+    + 'color:var(--warn-tx);cursor:pointer">Recargar ya</button>';
   document.body.appendChild(bar);
+  $('upd-now').addEventListener('click', _doReload);
+  const _updT = setInterval(() => {
+    _updN--;
+    const s = $('upd-n'); if (s) s.textContent = _updN;
+    if (_updN <= 0) { clearInterval(_updT); _doReload(); }
+  }, 1000);
 }
 
 // Chip de diagnóstico: qué build corre este teléfono y si la caché offline quedó activa.
