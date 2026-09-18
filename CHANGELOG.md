@@ -13,6 +13,41 @@
 
 ## Sesiones y módulos
 
+### Sesión ops.html + moto.html — Libreta de ubicaciones por cliente (Fase 4a) + guardia de municipio al importar (Fase 4b) — 17 Sep 2026 *(moto.html, ops.html, firestore.rules)*
+
+Continúa el trabajo de geolocalización aproximada de domicilios (Fases 1-3, mismo día, ver
+entrada siguiente): en vez de recalcular siempre el centroide de municipio/departamento en
+cada importación, ahora se acumula y reutiliza la ubicación real que ya se capturó de un
+cliente en una entrega anterior.
+
+**Fase 4a — captura (aditivo, sin cambios visibles)**
+Nueva colección `client_locations/{phone}` (doc id = últimos 8 dígitos del teléfono,
+`phoneKey()`). Cada vez que un motorista da "Acabé" con GPS (`gpsFin`) o alguien ajusta el
+pin a mano (`saveDomPin`), se guarda/mergea el punto en la libreta: `lat`/`lng`, `source`
+('gpsFin'|'manual'), `municipio`, `departamento`, `direccion`, `updatedAt`,
+`deliveriesCount` (solo suma en gpsFin) e `history` (últimas 5 entradas). Un ajuste manual
+nunca se pisa por un gpsFin posterior. Implementado en `moto.html` y `ops.html` (helper
+`saveClientLocation`/`phoneKey` duplicado en ambos, mismo patrón que `geocodeDom`).
+`firestore.rules`: `client_locations/{phone}` abierta a cualquier autenticado (lectura y
+escritura).
+
+**Fix — libreta no dependía de caché (ops.html)**
+El pin manual en la vista "Todas" de Entregas leía el domicilio de `cachedEntregasList`,
+que esa vista no puebla — `saveClientLocation` nunca se disparaba. Ahora `saveDomPin` lee
+el documento directo de `domicilios/{id}` tras el `updateDoc`.
+
+**Fase 4b — prefijar ubicación al importar + guardia de municipio (ops.html)**
+Al importar el XLS de domicilios (`confirmImport`), se precarga la libreta por teléfono
+antes del batch. Si el cliente ya tiene una ubicación guardada y el municipio coincide, el
+domicilio nuevo nace con esa coordenada real (`geoSource:'historial'`) en vez del
+centroide. Si el municipio no coincide, se deja el centroide y se marca `geoVerify:true` —
+badge "🔎 VERIFICAR" junto al bloque "🗺️ Ubicación" en la tarjeta, para revisión manual en
+vez de confiar ciegamente en una ubicación vieja.
+
+Validado por Fernando: reimport con teléfono/municipio coincidente cae en 'historial' con
+las coords correctas; reimport con municipio distinto marca `geoVerify` y el badge aparece.
+Consola sin errores. Commits `0c76ba9`, `c4d43d6`, `338850a`.
+
 ### Sesión ops.html + moto.html — Geolocalización aproximada de domicilios (Fases 1-3) — 17 Sep 2026 *(ops.html, moto.html)*
 
 Resuelve el pendiente "Geocodificar dirección del XLS de envíos → ubicación en la ficha de

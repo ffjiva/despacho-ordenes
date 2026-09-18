@@ -151,14 +151,33 @@ formaPago, direccion, puntoReferencia, departamento, municipio
 empresaEnvio, assignedTo, status, motivoNoEntrega
 fechaReagenda, photos, gpsInicio, gpsFin
 createdAt, completadoAt: number
-geoLat, geoLng: number | null    ← coordenada aproximada (centroide de municipio/departamento)
-                                    o corregida a mano por el motorista/super
-geoSource: 'municipio' | 'departamento' | 'manual' | null
+geoLat, geoLng: number | null    ← coordenada aproximada (centroide de municipio/departamento),
+                                    corregida a mano por el motorista/super, o reutilizada de
+                                    client_locations si el cliente ya tenía una ubicación real
+geoSource: 'municipio' | 'departamento' | 'manual' | 'historial' | null
 geoMunicipio: string              ← municipio normalizado usado para el match
 geoTs: number | null              ← timestamp del cálculo o del último ajuste manual
+geoVerify: boolean                ← true si al importar la libreta tenía una ubicación guardada
+                                    pero en OTRO municipio (se deja el centroide, no la coord
+                                    vieja) — badge "🔎 VERIFICAR" en la tarjeta, revisar a mano
 ← calculados por `geocodeDom()` (ops.html, moto.html) al importar el XLS o al vuelo si
   el doc no los trae; el pin es arrastrable en moto.html/ops.html y el ajuste manual
-  pisa geoSource a 'manual' (17 Sep 2026, ver CHANGELOG)
+  pisa geoSource a 'manual' (17 Sep 2026, ver CHANGELOG). Al importar, `confirmImport`
+  (ops.html) prioriza la ubicación guardada en `client_locations` sobre el centroide si el
+  municipio coincide (geoSource:'historial') (Fase 4b, 17 Sep 2026, ver CHANGELOG)
+client_locations/{phone}
+telefono, cliente: string
+lat, lng: number              ← última ubicación conocida del cliente
+source: 'manual' | 'gpsFin'   ← manual (pin ajustado) nunca se pisa por un gpsFin posterior
+municipio, departamento, direccion: string
+updatedAt: number
+deliveriesCount: number        ← solo suma en gpsFin (entregas completadas con GPS)
+history: [{ lat, lng, source, ts, municipio }]   ← últimas 5 entradas
+← doc id = últimos 8 dígitos del teléfono (`phoneKey()`). Libreta de ubicaciones por cliente:
+  se alimenta de cada gpsFin/ajuste manual en domicilios (moto.html, ops.html) y se reutiliza
+  al importar el próximo XLS para prefijar geoLat/geoLng con la coordenada real en vez del
+  centroide (Fase 4a captura + Fase 4b prefijo/guardia de municipio, 17 Sep 2026, ver
+  CHANGELOG). Cualquier autenticado lee/escribe (firestore.rules).
 reposiciones/{id}
 fecha, timestamp, origen, destino
 productos: [{ codigo, nombre, cantidad }]
@@ -343,6 +362,14 @@ de centroides por municipio/departamento, sin Google Geocoding de paga). Cerrado
 en canal preview por Fernando con entregas y pines reales, desplegado a producción y movido
 al CHANGELOG (17 Sep 2026).*
 
+*Sesión ad-hoc adicional: libreta de ubicaciones por cliente (Fase 4a — captura por
+teléfono en `client_locations` desde gpsFin/pin manual, moto.html y ops.html) + fix de la
+captura en ops.html (leer el domicilio directo de Firestore en vez de `cachedEntregasList`,
+que la vista "Todas" no puebla) + Fase 4b (prefijar geoLat/geoLng con la ubicación guardada
+al importar el XLS si el municipio coincide, con guardia `geoVerify` + badge "🔎 VERIFICAR"
+si no coincide) — cerrados, validados por Fernando en producción y movidos al CHANGELOG
+(17 Sep 2026).*
+
 ---
 
 ## 🔲 Pendientes (por impacto operativo)
@@ -520,6 +547,6 @@ hacia el CHANGELOG.
 
 ---
 
-*Última actualización: 17 Septiembre 2026 — geolocalización aproximada de domicilios
-(ops.html + moto.html: Fases 1-3, parche Maps/Waze y fix de mapa en negro), cerrada y movida
-al CHANGELOG. Sin frente activo definido.*
+*Última actualización: 17 Septiembre 2026 — libreta de ubicaciones por cliente
+(client_locations, Fase 4a) + prefijo de ubicación real al importar con guardia de
+municipio (Fase 4b), cerradas y movidas al CHANGELOG. Sin frente activo definido.*
