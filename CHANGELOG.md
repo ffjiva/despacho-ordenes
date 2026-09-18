@@ -13,6 +13,17 @@
 
 ## Sesiones y módulos
 
+### Fix ad-hoc — Cache-Control no-cache en HTML + auto-recarga del banner de versión — 18 Sep 2026 *(firebase.json, index.html, moto.html)*
+
+Firebase Hosting cacheaba `index.html`/`moto.html` (y el service worker de FCM) sin
+revalidar, causando que un deploy quedara "invisible" para sesiones con el build viejo en
+caché hasta un refresh forzado. Se agregó `Cache-Control: no-cache, max-age=0,
+must-revalidate` a `**/*.html` y `/firebase-messaging-sw.js` en `firebase.json`. El banner
+de actualización (`showUpdateBanner`) ahora hace countdown de 20s con recarga automática
+(antes esperaba el click manual en "Recargar"). `APP_VERSION` subido a `2026-09-17.1` en
+ambos archivos. Verificado en producción con `curl -sI`
+(`cache-control: no-cache, max-age=0, must-revalidate` confirmado). Commit `5186df3`.
+
 ### Sesión ops.html — Panel de ubicaciones guardadas (Fase 4c) — 18 Sep 2026 *(ops.html)*
 
 Cierra el ciclo de la libreta de ubicaciones por cliente (Fases 4a/4b, 17 Sep 2026): agrega

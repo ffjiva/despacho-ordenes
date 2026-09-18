@@ -376,6 +376,11 @@ eliminar sobre `client_locations`) — cierra el ciclo de la libreta de ubicacio
 cliente (Fases 4a/4b, 17 Sep 2026). Cerrado, desplegado a producción y movido al CHANGELOG
 (18 Sep 2026).*
 
+*Sesión ad-hoc adicional: Cache-Control no-cache en `**/*.html` + `/firebase-messaging-sw.js`
+(firebase.json) y banner de actualización con auto-recarga a 20s (index.html, moto.html) —
+corrige el bug de deploys "invisibles" por caché de Firebase Hosting. Verificado en
+producción con curl, desplegado y movido al CHANGELOG (18 Sep 2026).*
+
 ---
 
 ## 🔲 Pendientes (por impacto operativo)
@@ -553,6 +558,6 @@ hacia el CHANGELOG.
 
 ---
 
-*Última actualización: 18 Septiembre 2026 — panel de ubicaciones guardadas (Fase 4c),
-cierra el ciclo de la libreta de ubicaciones por cliente iniciado con las Fases 4a/4b,
-cerrada y movida al CHANGELOG. Sin frente activo definido.*
+*Última actualización: 18 Septiembre 2026 — Cache-Control no-cache en HTML + auto-recarga
+del banner de versión (corrige deploys "invisibles" por caché de Firebase Hosting), cerrada
+y movida al CHANGELOG. Sin frente activo definido.*
