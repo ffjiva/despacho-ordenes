@@ -13,6 +13,21 @@
 
 ## Sesiones y módulos
 
+### Sesión ops.html — Panel de ubicaciones guardadas (Fase 4c) — 18 Sep 2026 *(ops.html)*
+
+Cierra el ciclo de la libreta de ubicaciones por cliente (Fases 4a/4b, 17 Sep 2026): agrega
+la vista de administración que faltaba. Botón "📍 Ubicaciones" en Entregas abre un modal con
+lista + buscador (por teléfono o nombre, normalizado con `geoNorm`) sobre todos los
+documentos de `client_locations`. Al tocar un cliente se abre su detalle: mapa Leaflet con
+el pin actual (arrastrable) + puntos del historial superpuestos, enlaces directos a
+Maps/Waze, y tres acciones — guardar el pin ajustado (`ubiSavePin`, marca `source:'manual'`),
+limpiar el historial conservando la ubicación vigente (`ubiClearHist`), y eliminar el
+documento completo (`ubiDelete`, con confirmación — el sistema lo vuelve a aprender con la
+próxima entrega).
+
+Sin cambios de esquema: reutiliza los campos ya definidos de `client_locations` (Fase 4a).
+Validado en producción. Commit `aba16a0`.
+
 ### Sesión ops.html + moto.html — Libreta de ubicaciones por cliente (Fase 4a) + guardia de municipio al importar (Fase 4b) — 17 Sep 2026 *(moto.html, ops.html, firestore.rules)*
 
 Continúa el trabajo de geolocalización aproximada de domicilios (Fases 1-3, mismo día, ver

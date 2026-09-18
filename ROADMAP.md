@@ -370,6 +370,12 @@ al importar el XLS si el municipio coincide, con guardia `geoVerify` + badge "�
 si no coincide) — cerrados, validados por Fernando en producción y movidos al CHANGELOG
 (17 Sep 2026).*
 
+*Sesión ad-hoc adicional: panel de ubicaciones guardadas (Fase 4c — modal en ops.html con
+lista+buscador, mapa Leaflet por cliente y acciones ajustar/guardar, limpiar historial y
+eliminar sobre `client_locations`) — cierra el ciclo de la libreta de ubicaciones por
+cliente (Fases 4a/4b, 17 Sep 2026). Cerrado, desplegado a producción y movido al CHANGELOG
+(18 Sep 2026).*
+
 ---
 
 ## 🔲 Pendientes (por impacto operativo)
@@ -547,6 +553,6 @@ hacia el CHANGELOG.
 
 ---
 
-*Última actualización: 17 Septiembre 2026 — libreta de ubicaciones por cliente
-(client_locations, Fase 4a) + prefijo de ubicación real al importar con guardia de
-municipio (Fase 4b), cerradas y movidas al CHANGELOG. Sin frente activo definido.*
+*Última actualización: 18 Septiembre 2026 — panel de ubicaciones guardadas (Fase 4c),
+cierra el ciclo de la libreta de ubicaciones por cliente iniciado con las Fases 4a/4b,
+cerrada y movida al CHANGELOG. Sin frente activo definido.*
